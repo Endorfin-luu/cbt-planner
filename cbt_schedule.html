@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CBT対策ロードマップ 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0c10;
+  --surface: #13141a;
+  --surface2: #1c1d26;
+  --border: #252636;
+  --blue: #4a9eff;
+  --green: #3dd68c;
+  --orange: #ff8c42;
+  --red: #ff4d6d;
+  --yellow: #ffd166;
+  --purple: #c084fc;
+  --gray: #6b7280;
+  --text: #e8e9f0;
+  --text-dim: #7b7d8e;
+  --cbt: #ff4d6d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  min-height: 100vh;
+  padding: 32px 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* Header */
+.page-header {
+  margin-bottom: 36px;
+}
+.page-header h1 {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.page-header h1 span { color: var(--cbt); }
+.page-header .sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+.countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,77,109,0.1);
+  border: 1px solid rgba(255,77,109,0.3);
+  border-radius: 6px;
+  padding: 6px 14px;
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cbt);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.legend-dot {
+  width: 10px; height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* Phase banner */
+.phase-strip {
+  display: flex;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 28px;
+  height: 48px;
+  border: 1px solid var(--border);
+}
+.phase-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  flex-direction: column;
+  gap: 1px;
+  cursor: pointer;
+  transition: filter 0.15s;
+  padding: 0 4px;
+}
+.phase-block:hover { filter: brightness(1.2); }
+.phase-block .phase-label { font-size: 11px; font-weight: 700; }
+.phase-block .phase-dates { font-size: 9px; opacity: 0.7; font-family: 'JetBrains Mono', monospace; }
+
+/* Month timeline */
+.timeline {
+  position: relative;
+  margin-bottom: 32px;
+}
+.month-row {
+  display: flex;
+  margin-bottom: 4px;
+  align-items: stretch;
+  min-height: 32px;
+}
+.month-label {
+  width: 64px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+}
+.month-content {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+}
+
+/* Event pills */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+  transition: transform 0.1s;
+  border: 1px solid transparent;
+}
+.pill:hover { transform: scale(1.04); }
+.pill.exam {
+  background: rgba(61,214,140,0.12);
+  border-color: rgba(61,214,140,0.35);
+  color: var(--green);
+}
+.pill.class {
+  background: rgba(74,158,255,0.1);
+  border-color: rgba(74,158,255,0.3);
+  color: var(--blue);
+}
+.pill.cbt-task {
+  background: rgba(255,77,109,0.1);
+  border-color: rgba(255,77,109,0.3);
+  color: var(--cbt);
+}
+.pill.internship {
+  background: rgba(255,140,66,0.1);
+  border-color: rgba(255,140,66,0.3);
+  color: var(--orange);
+}
+.pill.milestone {
+  background: rgba(255,209,102,0.15);
+  border-color: rgba(255,209,102,0.5);
+  color: var(--yellow);
+  font-weight: 700;
+}
+.pill.summer {
+  background: rgba(192,132,252,0.1);
+  border-color: rgba(192,132,252,0.3);
+  color: var(--purple);
+}
+
+/* Phase cards */
+.phases-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+@media (max-width: 600px) { .phases-grid { grid-template-columns: 1fr; } }
+.phase-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  transition: border-color 0.2s;
+}
+.phase-card:hover { border-color: var(--blue); }
+.phase-card .phase-num {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.phase-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.phase-card .dates {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 12px;
+}
+.phase-card ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.phase-card ul li {
+  font-size: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.phase-card ul li::before {
+  content: '▸';
+  color: var(--blue);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.phase-card .daily-target {
+  margin-top: 12px;
+  background: var(--surface2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.phase-card .daily-target span { font-family: 'JetBrains Mono', monospace; color: var(--yellow); }
+
+/* Weekly rhythm */
+.week-rhythm {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 32px;
+}
+.week-rhythm h2 { font-size: 15px; font-weight: 700; margin-bottom: 16px; }
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.day-col { display: flex; flex-direction: column; gap: 4px; }
+.day-name {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-dim);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.day-name.sat { color: var(--blue); }
+.day-name.sun { color: var(--cbt); }
+.day-block {
+  background: var(--surface2);
+  border-radius: 4px;
+  padding: 5px 6px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  min-height: 32px;
+}
+.day-block.cbt-block {
+  background: rgba(255,77,109,0.1);
+  border: 1px solid rgba(255,77,109,0.25);
+  color: var(--cbt);
+  font-weight: 600;
+}
+.day-block.exam-block {
+  background: rgba(61,214,140,0.08);
+  border: 1px solid rgba(61,214,140,0.2);
+  color: var(--green);
+}
+.day-block.fixed {
+  background: rgba(74,158,255,0.07);
+  border: 1px solid rgba(74,158,255,0.15);
+  color: #7abaff;
+}
+.day-block.internship {
+  background: rgba(255,140,66,0.08);
+  border: 1px solid rgba(255,140,66,0.2);
+  color: var(--orange);
+}
+.day-block.free {
+  background: rgba(192,132,252,0.07);
+  border: 1px solid rgba(192,132,252,0.2);
+  color: var(--purple);
+}
+
+/* Tips */
+.tips-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.tips-section h2 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+.tip-list { display: flex; flex-direction: column; gap: 10px; }
+.tip-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border-radius: 8px;
+}
+.tip-icon { font-size: 18px; flex-shrink: 0; }
+.tip-body h4 { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+.tip-body p { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+
+/* Progress tracker */
+.progress-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+.progress-section h2 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+.qb-tracker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.qb-stat {
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  text-align: center;
+}
+.qb-stat .val {
+  font-size: 24px;
+  font-weight: 900;
+  font-family: 'JetBrains Mono', monospace;
+}
+.qb-stat .label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.progress-bar-wrap { margin-top: 14px; }
+.progress-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.progress-bar-bg {
+  height: 8px;
+  background: var(--surface2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--cbt), var(--yellow));
+  transition: width 1s ease;
+}
+
+/* QB counter (interactive) */
+.qb-counter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.qb-counter label { font-size: 13px; flex: 1; }
+.qb-input {
+  width: 70px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  text-align: center;
+  outline: none;
+}
+.qb-input:focus { border-color: var(--blue); }
+.update-btn {
+  padding: 7px 14px;
+  border-radius: 6px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.update-btn:hover { opacity: 0.85; }
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 24px 0;
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>CBT対策 <span>ロードマップ</span> 2026</h1>
+  <div class="sub">医学部M2 | Medilink QB + モントレ | 今日: 2026-05-31</div>
+  <div class="countdown" id="countdown">🎯 CBT本試験まで 159 日</div>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>大学試験</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>授業・実習</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>インターン・研究室</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--cbt)"></div>CBT関連</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>マイルストーン</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>夏休み・長期</div>
+</div>
+
+<!-- Phase strip -->
+<div class="phase-strip">
+  <div class="phase-block" style="flex:2;background:rgba(74,158,255,0.15);color:var(--blue)">
+    <div class="phase-label">Phase 1</div>
+    <div class="phase-dates">6/1〜7/10</div>
+  </div>
+  <div class="phase-block" style="flex:2.5;background:rgba(192,132,252,0.15);color:var(--purple)">
+    <div class="phase-label">Phase 2 夏集中</div>
+    <div class="phase-dates">7/11〜8/31</div>
+  </div>
+  <div class="phase-block" style="flex:3;background:rgba(255,140,66,0.12);color:var(--orange)">
+    <div class="phase-label">Phase 3 実習並走</div>
+    <div class="phase-dates">9/1〜10/31</div>
+  </div>
+  <div class="phase-block" style="flex:0.5;background:rgba(255,77,109,0.2);color:var(--cbt)">
+    <div class="phase-label">直前</div>
+    <div class="phase-dates">11/1〜5</div>
+  </div>
+  <div class="phase-block" style="flex:0.4;background:rgba(255,209,102,0.2);color:var(--yellow)">
+    <div class="phase-label">★CBT</div>
+    <div class="phase-dates">11/6</div>
+  </div>
+</div>
+
+<!-- Month timeline -->
+<div class="timeline">
+
+  <div class="month-row">
+    <div class="month-label">6月</div>
+    <div class="month-content">
+      <span class="pill class">📚 病理・病理実習（毎週）</span>
+      <span class="pill class">📚 医学英語（毎週木）</span>
+      <span class="pill internship">🔄 TXP進捗報告（毎週月）</span>
+      <span class="pill exam">🟢 6/1 感染症・心療内科試験</span>
+      <span class="pill exam">🟢 6/8 糖代謝・血液内科試験</span>
+      <span class="pill exam">🟢 6/15 神経内科・老年病科試験</span>
+      <span class="pill exam">🟢 6/22 法医学・臨床研究試験</span>
+      <span class="pill exam">🟢 6/26 外科3・救急試験</span>
+      <span class="pill exam">🟢 6/29 外科1・2試験</span>
+      <span class="pill cbt-task">🔴 QB 毎日10問（試験科目優先）</span>
+    </div>
+  </div>
+
+  <div class="month-row">
+    <div class="month-label">7月</div>
+    <div class="month-content">
+      <span class="pill exam">🟢 7/3 検査・整形外科試験</span>
+      <span class="pill exam">🟢 7/6 脳外・心外呼外試験</span>
+      <span class="pill exam">🟢 7/8 基放医試験</span>
+      <span class="pill exam">🟢 7/10 精神科・麻酔科試験</span>
+      <span class="pill cbt-task">🔴 QB 毎日10〜20問</span>
+      <span class="pill summer">🎉 7/11〜 夏休み突入！</span>
+    </div>
+  </div>
+
+  <div class="month-row">
+    <div class="month-label">8月</div>
+    <div class="month-content">
+      <span class="pill summer">☀️ 夏休み集中期</span>
+      <span class="pill summer">🏠 8/13〜16 お盆帰省</span>
+      <span class="pill cbt-task">🔴 QB 毎日30〜50問 ← ★最大のチャンス</span>
+      <span class="pill cbt-task">🔴 モントレ 弱点科目集中</span>
+    </div>
+  </div>
+
+  <div class="month-row">
+    <div class="month-label">9月</div>
+    <div class="month-content">
+      <span class="pill class">📚 臨床導入実習（毎週金）</span>
+      <span class="pill class">📚 病理実習（毎週木）</span>
+      <span class="pill class">📚 病理（毎週火）</span>
+      <span class="pill exam">🟢 9/25 産婦人科・小児科試験</span>
+      <span class="pill internship">🔄 TXP進捗報告 再開</span>
+      <span class="pill cbt-task">🔴 QB 毎日20問　モントレ維持</span>
+    </div>
+  </div>
+
+  <div class="month-row">
+    <div class="month-label">10月</div>
+    <div class="month-content">
+      <span class="pill exam">🟢 10/2 小児外科・形成試験</span>
+      <span class="pill exam">🟢 10/9 口腔外科・耳鼻科試験</span>
+      <span class="pill exam">🟢 10/23 眼科・放射線科試験</span>
+      <span class="pill exam">🟢 10/30 皮膚科・泌尿器科試験</span>
+      <span class="pill cbt-task">🔴 QB 毎日15〜20問（試験週は10問）</span>
+    </div>
+  </div>
+
+  <div class="month-row">
+    <div class="month-label" style="color:var(--cbt)">11月</div>
+    <div class="month-content">
+      <span class="pill cbt-task">🔴 11/1〜5 直前: モントレ弱点のみ</span>
+      <span class="pill milestone">⭐ 11/6 CBT本試験</span>
+      <span class="pill class">📚 11/9〜13 臨床導入実習</span>
+      <span class="pill class">📚 11/17〜19 感染制御実習</span>
+      <span class="pill milestone">⭐ 11/21〜22 OSCE本試験</span>
+      <span class="pill exam">🟢 11/24 リハビリ試験</span>
+      <span class="pill exam">🟢 11/26 病理・公衆衛生試験</span>
+      <span class="pill exam">🟢 11/27 感染制御試験</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="divider"></div>
+
+<!-- Phase cards -->
+<div class="phases-grid">
+
+  <div class="phase-card" style="border-color:rgba(74,158,255,0.3)">
+    <div class="phase-num">PHASE 1</div>
+    <h3 style="color:var(--blue)">授業試験と共存期</h3>
+    <div class="dates">6月1日 → 7月10日（40日）</div>
+    <ul>
+      <li>試験科目のQBを優先的に解く</li>
+      <li>試験前日〜当日は勉強に集中</li>
+      <li>スキマ時間（移動中）で必ずQB</li>
+      <li>モントレは試験後の復習に使う</li>
+    </ul>
+    <div class="daily-target">
+      1日のQB目標 <span>10問 / 日</span>
+    </div>
+  </div>
+
+  <div class="phase-card" style="border-color:rgba(192,132,252,0.3)">
+    <div class="phase-num">PHASE 2 ★最重要</div>
+    <h3 style="color:var(--purple)">夏休み集中期</h3>
+    <div class="dates">7月11日 → 8月31日（52日）</div>
+    <ul>
+      <li>1日30〜50問がリアルな目標</li>
+      <li>午前中にQB、午後にモントレ</li>
+      <li>週1〜2日は休養・インターン</li>
+      <li>この期間で全体の6〜7割を固める</li>
+    </ul>
+    <div class="daily-target">
+      1日のQB目標 <span>30〜50問 / 日</span>
+    </div>
+  </div>
+
+  <div class="phase-card" style="border-color:rgba(255,140,66,0.3)">
+    <div class="phase-num">PHASE 3</div>
+    <h3 style="color:var(--orange)">実習・試験並走期</h3>
+    <div class="dates">9月1日 → 10月31日（61日）</div>
+    <ul>
+      <li>実習が入るので無理しない</li>
+      <li>試験週: QB 10問だけでもOK</li>
+      <li>試験科目とQBを被せる戦略継続</li>
+      <li>0問の日を作らないことが最重要</li>
+    </ul>
+    <div class="daily-target">
+      1日のQB目標 <span>15〜20問 / 日</span>
+    </div>
+  </div>
+
+  <div class="phase-card" style="border-color:rgba(255,77,109,0.4)">
+    <div class="phase-num">PHASE 4</div>
+    <h3 style="color:var(--cbt)">直前仕上げ</h3>
+    <div class="dates">11月1日 → 11月5日（5日間）</div>
+    <ul>
+      <li>新しい問題には手をつけない</li>
+      <li>間違えた問題のみ再確認</li>
+      <li>モントレで弱点科目を流し読み</li>
+      <li>睡眠と体調管理を最優先に</li>
+    </ul>
+    <div class="daily-target">
+      戦略 <span>復習のみ</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- Weekly rhythm -->
+<div class="week-rhythm">
+  <h2>📅 典型的な週のリズム（6月〜7月）</h2>
+  <div class="week-grid">
+    <div class="day-col">
+      <div class="day-name">月</div>
+      <div class="day-block fixed">授業</div>
+      <div class="day-block internship">TXP進捗報告 18:30</div>
+      <div class="day-block cbt-block">QB 10問 夜</div>
+    </div>
+    <div class="day-col">
+      <div class="day-name">火</div>
+      <div class="day-block fixed">授業</div>
+      <div class="day-block fixed">病理</div>
+      <div class="day-block cbt-block">QB 10問 夜</div>
+    </div>
+    <div class="day-col">
+      <div class="day-name">水</div>
+      <div class="day-block fixed">授業</div>
+      <div class="day-block free">空きコマ → QB</div>
+      <div class="day-block cbt-block">QB 10問</div>
+    </div>
+    <div class="day-col">
+      <div class="day-name">木</div>
+      <div class="day-block fixed">病理実習</div>
+      <div class="day-block fixed">医学英語</div>
+      <div class="day-block cbt-block">QB 10問 夜</div>
+    </div>
+    <div class="day-col">
+      <div class="day-name">金</div>
+      <div class="day-block fixed">授業</div>
+      <div class="day-block internship">研究室 or バイト</div>
+      <div class="day-block cbt-block">QB 10問 夜</div>
+    </div>
+    <div class="day-col">
+      <div class="day-name sat">土</div>
+      <div class="day-block internship">カテキョ or インターン</div>
+      <div class="day-block exam-block">試験前: 大学試験勉強</div>
+      <div class="day-block cbt-block">QB 20問</div>
+    </div>
+    <div class="day-col">
+      <div class="day-name sun">日</div>
+      <div class="day-block free">休養 or 自由</div>
+      <div class="day-block cbt-block">QB 20〜30問</div>
+      <div class="day-block free">モントレ 弱点科目</div>
+    </div>
+  </div>
+</div>
+
+<!-- Tips -->
+<div class="tips-section">
+  <h2>💡 忙しい中でCBTを回すコツ</h2>
+  <div class="tip-list">
+    <div class="tip-item">
+      <div class="tip-icon">📱</div>
+      <div class="tip-body">
+        <h4>移動時間はMedilink専用にする</h4>
+        <p>電車・バス・昼休みの10分 → 必ずスマホでQB。1日10問でも6月〜10月で1500問超える。「完璧にやろう」と思うより「0問の日を作らない」が最重要。</p>
+      </div>
+    </div>
+    <div class="tip-item">
+      <div class="tip-icon">🎯</div>
+      <div class="tip-body">
+        <h4>大学試験科目 × CBT QB を被せる</h4>
+        <p>6月は外科・内科系の試験が多い → 同じ科目のQBをやると一石二鳥。試験後に試験科目をモントレで復習するのが最効率。</p>
+      </div>
+    </div>
+    <div class="tip-item">
+      <div class="tip-icon">☀️</div>
+      <div class="tip-body">
+        <h4>夏休みが勝負（7/11〜8/31）</h4>
+        <p>この52日間だけで30問/日やれば1560問。全QB約3500問の半分近く。授業・試験がない期間を最大限に使う。夏にどれだけ積めるかがCBTの合否に直結する。</p>
+      </div>
+    </div>
+    <div class="tip-item">
+      <div class="tip-icon">🧠</div>
+      <div class="tip-body">
+        <h4>モントレは「読む」より「QBの解説で代替」</h4>
+        <p>時間がないならQBの解説をしっかり読むだけでモントレの代わりになる。モントレは苦手科目の整理に使い、得意科目はQBだけでOK。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- QB tracker -->
+<div class="progress-section">
+  <h2>📊 QB消化トラッカー</h2>
+  <div class="qb-tracker">
+    <div class="qb-stat">
+      <div class="val" id="doneQB" style="color:var(--green)">0</div>
+      <div class="label">解いた問題数</div>
+    </div>
+    <div class="qb-stat">
+      <div class="val" style="color:var(--text-dim)">3500</div>
+      <div class="label">QB総問題数（目安）</div>
+    </div>
+    <div class="qb-stat">
+      <div class="val" id="remainQB" style="color:var(--yellow)">3500</div>
+      <div class="label">残り問題数</div>
+    </div>
+  </div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-label">
+      <span>進捗</span>
+      <span id="pctLabel">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progBar" style="width:0%"></div>
+    </div>
+    <div class="progress-bar-label">
+      <span>目標ペース（今日まで）</span>
+      <span id="paceLabel">0問</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="paceBar" style="width:0%;background:linear-gradient(90deg,var(--blue),var(--purple))"></div>
+    </div>
+  </div>
+  <div class="qb-counter">
+    <label>今日までの解いた問題数を入力：</label>
+    <input type="number" class="qb-input" id="qbInput" placeholder="0" min="0" max="3500">
+    <button class="update-btn" onclick="updateQB()">更新</button>
+  </div>
+</div>
+
+<script>
+// Countdown
+const cbt = new Date('2026-11-06');
+const today = new Date('2026-05-31');
+const diff = Math.ceil((cbt - today) / 86400000);
+document.getElementById('countdown').textContent = `🎯 CBT本試験まで ${diff} 日`;
+
+// QB tracker
+const TOTAL = 3500;
+const START = new Date('2026-05-31');
+const END = new Date('2026-11-05');
+const totalDays = Math.ceil((END - START) / 86400000);
+
+// Calculate pace target for today
+const daysPassed = 0; // day 0
+const paceTarget = Math.round((daysPassed / totalDays) * TOTAL);
+document.getElementById('paceLabel').textContent = `${paceTarget}問`;
+document.getElementById('paceBar').style.width = (paceTarget / TOTAL * 100) + '%';
+
+function updateQB() {
+  const val = parseInt(document.getElementById('qbInput').value) || 0;
+  const clamped = Math.min(Math.max(val, 0), TOTAL);
+  document.getElementById('doneQB').textContent = clamped;
+  document.getElementById('remainQB').textContent = TOTAL - clamped;
+  const pct = Math.round(clamped / TOTAL * 100);
+  document.getElementById('pctLabel').textContent = pct + '%';
+  document.getElementById('progBar').style.width = pct + '%';
+  
+  // Save
+  try { localStorage.setItem('cbt_qb_done', clamped); } catch(e) {}
+}
+
+// Load saved
+try {
+  const saved = localStorage.getItem('cbt_qb_done');
+  if (saved) {
+    document.getElementById('qbInput').value = saved;
+    updateQB();
+  }
+} catch(e) {}
+</script>
+</body>
+</html>
