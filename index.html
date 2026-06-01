@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CBT Planner</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
   --bg: #080a0f;
@@ -279,16 +280,29 @@ body::before{
 .today-note{font-size:11px;color:var(--dim);margin-top:6px;}
 
 /* ── STEPPER ── */
-.stepper{display:flex;align-items:center;justify-content:center;gap:16px;margin:14px 0;}
+.stepper{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0;}
 .step-btn{
-  width:48px;height:48px;border-radius:50%;
+  width:44px;height:44px;border-radius:50%;
   background:var(--s2);border:1px solid var(--border);
-  color:var(--text);font-size:22px;font-weight:300;
+  color:var(--text);font-size:18px;font-weight:300;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;transition:all 0.15s;
+  flex-shrink:0;
 }
 .step-btn:active{transform:scale(0.9);background:var(--blue);border-color:var(--blue);}
-.step-val{font-size:40px;font-weight:900;font-family:'JetBrains Mono',monospace;min-width:80px;text-align:center;color:var(--green);}
+.step-btn.small{width:36px;height:36px;font-size:14px;}
+.step-val{
+  font-size:36px;font-weight:900;font-family:'JetBrains Mono',monospace;
+  min-width:70px;text-align:center;color:var(--green);
+  /* Make it directly editable */
+  cursor:text;
+  border-bottom:2px solid transparent;
+  transition:border-color 0.2s;
+}
+.step-val:focus{outline:none;border-bottom:2px solid var(--green);}
+.stepper-labels{display:flex;justify-content:center;gap:8px;margin-top:-8px;margin-bottom:8px;}
+.stepper-labels span{font-size:9px;color:var(--dim);text-align:center;width:44px;}
+.stepper-labels span.small{width:36px;}
 .add-btn{
   width:100%;padding:15px;border-radius:14px;
   background:linear-gradient(135deg,var(--blue),var(--purple));
@@ -302,7 +316,7 @@ body::before{
 /* ── SECTION TITLE ── */
 .sec{font-size:10px;font-weight:700;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;margin:14px 0 8px;}
 
-/* toast */
+/* ── TOAST ── */
 .toast{
   position:fixed;bottom:calc(72px + var(--sab) + 12px);left:50%;transform:translateX(-50%) translateY(20px);
   background:var(--s1);border:1px solid var(--border);border-radius:12px;
@@ -311,6 +325,42 @@ body::before{
   white-space:nowrap;
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── SKELETON ── */
+@keyframes shimmer{
+  0%{background-position:-400px 0;}
+  100%{background-position:400px 0;}
+}
+.sk-block{
+  border-radius:12px;
+  background:linear-gradient(90deg, var(--s2) 25%, var(--s3) 50%, var(--s2) 75%);
+  background-size:800px 100%;
+  animation:shimmer 1.4s ease-in-out infinite;
+}
+.sk-card{
+  border-radius:16px;
+  border:1px solid var(--border);
+  padding:16px;
+  margin-bottom:12px;
+  overflow:hidden;
+}
+.sk-line{height:14px;margin-bottom:10px;border-radius:7px;}
+.sk-line.wide{width:100%;}
+.sk-line.mid{width:70%;}
+.sk-line.short{width:40%;}
+.sk-circle{width:80px;height:80px;border-radius:50%;margin:0 auto 12px;}
+#skeleton{display:none;}
+
+/* ── SYNC INDICATOR ── */
+.sync-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--green);
+  display:inline-block;margin-left:6px;
+  transition:background 0.3s;
+}
+.sync-dot.saving{background:var(--yellow);animation:blink 0.8s ease-in-out infinite;}
+.sync-dot.error{background:var(--red);}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
 </style>
 </head>
 <body>
@@ -322,32 +372,70 @@ body::before{
 <div class="hdr">
   <div class="hdr-top">
     <div>
-      <h1>QB <em>Planner</em></h1>
-      <div class="hdr-sub" id="hdr-sub">739/3,359問 · 正答率~58%</div>
+      <h1>QB <em>Planner</em> <span class="sync-dot" id="syncDot" title="同期状態"></span></h1>
+      <div class="hdr-sub" id="hdr-sub">読み込み中...</div>
     </div>
-    <div class="cbt-pill">🎯 <span id="dLeft">159</span>日</div>
+    <div class="cbt-pill">🎯 <span id="dLeft">—</span>日</div>
   </div>
 </div>
 
 <!-- SCROLL -->
 <div class="scroll" id="scroll">
 
+  <!-- Skeleton (ローディング中に表示) -->
+  <div id="skeleton">
+    <div class="sk-card">
+      <div class="sk-block sk-line wide"></div>
+      <div style="display:flex;justify-content:center;margin:16px 0;">
+        <div class="sk-block sk-circle"></div>
+      </div>
+      <div class="sk-block sk-line mid"></div>
+      <div class="sk-block sk-line short"></div>
+    </div>
+    <div class="sk-card">
+      <div class="sk-block sk-line wide"></div>
+      <div class="sk-block sk-line mid"></div>
+      <div class="sk-block sk-line short" style="margin-bottom:0;height:40px;border-radius:12px;"></div>
+    </div>
+    <div class="sk-card">
+      <div class="sk-block sk-line short"></div>
+      <div style="display:flex;gap:8px;">
+        <div class="sk-block" style="flex:1;height:60px;border-radius:12px;"></div>
+        <div class="sk-block" style="flex:1;height:60px;border-radius:12px;"></div>
+        <div class="sk-block" style="flex:1;height:60px;border-radius:12px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- メインコンテンツ (ローディング中は非表示) -->
+  <div id="main-content" style="visibility:hidden;">
+
   <!-- ===== HOME ===== -->
   <div class="panel active" id="p-home">
 
     <div class="today-card">
       <div class="today-label">TODAY'S TARGET</div>
-      <div class="today-q" id="todayTarget">10 <span>問/日</span></div>
-      <div class="today-note" id="todayPhase">Phase 1 — 授業試験と共存期</div>
+      <div class="today-q" id="todayTarget">— <span>問/日</span></div>
+      <div class="today-note" id="todayPhase">計算中...</div>
     </div>
 
     <!-- Stepper -->
     <div class="card">
       <div class="ct">今日解いた問題数を記録</div>
       <div class="stepper">
-        <button class="step-btn" onclick="step(-5)">−</button>
-        <div class="step-val" id="stepVal">0</div>
-        <button class="step-btn" onclick="step(5)">＋</button>
+        <button class="step-btn small" onclick="step(-1)" title="-1">−1</button>
+        <button class="step-btn" onclick="step(-5)" title="-5">−</button>
+        <div class="step-val" id="stepVal" contenteditable="true" inputmode="numeric"
+          onblur="syncStepVal()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">0</div>
+        <button class="step-btn" onclick="step(5)" title="+5">＋</button>
+        <button class="step-btn small" onclick="step(1)" title="+1">+1</button>
+      </div>
+      <div class="stepper-labels">
+        <span class="small">−1</span>
+        <span>−5</span>
+        <span class="small"></span>
+        <span>+5</span>
+        <span class="small">+1</span>
       </div>
       <button class="add-btn" onclick="addToday()">✓ 今日の分を追加する</button>
     </div>
@@ -356,7 +444,9 @@ body::before{
     <div class="card">
       <div class="ct">直近7日間</div>
       <div class="streak-row" id="streakRow"></div>
-      <div style="text-align:center;font-size:11px;color:var(--dim);margin-top:6px;">連続 <span id="streakCount" style="color:var(--green);font-weight:700;font-family:'JetBrains Mono',monospace;">0</span> 日記録中</div>
+      <div style="text-align:center;font-size:11px;color:var(--dim);margin-top:6px;">
+        連続 <span id="streakCount" style="color:var(--green);font-weight:700;font-family:'JetBrains Mono',monospace;">0</span> 日記録中
+      </div>
     </div>
 
     <!-- Progress rings -->
@@ -370,27 +460,27 @@ body::before{
               <circle class="ring-fill" id="ring1" cx="70" cy="70" r="60" stroke="var(--blue)" stroke-dasharray="377" stroke-dashoffset="377"/>
             </svg>
             <div class="ring-center">
-              <div class="rv" style="color:var(--blue)" id="ring1val">22%</div>
+              <div class="rv" style="color:var(--blue)" id="ring1val">0%</div>
               <div class="rl">1周目</div>
             </div>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;justify-content:center;gap:10px;flex:1;min-width:120px;">
           <div class="pb">
-            <div class="ph"><span class="pl">QB 1周目</span><span class="pp" style="color:var(--blue)" id="pb1pct">22%</span></div>
-            <div class="pb-bg"><div class="pb-fill" style="background:var(--blue);width:22%" id="pb1"></div></div>
+            <div class="ph"><span class="pl">QB 1周目</span><span class="pp" style="color:var(--blue)" id="pb1pct">0%</span></div>
+            <div class="pb-bg"><div class="pb-fill" style="background:var(--blue);" id="pb1"></div></div>
           </div>
           <div class="pb">
             <div class="ph"><span class="pl">QB 2周目</span><span class="pp" style="color:var(--purple)" id="pb2pct">—</span></div>
-            <div class="pb-bg"><div class="pb-fill" style="background:var(--purple);width:0%" id="pb2"></div></div>
+            <div class="pb-bg"><div class="pb-fill" style="background:var(--purple);" id="pb2"></div></div>
           </div>
           <div class="pb">
             <div class="ph"><span class="pl">QB 3周目</span><span class="pp" style="color:var(--orange)" id="pb3pct">—</span></div>
-            <div class="pb-bg"><div class="pb-fill" style="background:var(--orange);width:0%" id="pb3"></div></div>
+            <div class="pb-bg"><div class="pb-fill" style="background:var(--orange);" id="pb3"></div></div>
           </div>
           <div class="pb" style="margin-bottom:0">
             <div class="ph"><span class="pl">モントレ</span><span class="pp" style="color:var(--green)" id="pbmpct">0%</span></div>
-            <div class="pb-bg"><div class="pb-fill" style="background:var(--green);width:0%" id="pbm"></div></div>
+            <div class="pb-bg"><div class="pb-fill" style="background:var(--green);" id="pbm"></div></div>
           </div>
         </div>
       </div>
@@ -398,15 +488,15 @@ body::before{
 
     <div class="sg">
       <div class="sb">
-        <div class="sv" style="color:var(--blue)" id="hs-done">739</div>
+        <div class="sv" style="color:var(--blue)" id="hs-done">0</div>
         <div class="sl">解いた問題</div>
       </div>
       <div class="sb">
-        <div class="sv" style="color:var(--orange)" id="hs-rem">2620</div>
+        <div class="sv" style="color:var(--orange)" id="hs-rem">3359</div>
         <div class="sl">1周目残り</div>
       </div>
       <div class="sb">
-        <div class="sv" style="color:var(--yellow)" id="hs-acc">58%</div>
+        <div class="sv" style="color:var(--yellow)" id="hs-acc">—%</div>
         <div class="sl">正答率</div>
       </div>
     </div>
@@ -443,23 +533,23 @@ body::before{
 
     <div class="sec">周回ロードマップ</div>
     <div class="ri">
-      <div class="ri-top"><span class="ri-name" style="color:var(--blue)">1周目</span><span class="ri-count" id="r1stat">739 / 3359問</span></div>
-      <div class="pb-bg"><div class="pb-fill" style="background:var(--blue);width:22%" id="r1bar"></div></div>
+      <div class="ri-top"><span class="ri-name" style="color:var(--blue)">1周目</span><span class="ri-count" id="r1stat">— / 3359問</span></div>
+      <div class="pb-bg"><div class="pb-fill" style="background:var(--blue);" id="r1bar"></div></div>
       <div style="font-size:10px;color:var(--dim);margin-top:5px;">目標完了: 8月中旬〜下旬</div>
     </div>
     <div class="ri">
-      <div class="ri-top"><span class="ri-name" style="color:var(--purple)">2周目（間違いのみ）</span><span class="ri-count">〜1680問</span></div>
-      <div class="pb-bg"><div class="pb-fill" style="background:var(--purple);width:0%" id="r2bar"></div></div>
+      <div class="ri-top"><span class="ri-name" style="color:var(--purple)">2周目（間違いのみ）</span><span class="ri-count" id="r2stat">〜1680問</span></div>
+      <div class="pb-bg"><div class="pb-fill" style="background:var(--purple);" id="r2bar"></div></div>
       <div style="font-size:10px;color:var(--dim);margin-top:5px;">目標完了: 9月末〜10月中</div>
     </div>
     <div class="ri">
-      <div class="ri-top"><span class="ri-name" style="color:var(--orange)">3周目（さらに間違い）</span><span class="ri-count">〜370問</span></div>
-      <div class="pb-bg"><div class="pb-fill" style="background:var(--orange);width:0%"></div></div>
+      <div class="ri-top"><span class="ri-name" style="color:var(--orange)">3周目（さらに間違い）</span><span class="ri-count" id="r3stat">〜370問</span></div>
+      <div class="pb-bg"><div class="pb-fill" style="background:var(--orange);" id="r3bar"></div></div>
       <div style="font-size:10px;color:var(--dim);margin-top:5px;">目標完了: 10月末</div>
     </div>
     <div class="ri" style="margin-bottom:0">
       <div class="ri-top"><span class="ri-name" style="color:var(--green)">モントレ</span><span class="ri-count" id="mstat">0 / 3573問</span></div>
-      <div class="pb-bg"><div class="pb-fill" style="background:var(--green);width:0%" id="mbar2"></div></div>
+      <div class="pb-bg"><div class="pb-fill" style="background:var(--green);" id="mbar2"></div></div>
       <div style="font-size:10px;color:var(--dim);margin-top:5px;">QB弱点科目に絞って使う</div>
     </div>
 
@@ -492,8 +582,8 @@ body::before{
         <div class="sgb"><div class="rv" id="sbuf">—</div><div class="rl">CBT前バッファ</div></div>
       </div>
       <div class="pb" style="margin-top:8px;">
-        <div class="ph"><span class="pl">1周目</span><span class="pp" style="color:var(--blue)">22%完了</span></div>
-        <div class="pb-bg"><div class="pb-fill" style="background:var(--blue);width:22%"></div></div>
+        <div class="ph"><span class="pl">1周目</span><span class="pp" style="color:var(--blue)" id="sp1pct">0%完了</span></div>
+        <div class="pb-bg"><div class="pb-fill" style="background:var(--blue);" id="sp1bar"></div></div>
       </div>
       <div class="pb">
         <div class="ph"><span class="pl">2周目（<span id="sw1">—</span>問）</span><span class="pp" style="color:var(--purple)" id="sp2">未開始</span></div>
@@ -511,9 +601,10 @@ body::before{
   <div class="panel" id="p-log">
     <div class="card">
       <div class="ct">現在の進捗を更新</div>
-      <div class="log-item"><label>QB 1周目（解いた数）</label><input class="log-ni" type="number" id="l_r1" value="739" min="0" max="3359" oninput="updateLog()"></div>
-      <div class="log-item"><label>QB 1周目 正解数</label><input class="log-ni" type="number" id="l_ok" value="428" min="0" oninput="updateLog()"></div>
+      <div class="log-item"><label>QB 1周目（解いた数）</label><input class="log-ni" type="number" id="l_r1" value="0" min="0" max="3359" oninput="updateLog()"></div>
+      <div class="log-item"><label>QB 1周目 正解数</label><input class="log-ni" type="number" id="l_ok" value="0" min="0" oninput="updateLog()"></div>
       <div class="log-item"><label>QB 2周目（解いた数）</label><input class="log-ni" type="number" id="l_r2" value="0" min="0" oninput="updateLog()"></div>
+      <div class="log-item"><label>QB 3周目（解いた数）</label><input class="log-ni" type="number" id="l_r3" value="0" min="0" oninput="updateLog()"></div>
       <div class="log-item"><label>モントレ（解いた数）</label><input class="log-ni" type="number" id="l_m" value="0" min="0" max="3573" oninput="updateLog()"></div>
       <button class="save-btn" onclick="saveAll()">💾 保存する</button>
     </div>
@@ -521,21 +612,21 @@ body::before{
     <div class="card">
       <div class="ct">ダッシュボード</div>
       <div class="sg" style="margin-bottom:14px;">
-        <div class="sb"><div class="sv" style="color:var(--yellow)" id="d_acc">57.9%</div><div class="sl">正答率</div></div>
-        <div class="sb"><div class="sv" style="color:var(--red)" id="d_wrong">311</div><div class="sl">間違い数</div></div>
-        <div class="sb"><div class="sv" style="color:var(--orange)" id="d_rem">2620</div><div class="sl">1周目残り</div></div>
+        <div class="sb"><div class="sv" style="color:var(--yellow)" id="d_acc">—%</div><div class="sl">正答率</div></div>
+        <div class="sb"><div class="sv" style="color:var(--red)" id="d_wrong">—</div><div class="sl">間違い数</div></div>
+        <div class="sb"><div class="sv" style="color:var(--orange)" id="d_rem">—</div><div class="sl">1周目残り</div></div>
       </div>
       <div class="pb">
-        <div class="ph"><span class="pl">QB 1周目</span><span class="pp" style="color:var(--blue)" id="dp1">22%</span></div>
-        <div class="pb-bg"><div class="pb-fill" id="db1" style="background:var(--blue);width:22%"></div></div>
+        <div class="ph"><span class="pl">QB 1周目</span><span class="pp" style="color:var(--blue)" id="dp1">0%</span></div>
+        <div class="pb-bg"><div class="pb-fill" id="db1" style="background:var(--blue);"></div></div>
       </div>
       <div class="pb">
-        <div class="ph"><span class="pl">正答率</span><span class="pp" style="color:var(--yellow)" id="dacc">57.9%</span></div>
-        <div class="pb-bg"><div class="pb-fill" id="dbacc" style="background:var(--yellow);width:57.9%"></div></div>
+        <div class="ph"><span class="pl">正答率</span><span class="pp" style="color:var(--yellow)" id="dacc">—%</span></div>
+        <div class="pb-bg"><div class="pb-fill" id="dbacc" style="background:var(--yellow);"></div></div>
       </div>
       <div class="pb" style="margin-bottom:0">
         <div class="ph"><span class="pl">モントレ</span><span class="pp" style="color:var(--green)" id="dpm">0%</span></div>
-        <div class="pb-bg"><div class="pb-fill" id="dbm" style="background:var(--green);width:0%"></div></div>
+        <div class="pb-bg"><div class="pb-fill" id="dbm" style="background:var(--green);"></div></div>
       </div>
     </div>
   </div>
@@ -577,6 +668,7 @@ body::before{
     </div>
   </div>
 
+  </div><!-- /main-content -->
 </div><!-- /scroll -->
 
 <!-- NAV -->
@@ -589,241 +681,500 @@ body::before{
 </nav>
 
 <script>
-const QB=3359,MONTE=3573;
-const CBT=new Date('2026-11-06');
-const TODAY=new Date();TODAY.setHours(0,0,0,0);
+// ── 定数 ──
+const QB = 3359, MONTE = 3573;
+const CBT = new Date('2026-11-06');
+const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
+const TODAY_STR = TODAY.toISOString().slice(0, 10);
 
-// State
-let state={r1:739,ok:428,r2:0,r3:0,m:0,todayStep:0,streak:[],lastDate:''};
+// ── Supabase ──
+const SUPA_URL = 'https://iexslocdhaqyxybbzcye.supabase.co';
+const SUPA_KEY = 'sb_publishable_oOZVyyHyggxujT6eYvfmoQ_uMhrUo97';
+const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
-function loadState(){
-  try{const s=localStorage.getItem('cbt_v3');if(s)state={...state,...JSON.parse(s)};}catch(e){}
-}
-function saveState(){
-  try{localStorage.setItem('cbt_v3',JSON.stringify(state));}catch(e){}
-}
+// ── State (Supabaseのカラム構造に対応) ──
+let state = {
+  r1: 0,
+  ok: 0,
+  r2: 0,
+  r3: 0,
+  m: 0,
+  streak: [],      // [{date, n}] 後方互換のために残す
+  daily_log: [],   // [{date, n, ok}] 実際の蓄積ログ
+  debt: 0,
+  last_date: ''
+};
 
-// Countdown
-function updateCountdown(){
-  const d=Math.ceil((CBT-TODAY)/86400000);
-  document.getElementById('dLeft').textContent=d;
-}
+// UI専用（Supabaseには保存しない）
+let todayStep = 0;
 
-// Panel switching
-function showPanel(id,btn){
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
-  document.getElementById('p-'+id).classList.add('active');
-  btn.classList.add('active');
-  document.getElementById('scroll').scrollTop=0;
-  if(id==='sim')runSim();
-}
-
-// Stepper
-function step(n){
-  state.todayStep=Math.max(0,state.todayStep+n);
-  document.getElementById('stepVal').textContent=state.todayStep;
+// ── スケルトン表示制御 ──
+function showSkeleton(v) {
+  document.getElementById('skeleton').style.display = v ? 'block' : 'none';
+  document.getElementById('main-content').style.visibility = v ? 'hidden' : 'visible';
 }
 
-function addToday(){
-  if(state.todayStep===0){showToast('問題数を入力してね');return;}
-  const prev=state.r1;
-  state.r1=Math.min(QB,state.r1+state.todayStep);
-  // streak
-  const todayStr=TODAY.toISOString().slice(0,10);
-  if(state.lastDate!==todayStr){
-    state.streak.push({date:todayStr,n:state.todayStep});
-    if(state.streak.length>7)state.streak.shift();
-    state.lastDate=todayStr;
-  } else {
-    if(state.streak.length>0)state.streak[state.streak.length-1].n+=state.todayStep;
+// ── 同期状態インジケーター ──
+function setSyncState(s) {
+  // s: 'ok' | 'saving' | 'error' | 'offline'
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot';
+  if (s === 'saving') dot.classList.add('saving');
+  else if (s === 'error' || s === 'offline') dot.classList.add('error');
+  dot.title = {ok:'同期済み', saving:'保存中...', error:'保存失敗', offline:'オフライン'}[s] || '';
+}
+
+// ── Supabase からロード ──
+async function init() {
+  showSkeleton(true);
+  setSyncState('saving');
+
+  let loadedFromSupabase = false;
+
+  try {
+    const { data, error } = await sb
+      .from('progress')
+      .select('*')
+      .eq('id', 'user1')
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = 行なし
+
+    if (data) {
+      // Supabase のデータをstateに反映
+      state.r1        = data.r1         ?? 0;
+      state.ok        = data.ok         ?? 0;
+      state.r2        = data.r2         ?? 0;
+      state.r3        = data.r3         ?? 0;
+      state.m         = data.m          ?? 0;
+      state.streak    = data.streak     ?? [];
+      state.daily_log = data.daily_log  ?? [];
+      state.debt      = data.debt       ?? 0;
+      state.last_date = data.last_date  ?? '';
+    } else {
+      // 初回アクセス：行を作成
+      await sb.from('progress').insert({
+        id: 'user1',
+        r1: 0, ok: 0, r2: 0, r3: 0, m: 0,
+        streak: [], daily_log: [], debt: 0,
+        last_date: '',
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    // localStorageにキャッシュ保存
+    localStorage.setItem('cbt_cache', JSON.stringify(state));
+    loadedFromSupabase = true;
+    setSyncState('ok');
+
+  } catch (err) {
+    console.warn('[Supabase] load failed:', err);
+    setSyncState('offline');
+
+    // localStorageにフォールバック
+    try {
+      const cached = localStorage.getItem('cbt_cache') || localStorage.getItem('cbt_v3');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // 古いキーの互換性処理
+        state.r1        = parsed.r1        ?? 0;
+        state.ok        = parsed.ok        ?? 0;
+        state.r2        = parsed.r2        ?? 0;
+        state.r3        = parsed.r3        ?? 0;
+        state.m         = parsed.m         ?? 0;
+        state.streak    = parsed.streak    ?? [];
+        state.daily_log = parsed.daily_log ?? [];
+        state.debt      = parsed.debt      ?? 0;
+        state.last_date = parsed.last_date ?? parsed.lastDate ?? '';
+      }
+    } catch (e) {}
+
+    showToast('⚠️ オフラインモード（ローカル保存）');
   }
-  const added=state.r1-prev;
-  state.todayStep=0;
-  document.getElementById('stepVal').textContent=0;
-  saveState();
+
+  showSkeleton(false);
   updateAll();
-  showToast(`+${added}問 追加！`);
-  if(state.r1>=QB)confetti();
+  runSim();
+  updateCountdown();
 }
 
-// Toast
-function showToast(msg){
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2000);
+// ── Supabase にデバウンス保存（500ms） ──
+let _saveTimer = null;
+function scheduleSave() {
+  setSyncState('saving');
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(doSave, 500);
 }
 
-// Confetti
-function confetti(){
-  const wrap=document.getElementById('confetti-wrap');
-  wrap.innerHTML='';
-  const colors=['#5b8fff','#34e8a0','#ff8a3c','#ff4060','#ffc940','#b07fff'];
-  for(let i=0;i<40;i++){
-    const el=document.createElement('div');
-    el.className='cf';
-    el.style.cssText=`left:${Math.random()*100}%;top:-10px;background:${colors[i%colors.length]};animation-delay:${Math.random()*0.5}s;animation-duration:${1+Math.random()*0.8}s;transform:rotate(${Math.random()*360}deg)`;
+async function doSave() {
+  const payload = {
+    id: 'user1',
+    r1: state.r1,
+    ok: state.ok,
+    r2: state.r2,
+    r3: state.r3,
+    m: state.m,
+    streak: state.streak,
+    daily_log: state.daily_log,
+    debt: state.debt,
+    last_date: state.last_date,
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    const { error } = await sb.from('progress').upsert(payload);
+    if (error) throw error;
+    localStorage.setItem('cbt_cache', JSON.stringify(state));
+    setSyncState('ok');
+  } catch (err) {
+    console.warn('[Supabase] save failed:', err);
+    // localStorageには必ずバックアップ保存
+    localStorage.setItem('cbt_cache', JSON.stringify(state));
+    setSyncState('error');
+  }
+}
+
+// ── カウントダウン ──
+function updateCountdown() {
+  const d = Math.ceil((CBT - TODAY) / 86400000);
+  document.getElementById('dLeft').textContent = d;
+}
+
+// ── パネル切り替え ──
+function showPanel(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(b => b.classList.remove('active'));
+  document.getElementById('p-' + id).classList.add('active');
+  btn.classList.add('active');
+  document.getElementById('scroll').scrollTop = 0;
+  if (id === 'sim') runSim();
+}
+
+// ── ステッパー ──
+function step(n) {
+  todayStep = Math.max(0, todayStep + n);
+  document.getElementById('stepVal').textContent = todayStep;
+}
+
+// contenteditable の値を todayStep に同期
+function syncStepVal() {
+  const el = document.getElementById('stepVal');
+  const v = parseInt(el.textContent.replace(/[^0-9]/g, ''), 10);
+  todayStep = isNaN(v) ? 0 : Math.max(0, v);
+  el.textContent = todayStep;
+}
+
+function addToday() {
+  if (todayStep === 0) { showToast('問題数を入力してね'); return; }
+
+  const prev = state.r1;
+  state.r1 = Math.min(QB, state.r1 + todayStep);
+  const added = state.r1 - prev;
+
+  // daily_log に記録（当日分は加算、なければ追加）
+  const logIdx = state.daily_log.findIndex(l => l.date === TODAY_STR);
+  if (logIdx >= 0) {
+    state.daily_log[logIdx].n += added;
+  } else {
+    // ok は進捗タブで正解数を手動更新するため0で初期化
+    state.daily_log.push({ date: TODAY_STR, n: added, ok: 0 });
+  }
+
+  // streak（後方互換 — 最大7件保持）
+  const sIdx = state.streak.findIndex(s => s.date === TODAY_STR);
+  if (sIdx >= 0) {
+    state.streak[sIdx].n += added;
+  } else {
+    state.streak.push({ date: TODAY_STR, n: added });
+    if (state.streak.length > 30) state.streak.shift(); // 少し多めに保持
+  }
+
+  state.last_date = TODAY_STR;
+
+  todayStep = 0;
+  document.getElementById('stepVal').textContent = 0;
+
+  scheduleSave();
+  updateAll();
+  showToast(`+${added}問 追加！ 🎉`);
+  if (state.r1 >= QB) confetti();
+}
+
+// ── トースト ──
+let _toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── コンフェッティ ──
+function confetti() {
+  const wrap = document.getElementById('confetti-wrap');
+  wrap.innerHTML = '';
+  const colors = ['#5b8fff','#34e8a0','#ff8a3c','#ff4060','#ffc940','#b07fff'];
+  for (let i = 0; i < 50; i++) {
+    const el = document.createElement('div');
+    el.className = 'cf';
+    el.style.cssText = `left:${Math.random()*100}%;top:-10px;background:${colors[i%colors.length]};animation-delay:${Math.random()*0.6}s;animation-duration:${1+Math.random()*1}s;transform:rotate(${Math.random()*360}deg)`;
     wrap.appendChild(el);
   }
-  setTimeout(()=>wrap.innerHTML='',2500);
+  setTimeout(() => wrap.innerHTML = '', 3000);
 }
 
-// Streak render
-function renderStreak(){
-  const row=document.getElementById('streakRow');
-  row.innerHTML='';
-  const days=['日','月','火','水','木','金','土'];
-  for(let i=6;i>=0;i--){
-    const d=new Date(TODAY);d.setDate(d.getDate()-i);
-    const ds=d.toISOString().slice(0,10);
-    const entry=state.streak.find(s=>s.date===ds);
-    const isToday=i===0;
-    const div=document.createElement('div');
-    div.className='streak-dot '+(isToday?'today':entry?'done':'empty');
-    div.textContent=entry?'✓':days[d.getDay()];
-    div.title=ds+(entry?` (${entry.n}問)`:'');
+// ── ストリーク描画（daily_log を使って正確に計算） ──
+function renderStreak() {
+  const row = document.getElementById('streakRow');
+  row.innerHTML = '';
+  const days = ['日','月','火','水','木','金','土'];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(TODAY);
+    d.setDate(d.getDate() - i);
+    const ds = d.toISOString().slice(0, 10);
+
+    // daily_log から該当日を検索
+    const entry = state.daily_log.find(l => l.date === ds)
+                  || state.streak.find(s => s.date === ds); // 後方互換
+
+    const isToday = (i === 0);
+    const div = document.createElement('div');
+    div.className = 'streak-dot ' + (isToday ? 'today' : (entry && entry.n > 0 ? 'done' : 'empty'));
+    div.textContent = (entry && entry.n > 0) ? '✓' : days[d.getDay()];
+    div.title = ds + (entry ? ` (${entry.n}問)` : '');
     row.appendChild(div);
   }
-  // streak count
-  let cnt=0;
-  for(let i=state.streak.length-1;i>=0;i--){
-    const d=new Date(TODAY);d.setDate(d.getDate()-(state.streak.length-1-i));
-    if(state.streak[i]&&state.streak[i].date===d.toISOString().slice(0,10))cnt++;
-    else break;
+
+  // 連続日数をdaily_logから正確に計算（日付ギャップを検出）
+  let streak = 0;
+  for (let i = 0; ; i++) {
+    const d = new Date(TODAY);
+    d.setDate(d.getDate() - i);
+    const ds = d.toISOString().slice(0, 10);
+    const entry = state.daily_log.find(l => l.date === ds)
+                  || state.streak.find(s => s.date === ds);
+    if (entry && entry.n > 0) {
+      streak++;
+    } else if (i === 0) {
+      // 今日まだ記録していない場合は昨日から数える
+      continue;
+    } else {
+      break;
+    }
+    if (streak > 365) break; // 安全ストップ
   }
-  document.getElementById('streakCount').textContent=cnt;
+  document.getElementById('streakCount').textContent = streak;
 }
 
-// Update all UI
-function updateAll(){
-  const {r1,ok,r2,r3,m}=state;
-  const acc=r1>0?(ok/r1*100):58;
-  const wrong=r1-ok;
-  const rem=QB-r1;
-  const p1=Math.min(r1/QB*100,100);
-  const pm=Math.min(m/MONTE*100,100);
+// ── 全UI更新 ──
+function updateAll() {
+  const { r1, ok, r2, r3, m } = state;
+  const acc   = r1 > 0 ? (ok / r1 * 100) : 0;
+  const wrong = r1 - ok;
+  const rem   = QB - r1;
 
-  // header sub
-  document.getElementById('hdr-sub').textContent=`${r1.toLocaleString()}/${QB.toLocaleString()}問 · 正答率${acc.toFixed(0)}%`;
+  const p1 = Math.min(r1  / QB    * 100, 100);
+  const p2 = Math.min(r2  / 1680  * 100, 100); // 2周目の推定総問数
+  const p3 = Math.min(r3  / 370   * 100, 100); // 3周目の推定総問数
+  const pm = Math.min(m   / MONTE * 100, 100);
 
-  // home stats
-  setEl('hs-done',r1.toLocaleString());
-  setEl('hs-rem',rem.toLocaleString());
-  setEl('hs-acc',acc.toFixed(0)+'%');
+  // ヘッダー
+  document.getElementById('hdr-sub').textContent =
+    `${r1.toLocaleString()}/${QB.toLocaleString()}問 · 正答率${r1>0 ? acc.toFixed(0)+'%' : '—'}`;
 
-  // ring
-  const circ=377;
-  const offset=circ-(p1/100*circ);
-  document.getElementById('ring1').style.strokeDashoffset=offset;
-  document.getElementById('ring1val').textContent=p1.toFixed(0)+'%';
+  // ホームの数値
+  setEl('hs-done', r1.toLocaleString());
+  setEl('hs-rem',  rem.toLocaleString());
+  setEl('hs-acc',  r1 > 0 ? acc.toFixed(0)+'%' : '—%');
 
-  // home bars
-  setPB('pb1',p1,'pb1pct',p1.toFixed(0)+'%');
-  setPB('pb2',0,'pb2pct','—');
-  setPB('pb3',0,'pb3pct','—');
-  setPB('pbm',pm,'pbmpct',pm.toFixed(0)+'%');
+  // リング（1周目）
+  const circ   = 377;
+  const offset = circ - (p1 / 100 * circ);
+  document.getElementById('ring1').style.strokeDashoffset = offset;
+  setEl('ring1val', p1.toFixed(0) + '%');
 
-  // plan bars
-  setEl('r1stat',r1+' / '+QB+'問');
-  document.getElementById('r1bar').style.width=p1+'%';
-  setEl('mstat',m+' / '+MONTE+'問');
-  document.getElementById('mbar2').style.width=pm+'%';
+  // 進捗バー（全周回・正しく計算）
+  setPB('pb1', p1,  'pb1pct', p1.toFixed(0) + '%');
+  setPB('pb2', p2,  'pb2pct', r2 > 0 ? p2.toFixed(0) + '%' : '—');
+  setPB('pb3', p3,  'pb3pct', r3 > 0 ? p3.toFixed(0) + '%' : '—');
+  setPB('pbm', pm,  'pbmpct', pm.toFixed(0) + '%');
 
-  // log inputs
-  document.getElementById('l_r1').value=r1;
-  document.getElementById('l_ok').value=ok;
-  document.getElementById('l_r2').value=r2;
-  document.getElementById('l_m').value=m;
+  // 計画タブのバー
+  setEl('r1stat', `${r1} / ${QB}問`);
+  document.getElementById('r1bar').style.width = p1 + '%';
 
-  // log dashboard
-  setEl('d_acc',acc.toFixed(1)+'%');
-  setEl('d_wrong',wrong.toLocaleString());
-  setEl('d_rem',rem.toLocaleString());
-  setPB('db1',p1,'dp1',p1.toFixed(1)+'%');
-  setPB('dbacc',Math.min(acc,100),'dacc',acc.toFixed(1)+'%');
-  setPB('dbm',pm,'dpm',pm.toFixed(1)+'%');
+  setEl('r2stat', r2 > 0 ? `${r2} / ~1680問` : '〜1680問');
+  document.getElementById('r2bar').style.width = p2 + '%';
 
-  // today target
-  const now=new Date();
-  let target=10,phase='Phase 1 — 授業試験と共存期';
-  if(now>=new Date('2026-07-11')&&now<new Date('2026-09-01')){target=50;phase='Phase 2 ★夏 — 最重要期間';}
-  else if(now>=new Date('2026-09-01')&&now<new Date('2026-11-01')){target=20;phase='Phase 3 — 実習・試験並走';}
-  else if(now>=new Date('2026-11-01')){target=0;phase='直前期 — 復習のみ';}
-  document.getElementById('todayTarget').innerHTML=target+'<span> 問/日</span>';
-  document.getElementById('todayPhase').textContent=phase;
+  setEl('r3stat', r3 > 0 ? `${r3} / ~370問` : '〜370問');
+  document.getElementById('r3bar').style.width = p3 + '%';
+
+  setEl('mstat', `${m} / ${MONTE}問`);
+  document.getElementById('mbar2').style.width = pm + '%';
+
+  // 進捗タブの入力値を同期
+  document.getElementById('l_r1').value = r1;
+  document.getElementById('l_ok').value = ok;
+  document.getElementById('l_r2').value = r2;
+  document.getElementById('l_r3').value = r3;
+  document.getElementById('l_m').value  = m;
+
+  // 進捗タブのダッシュボード
+  setEl('d_acc',   r1 > 0 ? acc.toFixed(1) + '%' : '—%');
+  setEl('d_wrong', wrong.toLocaleString());
+  setEl('d_rem',   rem.toLocaleString());
+  setPB('db1',   p1,             'dp1',  p1.toFixed(1) + '%');
+  setPB('dbacc', Math.min(acc, 100), 'dacc', r1>0 ? acc.toFixed(1)+'%' : '—%');
+  setPB('dbm',   pm,             'dpm',  pm.toFixed(1) + '%');
+
+  // シミュタブの現在進捗バー更新
+  const sp1bar = document.getElementById('sp1bar');
+  const sp1pct = document.getElementById('sp1pct');
+  if (sp1bar) sp1bar.style.width = p1 + '%';
+  if (sp1pct) sp1pct.textContent = p1.toFixed(0) + '%完了';
+
+  // TODAY'S TARGET（フェーズ別ノルマ）
+  const now = new Date();
+  let target = 10, phase = 'Phase 1 — 授業試験と共存期';
+  if (now >= new Date('2026-07-11') && now < new Date('2026-09-01')) {
+    target = 50; phase = 'Phase 2 ★夏 — 最重要期間';
+  } else if (now >= new Date('2026-09-01') && now < new Date('2026-11-01')) {
+    target = 20; phase = 'Phase 3 — 実習・試験並走';
+  } else if (now >= new Date('2026-11-01')) {
+    target = 0; phase = '直前期 — 復習のみ';
+  }
+  document.getElementById('todayTarget').innerHTML = target + '<span> 問/日</span>';
+  document.getElementById('todayPhase').textContent = phase;
 
   renderStreak();
 }
 
-function setEl(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
-function setPB(barId,pct,pctId,pctText){
-  const b=document.getElementById(barId);if(b)b.style.width=Math.min(pct,100)+'%';
-  const p=document.getElementById(pctId);if(p)p.textContent=pctText;
+// ── ヘルパー ──
+function setEl(id, v) {
+  const e = document.getElementById(id);
+  if (e) e.textContent = v;
+}
+function setPB(barId, pct, pctId, pctText) {
+  const b = document.getElementById(barId);
+  if (b) b.style.width = Math.min(pct, 100) + '%';
+  const p = document.getElementById(pctId);
+  if (p) p.textContent = pctText;
 }
 
-// Log update
-function updateLog(){
-  state.r1=+document.getElementById('l_r1').value||0;
-  state.ok=+document.getElementById('l_ok').value||0;
-  state.r2=+document.getElementById('l_r2').value||0;
-  state.m =+document.getElementById('l_m').value||0;
+// ── 進捗タブ：入力変更時にリアルタイム更新 ──
+function updateLog() {
+  state.r1 = +document.getElementById('l_r1').value || 0;
+  state.ok = +document.getElementById('l_ok').value || 0;
+  state.r2 = +document.getElementById('l_r2').value || 0;
+  state.r3 = +document.getElementById('l_r3').value || 0;
+  state.m  = +document.getElementById('l_m').value  || 0;
   updateAll();
 }
 
-function saveAll(){
-  updateLog();saveState();
-  const btn=document.querySelector('.save-btn');
-  btn.textContent='✅ 保存しました！';
-  btn.style.background='linear-gradient(135deg,var(--blue),var(--purple))';
-  setTimeout(()=>{btn.textContent='💾 保存する';btn.style.background='linear-gradient(135deg,var(--green),var(--teal))';},1800);
+function saveAll() {
+  updateLog();
+  scheduleSave();
+  const btn = document.querySelector('.save-btn');
+  btn.textContent = '✅ 保存しました！';
+  btn.style.background = 'linear-gradient(135deg,var(--blue),var(--purple))';
+  setTimeout(() => {
+    btn.textContent = '💾 保存する';
+    btn.style.background = 'linear-gradient(135deg,var(--green),var(--teal))';
+  }, 1800);
 }
 
-// Simulator
-function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
-function diffDays(a,b){return Math.round((b-a)/86400000);}
-function fmtDate(d){return d?d.toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'}):'—';}
+// ── シミュレーター ──
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function diffDays(a, b) { return Math.round((b - a) / 86400000); }
+function fmtDate(d) { return d ? d.toLocaleDateString('ja-JP', {month:'numeric', day:'numeric'}) : '—'; }
 
-function runSim(){
-  const p1q=+document.getElementById('p1q').value||10;
-  const p2q=+document.getElementById('p2q').value||50;
-  const p3q=+document.getElementById('p3q').value||20;
-  const acc1=(+document.getElementById('acc1').value||50)/100;
-  const acc2=(+document.getElementById('acc2').value||78)/100;
-  const phases=[
-    {start:new Date('2026-06-01'),days:40,q:p1q},
-    {start:new Date('2026-07-11'),days:52,q:p2q},
-    {start:new Date('2026-09-01'),days:61,q:p3q},
+function runSim() {
+  const p1q  = +document.getElementById('p1q').value  || 10;
+  const p2q  = +document.getElementById('p2q').value  || 50;
+  const p3q  = +document.getElementById('p3q').value  || 20;
+  const acc1 = (+document.getElementById('acc1').value || 50) / 100;
+  const acc2 = (+document.getElementById('acc2').value || 78) / 100;
+
+  const phases = [
+    { start: new Date('2026-06-01'), days: 40, q: p1q },
+    { start: new Date('2026-07-11'), days: 52, q: p2q },
+    { start: new Date('2026-09-01'), days: 61, q: p3q },
   ];
-  const need1=QB-state.r1;
-  let ac=0,r1=null;
-  o1:for(const ph of phases){for(let d=0;d<ph.days;d++){ac+=ph.q;if(ac>=need1){r1=addDays(ph.start,d);break o1;}}}
-  const w1=Math.round(state.r1*(1-acc1))+Math.round(need1*(1-acc1));
-  setEl('sw1',w1);
-  let ac2=0,r2=null;
-  if(r1){o2:for(const ph of phases){const pe=addDays(ph.start,ph.days-1);if(pe<r1)continue;const st=r1>ph.start?r1:ph.start;const dl=diffDays(st,pe)+1;for(let d=0;d<dl;d++){ac2+=ph.q;if(ac2>=w1){r2=addDays(st,d);break o2;}}}}
-  const w2=Math.round(w1*(1-acc2));setEl('sw2',w2);
-  let ac3=0,r3=null;
-  if(r2){o3:for(const ph of phases){const pe=addDays(ph.start,ph.days-1);if(pe<r2)continue;const st=r2>ph.start?r2:ph.start;const dl=diffDays(st,pe)+1;for(let d=0;d<dl;d++){ac3+=ph.q;if(ac3>=w2){r3=addDays(st,d);break o3;}}}}
-  const buf=r3?diffDays(r3,CBT):-1;
-  setEl('sr1',fmtDate(r1));setEl('sr2',fmtDate(r2));setEl('sr3',fmtDate(r3));
-  const be=document.getElementById('sbuf');
-  be.textContent=buf>=0?buf+'日':'—';
-  be.style.color=buf>=14?'var(--green)':buf>=0?'var(--yellow)':'var(--red)';
-  setEl('sp2',r2?'完了: '+fmtDate(r2):'未開始');
-  setEl('sp3',r3?'完了: '+fmtDate(r3):'未開始');
-  document.getElementById('sb2').style.width=(r2?100:0)+'%';
-  document.getElementById('sb3').style.width=(r3?100:0)+'%';
-  const msg=document.getElementById('simMsg');
-  if(r3&&buf>=0){msg.className='co '+(buf>=21?'good':buf>=7?'warn':'danger');msg.innerHTML=`${buf>=14?'✅':'⚠️'} 3周目が<strong>${fmtDate(r3)}</strong>完了。CBTまで<strong>${buf}日の余裕</strong>。`;}
-  else if(!r1){msg.className='co danger';msg.innerHTML='🚨 1周目が終わりません。夏を<strong>43問/日以上</strong>にしてください。';}
-  else{msg.className='co warn';msg.innerHTML=`⚠️ 1周目は${fmtDate(r1)}完了ですが3周目がギリギリです。`;}
+
+  const need1 = QB - state.r1;
+  let ac = 0, r1end = null;
+  o1: for (const ph of phases) {
+    for (let d = 0; d < ph.days; d++) {
+      ac += ph.q;
+      if (ac >= need1) { r1end = addDays(ph.start, d); break o1; }
+    }
+  }
+
+  const w1 = Math.round(state.r1 * (1 - acc1)) + Math.round(need1 * (1 - acc1));
+  setEl('sw1', w1);
+
+  let ac2 = 0, r2end = null;
+  if (r1end) {
+    o2: for (const ph of phases) {
+      const pe = addDays(ph.start, ph.days - 1);
+      if (pe < r1end) continue;
+      const st = r1end > ph.start ? r1end : ph.start;
+      const dl = diffDays(st, pe) + 1;
+      for (let d = 0; d < dl; d++) {
+        ac2 += ph.q;
+        if (ac2 >= w1) { r2end = addDays(st, d); break o2; }
+      }
+    }
+  }
+
+  const w2 = Math.round(w1 * (1 - acc2));
+  setEl('sw2', w2);
+
+  let ac3 = 0, r3end = null;
+  if (r2end) {
+    o3: for (const ph of phases) {
+      const pe = addDays(ph.start, ph.days - 1);
+      if (pe < r2end) continue;
+      const st = r2end > ph.start ? r2end : ph.start;
+      const dl = diffDays(st, pe) + 1;
+      for (let d = 0; d < dl; d++) {
+        ac3 += ph.q;
+        if (ac3 >= w2) { r3end = addDays(st, d); break o3; }
+      }
+    }
+  }
+
+  const buf = r3end ? diffDays(r3end, CBT) : -1;
+  setEl('sr1', fmtDate(r1end));
+  setEl('sr2', fmtDate(r2end));
+  setEl('sr3', fmtDate(r3end));
+
+  const be = document.getElementById('sbuf');
+  be.textContent = buf >= 0 ? buf + '日' : '—';
+  be.style.color = buf >= 14 ? 'var(--green)' : buf >= 0 ? 'var(--yellow)' : 'var(--red)';
+
+  setEl('sp2', r2end ? '完了: ' + fmtDate(r2end) : '未開始');
+  setEl('sp3', r3end ? '完了: ' + fmtDate(r3end) : '未開始');
+  document.getElementById('sb2').style.width = (r2end ? 100 : 0) + '%';
+  document.getElementById('sb3').style.width = (r3end ? 100 : 0) + '%';
+
+  const msg = document.getElementById('simMsg');
+  if (r3end && buf >= 0) {
+    msg.className = 'co ' + (buf >= 21 ? 'good' : buf >= 7 ? 'warn' : 'danger');
+    msg.innerHTML = `${buf >= 14 ? '✅' : '⚠️'} 3周目が<strong>${fmtDate(r3end)}</strong>完了。CBTまで<strong>${buf}日の余裕</strong>。`;
+  } else if (!r1end) {
+    msg.className = 'co danger';
+    msg.innerHTML = '🚨 1周目が終わりません。夏を<strong>43問/日以上</strong>にしてください。';
+  } else {
+    msg.className = 'co warn';
+    msg.innerHTML = `⚠️ 1周目は${fmtDate(r1end)}完了ですが3周目がギリギリです。`;
+  }
 }
 
-// Init
-loadState();
-updateCountdown();
-updateAll();
-runSim();
+// ── 起動 ──
+init();
 </script>
 </body>
 </html>
