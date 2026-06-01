@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CBT Planner</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CBT">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#080a0f">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
@@ -807,6 +813,7 @@ body::before{
       <div class="log-item"><label>QB 2周目（解いた数）</label><input class="log-ni" type="number" id="l_r2" value="0" min="0" oninput="updateLog()"></div>
       <div class="log-item"><label>QB 3周目（解いた数）</label><input class="log-ni" type="number" id="l_r3" value="0" min="0" oninput="updateLog()"></div>
       <div class="log-item"><label>モントレ（解いた数）</label><input class="log-ni" type="number" id="l_m" value="0" min="0" max="3573" oninput="updateLog()"></div>
+      <div class="log-item"><label>モントレ 正解数</label><input class="log-ni" type="number" id="l_m_ok" value="0" min="0" max="3573" oninput="updateLog()"></div>
       <button class="save-btn" onclick="saveAll()">💾 保存する</button>
     </div>
 
@@ -825,9 +832,13 @@ body::before{
         <div class="ph"><span class="pl">正答率</span><span class="pp" style="color:var(--yellow)" id="dacc">—%</span></div>
         <div class="pb-bg"><div class="pb-fill" id="dbacc" style="background:var(--yellow);"></div></div>
       </div>
-      <div class="pb" style="margin-bottom:0">
+      <div class="pb">
         <div class="ph"><span class="pl">モントレ</span><span class="pp" style="color:var(--green)" id="dpm">0%</span></div>
         <div class="pb-bg"><div class="pb-fill" id="dbm" style="background:var(--green);"></div></div>
+      </div>
+      <div class="pb" style="margin-bottom:0">
+        <div class="ph"><span class="pl">モントレ正答率</span><span class="pp" style="color:var(--teal)" id="dpmok">—%</span></div>
+        <div class="pb-bg"><div class="pb-fill" id="dbmok" style="background:var(--teal);"></div></div>
       </div>
     </div>
   </div>
@@ -992,8 +1003,9 @@ let state = {
   r2: 0,
   r3: 0,
   m: 0,
-  streak: [],      // [{date, n}] 後方互換のために残す
-  daily_log: [],   // [{date, n, ok}] 実際の蓄積ログ
+  m_ok: 0,         // モントレ正解数（Supabase: ALTER TABLE progress ADD COLUMN m_ok int DEFAULT 0）
+  streak: [],
+  daily_log: [],
   debt: 0,
   last_date: ''
 };
@@ -1040,6 +1052,7 @@ async function init() {
       state.r2        = data.r2         ?? 0;
       state.r3        = data.r3         ?? 0;
       state.m         = data.m          ?? 0;
+      state.m_ok      = data.m_ok       ?? 0;
       state.streak    = data.streak     ?? [];
       state.daily_log = data.daily_log  ?? [];
       state.debt      = data.debt       ?? 0;
@@ -1109,6 +1122,7 @@ async function doSave() {
     r2: state.r2,
     r3: state.r3,
     m: state.m,
+    m_ok: state.m_ok,
     streak: state.streak,
     daily_log: state.daily_log,
     debt: state.debt,
@@ -1424,7 +1438,7 @@ function renderHeatmap() {
 
 // ── 全UI更新 ──
 function updateAll() {
-  const { r1, ok, r2, r3, m } = state;
+  const { r1, ok, r2, r3, m, m_ok } = state;
   const acc   = r1 > 0 ? (ok / r1 * 100) : 0;
   const wrong = r1 - ok;
   const rem   = QB - r1;
@@ -1482,6 +1496,12 @@ function updateAll() {
   setPB('db1',   p1,             'dp1',  p1.toFixed(1) + '%');
   setPB('dbacc', Math.min(acc, 100), 'dacc', r1>0 ? acc.toFixed(1)+'%' : '—%');
   setPB('dbm',   pm,             'dpm',  pm.toFixed(1) + '%');
+  const mAcc = m > 0 ? (m_ok / m * 100) : 0;
+  setPB('dbmok', Math.min(mAcc, 100), 'dpmok', m > 0 ? mAcc.toFixed(1) + '%' : '—%');
+
+  // 進捗タブの m_ok 入力を同期
+  const lmok = document.getElementById('l_m_ok');
+  if (lmok) lmok.value = m_ok;
 
   // シミュタブの現在進捗バー更新
   const sp1bar = document.getElementById('sp1bar');
@@ -1672,11 +1692,12 @@ function setPB(barId, pct, pctId, pctText) {
 
 // ── 進捗タブ：入力変更時にリアルタイム更新 ──
 function updateLog() {
-  state.r1 = +document.getElementById('l_r1').value || 0;
-  state.ok = +document.getElementById('l_ok').value || 0;
-  state.r2 = +document.getElementById('l_r2').value || 0;
-  state.r3 = +document.getElementById('l_r3').value || 0;
-  state.m  = +document.getElementById('l_m').value  || 0;
+  state.r1   = +document.getElementById('l_r1').value   || 0;
+  state.ok   = +document.getElementById('l_ok').value   || 0;
+  state.r2   = +document.getElementById('l_r2').value   || 0;
+  state.r3   = +document.getElementById('l_r3').value   || 0;
+  state.m    = +document.getElementById('l_m').value    || 0;
+  state.m_ok = +document.getElementById('l_m_ok').value || 0;
   updateAll();
 }
 
@@ -1926,6 +1947,14 @@ function makeSubjRow(subj, isUrgent, isSoon, isPast) {
   row.appendChild(nameWrap);
   row.appendChild(checks);
   return row;
+}
+
+// ── Service Worker 登録（PWA） ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/cbt-planner/service-worker.js')
+      .catch(err => console.warn('[SW] registration failed:', err));
+  });
 }
 
 // ── 起動 ──
