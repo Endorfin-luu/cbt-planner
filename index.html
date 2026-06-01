@@ -354,6 +354,26 @@ body::before{
 .today-q{font-size:32px;font-weight:900;font-family:'JetBrains Mono',monospace;line-height:1;}
 .today-q span{font-size:14px;font-weight:400;color:var(--dim);}
 .today-note{font-size:11px;color:var(--dim);margin-top:6px;}
+.today-divider{border:none;border-top:1px solid rgba(91,143,255,0.2);margin:10px 0 8px;}
+.today-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.pace-info{font-size:11px;}
+.pace-val{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:14px;margin-left:4px;}
+
+/* ── 試験カウントダウン ── */
+.exam-card{
+  border-radius:14px;padding:12px 14px;margin-bottom:12px;
+  display:flex;align-items:center;justify-content:space-between;
+  border:1px solid;
+  transition:border-color 0.3s;
+}
+.exam-card.normal{background:rgba(91,143,255,0.07);border-color:rgba(91,143,255,0.25);}
+.exam-card.soon{background:rgba(255,201,64,0.07);border-color:rgba(255,201,64,0.35);animation:pulse-warn 2s ease-in-out infinite;}
+.exam-card.urgent{background:rgba(255,64,96,0.08);border-color:rgba(255,64,96,0.4);animation:pulse-red 1.5s ease-in-out infinite;}
+@keyframes pulse-warn{0%,100%{box-shadow:0 0 0 0 rgba(255,201,64,0.2);}50%{box-shadow:0 0 0 6px rgba(255,201,64,0);}}
+.exam-label{font-size:10px;font-weight:700;letter-spacing:0.08em;margin-bottom:3px;text-transform:uppercase;}
+.exam-name{font-size:13px;font-weight:700;}
+.exam-days{font-size:32px;font-weight:900;font-family:'JetBrains Mono',monospace;line-height:1;text-align:right;}
+.exam-unit{font-size:10px;text-align:right;margin-top:2px;opacity:0.7;}
 
 /* ── STEPPER ── */
 .stepper{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0;}
@@ -504,6 +524,27 @@ body::before{
       <div class="today-label">TODAY'S TARGET</div>
       <div class="today-q" id="todayTarget">— <span>問/日</span></div>
       <div class="today-note" id="todayPhase">計算中...</div>
+      <hr class="today-divider">
+      <div class="today-footer">
+        <div class="pace-info">
+          <span style="color:var(--dim);">間に合わせるには</span>
+          <span class="pace-val" id="reqPaceVal">—</span>
+          <span style="font-size:10px;color:var(--dim);">問/日</span>
+        </div>
+        <div id="reqPaceStatus" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;"></div>
+      </div>
+    </div>
+
+    <!-- 次の試験カウントダウン -->
+    <div class="exam-card normal" id="examCard">
+      <div>
+        <div class="exam-label" id="examLabel" style="color:var(--blue);">NEXT EXAM</div>
+        <div class="exam-name" id="examName">—</div>
+      </div>
+      <div>
+        <div class="exam-days" id="examDays" style="color:var(--blue);">—</div>
+        <div class="exam-unit" style="color:var(--dim);">日後</div>
+      </div>
     </div>
 
     <!-- 借金カード (debt > 0 のとき表示) -->
@@ -791,6 +832,27 @@ body::before{
 <script>
 // ── 定数 ──
 const QB = 3359, MONTE = 3573;
+
+// ── 試験スケジュール ──
+const EXAMS = [
+  { date:'2026-06-01', name:'感染症内科・心療内科' },
+  { date:'2026-06-08', name:'糖代謝・血液内科' },
+  { date:'2026-06-15', name:'神経内科・老年病科' },
+  { date:'2026-06-22', name:'法医学・臨床研究' },
+  { date:'2026-06-26', name:'外科3・救急' },
+  { date:'2026-06-29', name:'外科1・2' },
+  { date:'2026-07-03', name:'検査・整形外科' },
+  { date:'2026-07-06', name:'脳外・心外呼外' },
+  { date:'2026-07-08', name:'基放医' },
+  { date:'2026-07-10', name:'精神科・麻酔科' },
+  { date:'2026-09-25', name:'産婦人科・小児科' },
+  { date:'2026-10-02', name:'小児外科・形成' },
+  { date:'2026-10-09', name:'口腔外科・耳鼻科' },
+  { date:'2026-10-23', name:'眼科・放射線科' },
+  { date:'2026-10-30', name:'皮膚科・泌尿器科' },
+  { date:'2026-11-06', name:'CBT本試験 🎯' },
+  { date:'2026-11-21', name:'OSCE本試験' },
+];
 const CBT = new Date('2026-11-06');
 const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
 const TODAY_STR = TODAY.toISOString().slice(0, 10);
@@ -950,6 +1012,43 @@ function getDayTarget(date) {
   if (date >= new Date('2026-09-01')) return 20;
   if (date >= new Date('2026-07-11')) return 50;
   return 10;
+}
+
+// ── 次の試験を取得 ──
+function getNextExam() {
+  for (const exam of EXAMS) {
+    const d = new Date(exam.date);
+    d.setHours(0, 0, 0, 0);
+    if (d >= TODAY) {
+      return { name: exam.name, date: d, daysLeft: Math.round((d - TODAY) / 86400000) };
+    }
+  }
+  return null;
+}
+
+// ── 1周目完了に必要な今日からの問題数/日を計算 ──
+function calcRequiredPace() {
+  const remaining = QB - state.r1;
+  if (remaining <= 0) return { pace: 0, ok: true, finished: true };
+
+  // 今日以降の解答可能日数（フェーズ内、直前期除く）
+  const phaseRanges = [
+    { start: new Date('2026-06-01'), end: new Date('2026-07-10') },
+    { start: new Date('2026-07-11'), end: new Date('2026-08-31') },
+    { start: new Date('2026-09-01'), end: new Date('2026-10-31') },
+  ];
+  let totalDays = 0;
+  for (const ph of phaseRanges) {
+    const start = ph.start > TODAY ? ph.start : new Date(TODAY);
+    if (start <= ph.end) {
+      totalDays += Math.round((ph.end - start) / 86400000) + 1;
+    }
+  }
+  if (totalDays <= 0) return { pace: remaining, ok: false };
+
+  const pace = Math.ceil(remaining / totalDays);
+  const baseTarget = getDayTarget(TODAY);
+  return { pace, ok: pace <= baseTarget, finished: false };
 }
 
 // ── ペナルティ検出 ──
@@ -1301,6 +1400,58 @@ function updateAll() {
 
   renderStreak();
   renderHeatmap();
+  updatePaceAndExam();
+}
+
+// ── 必要ペース + 次の試験カウントダウン更新 ──
+function updatePaceAndExam() {
+  // 必要ペース
+  const { pace, ok, finished } = calcRequiredPace();
+  const paceEl  = document.getElementById('reqPaceVal');
+  const statusEl = document.getElementById('reqPaceStatus');
+  if (paceEl) {
+    if (finished) {
+      paceEl.textContent = '完了';
+      paceEl.style.color = 'var(--green)';
+      statusEl.textContent = '🎉 1周目完了';
+      statusEl.style.cssText = 'background:rgba(52,232,160,0.15);color:var(--green);font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;';
+    } else {
+      paceEl.textContent = pace;
+      paceEl.style.color = ok ? 'var(--green)' : 'var(--red)';
+      statusEl.textContent = ok ? '✅ 順調' : '⚠️ 遅れ気味';
+      statusEl.style.cssText = ok
+        ? 'background:rgba(52,232,160,0.15);color:var(--green);font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;'
+        : 'background:rgba(255,64,96,0.12);color:var(--red);font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;';
+    }
+  }
+
+  // 次の試験
+  const exam = getNextExam();
+  const card  = document.getElementById('examCard');
+  const nameEl = document.getElementById('examName');
+  const daysEl = document.getElementById('examDays');
+  const labelEl = document.getElementById('examLabel');
+  if (!exam || !card) return;
+
+  nameEl.textContent = exam.name;
+  daysEl.textContent = exam.daysLeft;
+
+  if (exam.daysLeft <= 3) {
+    card.className = 'exam-card urgent';
+    const c = 'var(--red)';
+    daysEl.style.color = c; labelEl.style.color = c;
+    labelEl.textContent = '⚠️ NEXT EXAM';
+  } else if (exam.daysLeft <= 7) {
+    card.className = 'exam-card soon';
+    const c = 'var(--yellow)';
+    daysEl.style.color = c; labelEl.style.color = c;
+    labelEl.textContent = '⏰ NEXT EXAM';
+  } else {
+    card.className = 'exam-card normal';
+    const c = 'var(--blue)';
+    daysEl.style.color = c; labelEl.style.color = c;
+    labelEl.textContent = 'NEXT EXAM';
+  }
 }
 
 // ── ヘルパー ──
