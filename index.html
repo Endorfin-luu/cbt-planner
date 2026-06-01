@@ -409,6 +409,47 @@ body::before{
 }
 .add-btn:active{transform:scale(0.97);opacity:0.9;}
 
+/* ── 科目リスト ── */
+.subj-group-hdr{
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;font-weight:700;color:var(--dim);
+  text-transform:uppercase;letter-spacing:0.08em;
+  margin:14px 0 6px;
+}
+.subj-badge{
+  padding:2px 8px;border-radius:8px;font-size:9px;font-weight:700;
+  letter-spacing:0.04em;
+}
+.subj-row{
+  background:var(--s2);border-radius:12px;padding:10px 12px;
+  margin-bottom:6px;display:flex;align-items:center;gap:10px;
+  border:1px solid transparent;
+  transition:border-color 0.2s, opacity 0.2s;
+}
+.subj-row.urgent{border-color:rgba(255,64,96,0.3);background:rgba(255,64,96,0.05);}
+.subj-row.soon{border-color:rgba(255,201,64,0.3);background:rgba(255,201,64,0.04);}
+.subj-row.past{opacity:0.5;}
+.subj-name{flex:1;font-size:12px;font-weight:600;line-height:1.3;}
+.subj-checks{display:flex;gap:5px;flex-shrink:0;}
+.subj-chk{
+  width:26px;height:26px;border-radius:7px;
+  border:1px solid var(--border);background:var(--s3);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:13px;
+  transition:all 0.15s;
+  flex-shrink:0;
+}
+.subj-chk:active{transform:scale(0.85);}
+.subj-chk.on{border-color:rgba(52,232,160,0.5);background:rgba(52,232,160,0.15);}
+.subj-progress{
+  display:flex;gap:2px;align-items:center;
+  font-size:9px;color:var(--dim);margin-top:2px;
+}
+.subj-prog-dot{
+  width:6px;height:6px;border-radius:50%;background:var(--s3);
+}
+.subj-prog-dot.on{background:var(--green);}
+
 /* ── SECTION TITLE ── */
 .sec{font-size:10px;font-weight:700;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;margin:14px 0 8px;}
 
@@ -817,6 +858,38 @@ body::before{
     </div>
   </div>
 
+  <!-- ===== 科目 ===== -->
+  <div class="panel" id="p-subj">
+
+    <div class="card" style="padding:12px 14px;margin-bottom:8px;">
+      <div style="font-size:10px;color:var(--dim);margin-bottom:6px;font-weight:700;letter-spacing:0.06em;">チェックの凡例</div>
+      <div style="display:flex;gap:10px;font-size:11px;">
+        <span>🎓 試験済み</span>
+        <span>📖 QB1周完了</span>
+        <span>🔀 シャッフル完了</span>
+      </div>
+    </div>
+
+    <!-- 完了率サマリー -->
+    <div class="sg" style="margin-bottom:12px;">
+      <div class="sb">
+        <div class="sv" style="color:var(--blue)" id="subj-cnt-exam">0</div>
+        <div class="sl">試験済み</div>
+      </div>
+      <div class="sb">
+        <div class="sv" style="color:var(--green)" id="subj-cnt-qb1">0</div>
+        <div class="sl">QB1周完了</div>
+      </div>
+      <div class="sb">
+        <div class="sv" style="color:var(--purple)" id="subj-cnt-shuf">0</div>
+        <div class="sl">シャッフル完了</div>
+      </div>
+    </div>
+
+    <div id="subjList"></div>
+
+  </div>
+
   </div><!-- /main-content -->
 </div><!-- /scroll -->
 
@@ -826,12 +899,51 @@ body::before{
   <button class="nb" onclick="showPanel('plan',this)"><span class="ic">📊</span>計画</button>
   <button class="nb" onclick="showPanel('sim',this)"><span class="ic">🔢</span>シミュ</button>
   <button class="nb" onclick="showPanel('log',this)"><span class="ic">📝</span>進捗</button>
+  <button class="nb" onclick="showPanel('subj',this)"><span class="ic">📚</span>科目</button>
   <button class="nb" onclick="showPanel('meta',this)"><span class="ic">🧠</span>対策</button>
 </nav>
 
 <script>
 // ── 定数 ──
 const QB = 3359, MONTE = 3573;
+
+// ── 科目リスト（試験日順） ──
+const SUBJECTS = [
+  { exam:'2026-06-01', name:'感染症内科' },
+  { exam:'2026-06-01', name:'心療内科' },
+  { exam:'2026-06-08', name:'糖代謝内科' },
+  { exam:'2026-06-08', name:'血液内科' },
+  { exam:'2026-06-15', name:'神経内科' },
+  { exam:'2026-06-15', name:'老年病科' },
+  { exam:'2026-06-22', name:'法医学' },
+  { exam:'2026-06-22', name:'臨床研究' },
+  { exam:'2026-06-26', name:'外科3' },
+  { exam:'2026-06-26', name:'救急医学' },
+  { exam:'2026-06-29', name:'外科1' },
+  { exam:'2026-06-29', name:'外科2' },
+  { exam:'2026-07-03', name:'検査医学' },
+  { exam:'2026-07-03', name:'整形外科' },
+  { exam:'2026-07-06', name:'脳外科' },
+  { exam:'2026-07-06', name:'心外科' },
+  { exam:'2026-07-06', name:'呼外科' },
+  { exam:'2026-07-08', name:'基放医' },
+  { exam:'2026-07-10', name:'精神科' },
+  { exam:'2026-07-10', name:'麻酔科' },
+  { exam:'2026-09-25', name:'産婦人科' },
+  { exam:'2026-09-25', name:'小児科' },
+  { exam:'2026-10-02', name:'小児外科' },
+  { exam:'2026-10-02', name:'形成外科' },
+  { exam:'2026-10-09', name:'口腔外科' },
+  { exam:'2026-10-09', name:'耳鼻科' },
+  { exam:'2026-10-23', name:'眼科' },
+  { exam:'2026-10-23', name:'放射線科' },
+  { exam:'2026-10-30', name:'皮膚科' },
+  { exam:'2026-10-30', name:'泌尿器科' },
+  { exam:null, name:'病理' },
+  { exam:null, name:'公衆衛生' },
+  { exam:null, name:'感染制御' },
+  { exam:null, name:'リハビリ' },
+];
 
 // ── 試験スケジュール ──
 const EXAMS = [
@@ -962,11 +1074,11 @@ async function init() {
     showToast('⚠️ オフラインモード（ローカル保存）');
   }
 
+  loadSubjectStatus();
   showSkeleton(false);
   updateAll();
   runSim();
   updateCountdown();
-  // データロード後にペナルティを検出
   setTimeout(checkPenalty, 600);
 }
 
@@ -1128,7 +1240,8 @@ function showPanel(id, btn) {
   document.getElementById('p-' + id).classList.add('active');
   btn.classList.add('active');
   document.getElementById('scroll').scrollTop = 0;
-  if (id === 'sim') runSim();
+  if (id === 'sim')  runSim();
+  if (id === 'subj') renderSubjects();
 }
 
 // ── ステッパー ──
@@ -1574,6 +1687,154 @@ function runSim() {
     msg.className = 'co warn';
     msg.innerHTML = `⚠️ 1周目は${fmtDate(r1end)}完了ですが3周目がギリギリです。`;
   }
+}
+
+// ── 科目ステータス（localStorage 保存） ──
+function loadSubjectStatus() {
+  try {
+    const s = localStorage.getItem('cbt_subj');
+    state.subject_status = s ? JSON.parse(s) : {};
+  } catch(e) { state.subject_status = {}; }
+}
+function saveSubjectStatus() {
+  localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
+}
+function toggleSubjectCheck(name, key) {
+  if (!state.subject_status[name]) state.subject_status[name] = {};
+  state.subject_status[name][key] = !state.subject_status[name][key];
+  saveSubjectStatus();
+  renderSubjects();
+}
+
+function renderSubjects() {
+  const container = document.getElementById('subjList');
+  if (!container) return;
+  container.innerHTML = '';
+
+  // グループ化（試験日別）
+  const groups = {};
+  const noExam = [];
+  for (const subj of SUBJECTS) {
+    if (subj.exam) {
+      if (!groups[subj.exam]) groups[subj.exam] = [];
+      groups[subj.exam].push(subj);
+    } else {
+      noExam.push(subj);
+    }
+  }
+
+  // サマリーカウント
+  let cntExam = 0, cntQb1 = 0, cntShuf = 0;
+
+  const allDates = Object.keys(groups).sort();
+  for (const examDate of allDates) {
+    const d = new Date(examDate);
+    d.setHours(0, 0, 0, 0);
+    const daysLeft = Math.round((d - TODAY) / 86400000);
+    const isPast    = daysLeft < 0;
+    const isUrgent  = !isPast && daysLeft <= 3;
+    const isSoon    = !isPast && !isUrgent && daysLeft <= 7;
+
+    // グループヘッダー
+    const hdr = document.createElement('div');
+    hdr.className = 'subj-group-hdr';
+    const dateStr = d.toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' });
+
+    let badgeHtml;
+    if (isPast) {
+      badgeHtml = `<span class="subj-badge" style="background:rgba(107,115,148,0.2);color:var(--dim);">試験済み</span>`;
+    } else if (isUrgent) {
+      badgeHtml = `<span class="subj-badge" style="background:rgba(255,64,96,0.15);color:var(--red);">⚠️ ${daysLeft}日後</span>`;
+    } else if (isSoon) {
+      badgeHtml = `<span class="subj-badge" style="background:rgba(255,201,64,0.15);color:var(--yellow);">⏰ ${daysLeft}日後</span>`;
+    } else {
+      badgeHtml = `<span class="subj-badge" style="background:rgba(91,143,255,0.1);color:var(--blue);">${daysLeft}日後</span>`;
+    }
+    hdr.innerHTML = `<span>${dateStr}</span>${badgeHtml}`;
+    container.appendChild(hdr);
+
+    for (const subj of groups[examDate]) {
+      const st = state.subject_status[subj.name] || {};
+      if (st.exam)  cntExam++;
+      if (st.qb1)   cntQb1++;
+      if (st.shuf)  cntShuf++;
+      container.appendChild(makeSubjRow(subj, isUrgent, isSoon, isPast));
+    }
+  }
+
+  // 試験日なし科目
+  if (noExam.length > 0) {
+    const hdr = document.createElement('div');
+    hdr.className = 'subj-group-hdr';
+    hdr.innerHTML = '<span>その他（CBT全体）</span>';
+    container.appendChild(hdr);
+    for (const subj of noExam) {
+      const st = state.subject_status[subj.name] || {};
+      if (st.exam)  cntExam++;
+      if (st.qb1)   cntQb1++;
+      if (st.shuf)  cntShuf++;
+      container.appendChild(makeSubjRow(subj, false, false, false));
+    }
+  }
+
+  // サマリー更新
+  setEl('subj-cnt-exam', cntExam);
+  setEl('subj-cnt-qb1',  cntQb1);
+  setEl('subj-cnt-shuf', cntShuf);
+}
+
+function makeSubjRow(subj, isUrgent, isSoon, isPast) {
+  const st = state.subject_status[subj.name] || {};
+  const allDone = st.exam && st.qb1 && st.shuf;
+
+  const row = document.createElement('div');
+  row.className = 'subj-row'
+    + (isUrgent ? ' urgent' : isSoon ? ' soon' : '')
+    + (isPast && !st.exam ? ' past' : '');
+
+  // 科目名 + 進捗ドット
+  const nameWrap = document.createElement('div');
+  nameWrap.style.flex = '1';
+  const nameEl = document.createElement('div');
+  nameEl.className = 'subj-name';
+  nameEl.textContent = subj.name;
+  if (allDone) nameEl.style.cssText = 'color:var(--green);text-decoration:line-through;opacity:0.7;';
+
+  const dots = document.createElement('div');
+  dots.className = 'subj-progress';
+  ['exam','qb1','shuf'].forEach(k => {
+    const dot = document.createElement('div');
+    dot.className = 'subj-prog-dot' + (st[k] ? ' on' : '');
+    dots.appendChild(dot);
+  });
+
+  nameWrap.appendChild(nameEl);
+  nameWrap.appendChild(dots);
+
+  // チェックボタン3つ
+  const checks = document.createElement('div');
+  checks.className = 'subj-checks';
+
+  const checkDefs = [
+    { key:'exam', onIcon:'🎓', offIcon:'·', title:'大学試験済み' },
+    { key:'qb1',  onIcon:'📖', offIcon:'·', title:'QB1周目完了' },
+    { key:'shuf', onIcon:'🔀', offIcon:'·', title:'科目内シャッフル完了' },
+  ];
+
+  for (const { key, onIcon, offIcon, title } of checkDefs) {
+    const btn = document.createElement('div');
+    btn.className = 'subj-chk' + (st[key] ? ' on' : '');
+    btn.textContent = st[key] ? onIcon : offIcon;
+    btn.title = title;
+    btn.addEventListener('click', () => {
+      toggleSubjectCheck(subj.name, key);
+    });
+    checks.appendChild(btn);
+  }
+
+  row.appendChild(nameWrap);
+  row.appendChild(checks);
+  return row;
 }
 
 // ── 起動 ──
