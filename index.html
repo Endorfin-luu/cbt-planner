@@ -30,6 +30,54 @@
   --dim: #6b7394;
   --sab: env(safe-area-inset-bottom, 0px);
 }
+/* ── ライトモード変数（system設定 OR data-theme='light'） ── */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg:#f0f2f8;--s1:#ffffff;--s2:#f4f6fc;--s3:#e8eaf4;
+    --border:#ced3e8;--text:#141828;--dim:#6b78a0;
+    --blue:#3a6be0;--green:#12b86a;--orange:#d96a08;
+    --red:#d02848;--yellow:#c09000;--purple:#6840c8;--teal:#0ab098;
+  }
+}
+[data-theme='light'] {
+  --bg:#f0f2f8;--s1:#ffffff;--s2:#f4f6fc;--s3:#e8eaf4;
+  --border:#ced3e8;--text:#141828;--dim:#6b78a0;
+  --blue:#3a6be0;--green:#12b86a;--orange:#d96a08;
+  --red:#d02848;--yellow:#c09000;--purple:#6840c8;--teal:#0ab098;
+}
+
+/* ライトモード個別調整 */
+@media (prefers-color-scheme: light) { :root:not([data-theme='dark']) { --lm:1; } }
+[data-theme='light'] { --lm:1; }
+
+[data-theme='light'] body::before,
+@media (prefers-color-scheme: light) { :root:not([data-theme='dark']) body::before {} }
+
+/* ヘッダー・ナビのblur背景をライトモード用に */
+[data-theme='light'] .hdr,
+[data-theme='light'] .nav {
+  background:rgba(255,255,255,0.95) !important;
+  box-shadow:0 1px 0 var(--border);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .hdr,
+  :root:not([data-theme='dark']) .nav {
+    background:rgba(255,255,255,0.95) !important;
+  }
+}
+
+/* today-card をライトモード用に */
+[data-theme='light'] .today-card {
+  background:linear-gradient(135deg,rgba(58,107,224,0.1),rgba(104,64,200,0.07)) !important;
+  border-color:rgba(58,107,224,0.2) !important;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .today-card {
+    background:linear-gradient(135deg,rgba(58,107,224,0.1),rgba(104,64,200,0.07)) !important;
+    border-color:rgba(58,107,224,0.2) !important;
+  }
+}
+
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;overscroll-behavior:none;}
 body{
@@ -529,7 +577,11 @@ body::before{
       <h1>QB <em>Planner</em> <span class="sync-dot" id="syncDot" title="同期状態"></span></h1>
       <div class="hdr-sub" id="hdr-sub">読み込み中...</div>
     </div>
-    <div class="cbt-pill">🎯 <span id="dLeft">—</span>日</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button id="themeBtn" onclick="toggleTheme()"
+        style="background:none;border:none;font-size:18px;cursor:pointer;padding:4px;opacity:0.7;line-height:1;">☀️</button>
+      <div class="cbt-pill">🎯 <span id="dLeft">—</span>日</div>
+    </div>
   </div>
 </div>
 
@@ -1103,6 +1155,7 @@ async function init() {
   updateAll();
   runSim();
   updateCountdown();
+  initTheme();
   setTimeout(checkPenalty, 600);
 }
 
@@ -1947,6 +2000,32 @@ function makeSubjRow(subj, isUrgent, isSoon, isPast) {
   row.appendChild(nameWrap);
   row.appendChild(checks);
   return row;
+}
+
+// ── テーマ管理（ダーク/ライト） ──
+function initTheme() {
+  const saved = localStorage.getItem('cbt_theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  // 保存設定 > システム設定（デフォルトはダーク）
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  applyTheme(theme, false);
+}
+
+function applyTheme(theme, save = true) {
+  const html = document.documentElement;
+  if (theme === 'light') {
+    html.setAttribute('data-theme', 'light');
+  } else {
+    html.removeAttribute('data-theme');
+  }
+  if (save) localStorage.setItem('cbt_theme', theme);
+  const btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  applyTheme(isLight ? 'dark' : 'light');
 }
 
 // ── Service Worker 登録（PWA） ──
