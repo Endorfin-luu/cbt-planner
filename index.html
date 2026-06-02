@@ -398,6 +398,25 @@ body::before{
 .cf{position:absolute;width:8px;height:8px;border-radius:2px;animation:fall 1.5s ease-in forwards;}
 @keyframes fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
 
+/* ── 週間サマリー ── */
+.week-summary{
+  display:flex;align-items:center;justify-content:center;gap:18px;
+  margin-top:10px;padding:8px;background:var(--s2);border-radius:12px;
+}
+.week-col{text-align:center;}
+.week-val{font-size:20px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--blue);line-height:1;}
+.week-lbl{font-size:9px;color:var(--dim);margin-top:2px;}
+.week-trend{font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace;}
+
+/* ── 励ましバナー ── */
+.cheer-banner{
+  font-size:12px;font-weight:600;line-height:1.6;
+  text-align:center;padding:10px 14px;margin-bottom:12px;
+  border-radius:12px;
+  background:rgba(46,232,200,0.07);border:1px solid rgba(46,232,200,0.2);
+  color:var(--teal);
+}
+
 /* ── バッジグリッド ── */
 .badge-grid{
   display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
@@ -722,6 +741,9 @@ body::before{
       <div class="ghost-diff" id="ghostDiff">—</div>
     </div>
 
+    <!-- 励ましメッセージ -->
+    <div class="cheer-banner" id="cheerBanner"></div>
+
     <div class="today-card">
       <div class="today-label">TODAY'S TARGET</div>
       <div class="today-q" id="todayTarget">— <span>問/日</span></div>
@@ -798,9 +820,24 @@ body::before{
     <div class="card">
       <div class="ct">直近7日間</div>
       <div class="streak-row" id="streakRow"></div>
-      <div style="text-align:center;font-size:11px;color:var(--dim);margin-top:6px;">
-        連続 <span id="streakCount" style="color:var(--green);font-weight:700;font-family:'JetBrains Mono',monospace;">0</span> 日記録中
+      <div style="display:flex;justify-content:center;gap:16px;font-size:11px;color:var(--dim);margin-top:6px;">
+        <span>🔥 連続 <span id="streakCount" style="color:var(--green);font-weight:700;font-family:'JetBrains Mono',monospace;">0</span> 日</span>
+        <span>🏅 最長 <span id="streakBest" style="color:var(--yellow);font-weight:700;font-family:'JetBrains Mono',monospace;">0</span> 日</span>
       </div>
+
+      <!-- 週間サマリー -->
+      <div class="week-summary" id="weekSummary">
+        <div class="week-col">
+          <div class="week-val" id="weekThis">0</div>
+          <div class="week-lbl">今週</div>
+        </div>
+        <div class="week-trend" id="weekTrend">—</div>
+        <div class="week-col">
+          <div class="week-val" style="color:var(--dim);" id="weekLast">0</div>
+          <div class="week-lbl">先週</div>
+        </div>
+      </div>
+
       <div style="border-top:1px solid var(--border);margin:12px -4px 12px;"></div>
       <div class="ct" style="margin-bottom:6px;">過去30日</div>
       <div class="heatmap-grid" id="heatmapGrid"></div>
@@ -1643,6 +1680,108 @@ function renderStreak() {
     if (streak > 365) break; // 安全ストップ
   }
   document.getElementById('streakCount').textContent = streak;
+
+  // 最長記録（daily_log全体を走査して連続区間の最大を求める）
+  const best = calcBestStreak();
+  // 自己ベスト更新を保存・通知
+  const savedBest = parseInt(localStorage.getItem('cbt_best_streak') || '0', 10);
+  const displayBest = Math.max(best, savedBest, streak);
+  if (streak > savedBest && streak > 1) {
+    localStorage.setItem('cbt_best_streak', String(streak));
+  }
+  setEl('streakBest', displayBest);
+
+  renderWeekSummary();
+}
+
+// 過去の最長連続記録
+function calcBestStreak() {
+  // 記録のある日付セットを作る
+  const dates = new Set();
+  state.daily_log.forEach(l => { if (l.n > 0) dates.add(l.date); });
+  state.streak.forEach(s => { if (s.n > 0) dates.add(s.date); });
+  if (dates.size === 0) return 0;
+
+  const sorted = [...dates].sort();
+  let best = 1, cur = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(sorted[i-1]);
+    const curD = new Date(sorted[i]);
+    const gap = Math.round((curD - prev) / 86400000);
+    if (gap === 1) { cur++; best = Math.max(best, cur); }
+    else cur = 1;
+  }
+  return best;
+}
+
+// ── 週間サマリー（今週vs先週） ──
+function renderWeekSummary() {
+  const sumRange = (startDaysAgo, endDaysAgo) => {
+    let total = 0;
+    for (let i = startDaysAgo; i <= endDaysAgo; i++) {
+      const d = new Date(TODAY); d.setDate(d.getDate() - i);
+      const ds = d.toISOString().slice(0, 10);
+      const entry = state.daily_log.find(l => l.date === ds) || state.streak.find(s => s.date === ds);
+      total += entry ? entry.n : 0;
+    }
+    return total;
+  };
+  const thisWeek = sumRange(0, 6);
+  const lastWeek = sumRange(7, 13);
+  setEl('weekThis', thisWeek);
+  setEl('weekLast', lastWeek);
+
+  const trendEl = document.getElementById('weekTrend');
+  if (trendEl) {
+    if (lastWeek === 0 && thisWeek === 0) {
+      trendEl.textContent = '—'; trendEl.style.color = 'var(--dim)';
+    } else if (lastWeek === 0) {
+      trendEl.textContent = '🚀'; trendEl.style.color = 'var(--green)';
+    } else {
+      const pct = Math.round((thisWeek - lastWeek) / lastWeek * 100);
+      if (pct >= 0) { trendEl.textContent = `📈+${pct}%`; trendEl.style.color = 'var(--green)'; }
+      else { trendEl.textContent = `📉${pct}%`; trendEl.style.color = 'var(--orange)'; }
+    }
+  }
+}
+
+// ── 励ましメッセージ（時間帯・進捗で変化） ──
+function renderCheer() {
+  const el = document.getElementById('cheerBanner');
+  if (!el) return;
+
+  const hour = new Date().getHours();
+  const todayEntry = state.daily_log.find(l => l.date === TODAY_STR);
+  const solvedToday = todayEntry ? todayEntry.n : 0;
+  const target = getDayTarget(TODAY);
+  const streak = getStreakCount();
+
+  let msg = '';
+  // 優先度：今日達成 > 借金 > 時間帯×未達成
+  if (target > 0 && solvedToday >= target) {
+    const over = solvedToday - target;
+    msg = over > 0
+      ? `🎉 今日のノルマ達成！さらに+${over}問、最高だ！`
+      : `✅ 今日のノルマ達成！えらい！この調子で続けよう`;
+  } else if (state.debt > 0) {
+    msg = `💪 借金が${state.debt}問。今日多めに解いて取り返そう！`;
+  } else if (hour < 11) {
+    msg = solvedToday > 0
+      ? `☀️ おはよう！もう${solvedToday}問、朝から素晴らしい`
+      : `☀️ おはよう！朝の数問が1日のリズムを作るよ`;
+  } else if (hour < 18) {
+    msg = solvedToday > 0
+      ? `🌤 午後も順調！残り${Math.max(0,target-solvedToday)}問でノルマ達成`
+      : `🌤 スキマ時間に1問だけでも。0問の日を作らない！`;
+  } else {
+    msg = solvedToday > 0
+      ? `🌙 今日もお疲れさま。あと${Math.max(0,target-solvedToday)}問でノルマ達成`
+      : `🌙 まだ0問。寝る前に少しだけでも記録しよう！`;
+  }
+  // ストリークが伸びていれば一言添える
+  if (streak >= 3) msg += `（🔥${streak}日連続中）`;
+
+  el.textContent = msg;
 }
 
 // ── 30日ヒートマップ描画 ──
@@ -1790,6 +1929,7 @@ function updateAll() {
   renderBarChart();
   renderLevel();
   renderGhost();
+  renderCheer();
   updatePaceAndExam();
   checkBadges();
   renderBadges();
