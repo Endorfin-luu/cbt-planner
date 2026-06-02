@@ -398,6 +398,26 @@ body::before{
 .cf{position:absolute;width:8px;height:8px;border-radius:2px;animation:fall 1.5s ease-in forwards;}
 @keyframes fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
 
+/* ── バッジグリッド ── */
+.badge-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+}
+.badge-cell{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:12px;padding:10px 4px;text-align:center;
+  cursor:pointer;transition:transform 0.15s;
+  opacity:0.55;
+}
+.badge-cell:active{transform:scale(0.92);}
+.badge-cell.earned{
+  opacity:1;
+  background:linear-gradient(135deg,rgba(255,201,64,0.12),rgba(255,138,60,0.08));
+  border-color:rgba(255,201,64,0.35);
+}
+.badge-icon{font-size:24px;line-height:1.2;}
+.badge-name{font-size:8.5px;color:var(--dim);margin-top:4px;line-height:1.2;font-weight:600;}
+.badge-cell.earned .badge-name{color:var(--text);}
+
 /* ── レベルカード ── */
 .level-card{
   display:flex;align-items:center;gap:12px;
@@ -1000,6 +1020,16 @@ body::before{
 
   <!-- ===== 対策 ===== -->
   <div class="panel" id="p-meta">
+
+    <!-- バッジコレクション -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="ct" style="margin-bottom:0;">🏅 バッジコレクション</div>
+        <div style="font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--yellow);" id="badgeCount">0 / 0</div>
+      </div>
+      <div class="badge-grid" id="badgeGrid"></div>
+    </div>
+
     <div class="co warn">⚠️ 科目内シャッフルで解く → 2周目から全体シャッフルで本番形式に</div>
 
     <div class="sec">今すぐやること</div>
@@ -1268,6 +1298,8 @@ async function init() {
   }
 
   loadSubjectStatus();
+  // 初回ロード時は既存進捗分のバッジを無音で登録（一斉コンフェッティ防止）
+  checkBadges(true);
   showSkeleton(false);
   updateAll();
   runSim();
@@ -1759,6 +1791,8 @@ function updateAll() {
   renderLevel();
   renderGhost();
   updatePaceAndExam();
+  checkBadges();
+  renderBadges();
 }
 
 // ── 日別バーチャート（過去30日） ──
@@ -1863,6 +1897,95 @@ function renderAccChart() {
   svg += `<div style="text-align:center;font-size:9px;color:var(--dim);margin-top:2px;">記録のある${points.length}日間 · 平均正答率 <strong style="color:var(--yellow);">${avg.toFixed(0)}%</strong></div>`;
 
   container.innerHTML = svg;
+}
+
+// ── バッジ定義 ──
+// check(state) が true なら達成。idで達成済みを localStorage に保存
+const BADGES = [
+  { id:'first',    icon:'🌱', name:'はじめの一歩',   desc:'最初の1問を記録',        check:s => s.r1 >= 1 },
+  { id:'q100',     icon:'💯', name:'100問突破',       desc:'1周目100問達成',         check:s => s.r1 >= 100 },
+  { id:'q500',     icon:'🔥', name:'500問の壁',       desc:'1周目500問達成',         check:s => s.r1 >= 500 },
+  { id:'q1000',    icon:'⚡', name:'1000問クラブ',    desc:'1周目1000問達成',        check:s => s.r1 >= 1000 },
+  { id:'half',     icon:'🌗', name:'折り返し地点',     desc:'1周目の半分(1682問)達成', check:s => s.r1 >= Math.floor(QB/2) },
+  { id:'q2500',    icon:'🚀', name:'ラストスパート',   desc:'1周目2500問達成',        check:s => s.r1 >= 2500 },
+  { id:'r1done',   icon:'🏆', name:'1周目完走',       desc:'QB1周目を完了',          check:s => s.r1 >= QB },
+  { id:'r2start',  icon:'🔁', name:'2周目スタート',    desc:'2周目を開始',            check:s => s.r2 >= 1 },
+  { id:'r3start',  icon:'⭐', name:'3周目スタート',    desc:'3周目を開始',            check:s => s.r3 >= 1 },
+  { id:'monte',    icon:'🧠', name:'モントレ着手',     desc:'モントレを開始',          check:s => s.m >= 1 },
+  { id:'b1',       icon:'📘', name:'基礎医学制覇',     desc:'Block1の全章を1周完了',   check:s => blockDone(1) },
+  { id:'b2',       icon:'📗', name:'臨床各論制覇',     desc:'Block2の全章を1周完了',   check:s => blockDone(2) },
+  { id:'streak7',  icon:'📅', name:'1週間継続',       desc:'7日連続で記録',          check:s => getStreakCount() >= 7 },
+  { id:'streak30', icon:'🗓️', name:'1ヶ月継続',       desc:'30日連続で記録',         check:s => getStreakCount() >= 30 },
+  { id:'acc70',    icon:'🎯', name:'正答率70%',       desc:'通算正答率70%達成',       check:s => s.r1 >= 100 && (s.ok/s.r1) >= 0.7 },
+  { id:'lv10',     icon:'🥉', name:'レベル10',        desc:'レベル10に到達',         check:s => getLevelInfo().lv >= 10 },
+  { id:'lv25',     icon:'🥈', name:'レベル25',        desc:'レベル25に到達',         check:s => getLevelInfo().lv >= 25 },
+  { id:'lv40',     icon:'🥇', name:'レベル40',        desc:'レベル40に到達',         check:s => getLevelInfo().lv >= 40 },
+];
+
+// ブロックの全章が1周目完了か
+function blockDone(block) {
+  const chs = CHAPTERS.filter(c => c.block === block);
+  return chs.length > 0 && chs.every(c => (state.subject_status[c.id]||{}).r1);
+}
+
+// 連続記録日数（renderStreakと同ロジック）
+function getStreakCount() {
+  let streak = 0;
+  for (let i = 0; ; i++) {
+    const d = new Date(TODAY); d.setDate(d.getDate() - i);
+    const ds = d.toISOString().slice(0, 10);
+    const entry = state.daily_log.find(l => l.date === ds) || state.streak.find(s => s.date === ds);
+    if (entry && entry.n > 0) streak++;
+    else if (i === 0) continue;
+    else break;
+    if (streak > 365) break;
+  }
+  return streak;
+}
+
+// バッジ獲得チェック（新規獲得があれば祝福）
+function checkBadges(silent = false) {
+  let earned = [];
+  try { earned = JSON.parse(localStorage.getItem('cbt_badges') || '[]'); } catch(e) {}
+  const newly = [];
+  for (const b of BADGES) {
+    if (!earned.includes(b.id) && b.check(state)) {
+      earned.push(b.id);
+      newly.push(b);
+    }
+  }
+  localStorage.setItem('cbt_badges', JSON.stringify(earned));
+
+  if (!silent && newly.length > 0) {
+    setTimeout(() => {
+      confetti();
+      showToast(`${newly[0].icon} バッジ「${newly[0].name}」獲得！`);
+    }, 500);
+  }
+  return earned;
+}
+
+function renderBadges() {
+  const container = document.getElementById('badgeGrid');
+  if (!container) return;
+  let earned = [];
+  try { earned = JSON.parse(localStorage.getItem('cbt_badges') || '[]'); } catch(e) {}
+
+  container.innerHTML = '';
+  for (const b of BADGES) {
+    const has = earned.includes(b.id);
+    const cell = document.createElement('div');
+    cell.className = 'badge-cell' + (has ? ' earned' : '');
+    cell.innerHTML = `
+      <div class="badge-icon">${has ? b.icon : '🔒'}</div>
+      <div class="badge-name">${b.name}</div>`;
+    cell.title = b.desc;
+    cell.addEventListener('click', () => {
+      showToast(has ? `${b.icon} ${b.name}：${b.desc}` : `🔒 ${b.desc}`);
+    });
+    container.appendChild(cell);
+  }
+  setEl('badgeCount', `${earned.length} / ${BADGES.length}`);
 }
 
 // ── レベル/XP システム ──
