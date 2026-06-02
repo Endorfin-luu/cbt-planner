@@ -421,6 +421,15 @@ body::before{
 .weekplan-chip.done{opacity:0.5;}
 .weekplan-chip.done .cid{text-decoration:line-through;}
 
+/* ── 復習リマインダー ── */
+.review-card{
+  background:rgba(255,138,60,0.06);
+  border:1px solid rgba(255,138,60,0.22);
+  border-radius:14px;padding:13px 14px;margin-bottom:12px;
+  cursor:pointer;transition:transform 0.15s;
+}
+.review-card:active{transform:scale(0.98);}
+
 /* ── 苦手ヒートマップ ── */
 .weak-block{margin-bottom:8px;}
 .weak-block:last-child{margin-bottom:0;}
@@ -809,6 +818,15 @@ body::before{
         <span class="weekplan-note" id="weekPlanNote"></span>
       </div>
       <div class="weekplan-chips" id="weekPlanChips"></div>
+    </div>
+
+    <!-- 復習リマインダー（エビングハウス） -->
+    <div class="review-card" id="reviewCard" style="display:none;" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
+      <div class="weekplan-hdr">
+        <span class="weekplan-title" style="color:var(--orange);">🔁 そろそろ復習</span>
+        <span class="weekplan-note">忘れる前にもう一度</span>
+      </div>
+      <div class="weekplan-chips" id="reviewChips"></div>
     </div>
 
     <!-- 次の試験カウントダウン -->
@@ -2034,6 +2052,7 @@ function updateAll() {
   renderGhost();
   renderCheer();
   renderWeekPlan();
+  renderReviewReminder();
   updatePaceAndExam();
   checkBadges();
   renderBadges();
@@ -2358,6 +2377,48 @@ function renderWeekPlan() {
   }
 }
 
+// ── 復習リマインダー（エビングハウスの忘却曲線） ──
+// 1周目完了から 3,7,16日 経過した章を「復習推奨」として提示
+function renderReviewReminder() {
+  const card  = document.getElementById('reviewCard');
+  const chips = document.getElementById('reviewChips');
+  if (!card || !chips) return;
+
+  const REVIEW_STAGES = [3, 7, 16, 35]; // 経過日数の目安
+  const due = [];
+
+  for (const ch of CHAPTERS) {
+    const st = state.subject_status[ch.id] || {};
+    // 1周目完了済み・完了日あり・2周目未完了 が対象
+    if (!st.r1 || !st.r1_date || st.r2) continue;
+    const completed = new Date(st.r1_date);
+    completed.setHours(0, 0, 0, 0);
+    const daysSince = Math.round((TODAY - completed) / 86400000);
+    if (daysSince < 3) continue; // まだ復習タイミングでない
+
+    // 最も近い経過ステージ
+    const stage = REVIEW_STAGES.filter(s => daysSince >= s).pop() || 3;
+    due.push({ ch, daysSince, stage });
+  }
+
+  if (due.length === 0) { card.style.display = 'none'; return; }
+
+  // 経過が長い（＝忘却リスク高）順に並べ、上位6件
+  due.sort((a, b) => b.daysSince - a.daysSince);
+  const top = due.slice(0, 6);
+
+  card.style.display = 'block';
+  chips.innerHTML = '';
+  for (const { ch, daysSince } of top) {
+    const urgent = daysSince >= 7;
+    const chip = document.createElement('div');
+    chip.className = 'weekplan-chip';
+    chip.style.borderLeft = `3px solid ${BLOCK_COLORS[ch.block]}`;
+    chip.innerHTML = `<span class="cid" style="color:${BLOCK_COLORS[ch.block]};">${ch.id}</span><span class="cn">${urgent ? '🔴' : ''}${daysSince}日経過</span>`;
+    chips.appendChild(chip);
+  }
+}
+
 // ── 必要ペース + 次の試験カウントダウン更新 ──
 function updatePaceAndExam() {
   // 必要ペース
@@ -2590,9 +2651,18 @@ function saveSubjectStatus() {
 }
 function toggleSubjectCheck(id, key) {
   if (!state.subject_status[id]) state.subject_status[id] = {};
-  state.subject_status[id][key] = !state.subject_status[id][key];
+  const newVal = !state.subject_status[id][key];
+  state.subject_status[id][key] = newVal;
+
+  // 1周目完了日を記録（復習リマインダー用）
+  if (key === 'r1') {
+    if (newVal) state.subject_status[id].r1_date = TODAY_STR;
+    else delete state.subject_status[id].r1_date;
+  }
+
   saveSubjectStatus();
   renderSubjects();
+  if (typeof updateAll === 'function') renderReviewReminder();
 }
 
 // 苦手レベルをサイクル（0未設定→1苦手→2普通→3得意→0）
