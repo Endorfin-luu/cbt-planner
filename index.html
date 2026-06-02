@@ -398,6 +398,25 @@ body::before{
 .cf{position:absolute;width:8px;height:8px;border-radius:2px;animation:fall 1.5s ease-in forwards;}
 @keyframes fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
 
+/* ── 苦手ヒートマップ ── */
+.weak-block{margin-bottom:8px;}
+.weak-block:last-child{margin-bottom:0;}
+.weak-block-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.weak-block-name{font-size:10px;font-weight:700;}
+.weak-block-stat{font-size:9px;color:var(--dim);font-family:'JetBrains Mono',monospace;}
+.weak-cells{display:flex;flex-wrap:wrap;gap:3px;}
+.weak-cell{
+  width:30px;height:22px;border-radius:5px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:8.5px;font-weight:700;font-family:'JetBrains Mono',monospace;
+  background:var(--s3);color:var(--dim);
+  cursor:pointer;transition:transform 0.12s;
+}
+.weak-cell:active{transform:scale(0.85);}
+.weak-cell.weak{background:var(--red);color:#fff;}
+.weak-cell.mid{background:var(--yellow);color:#000;}
+.weak-cell.strong{background:var(--green);color:#000;}
+
 /* ── 週間サマリー ── */
 .week-summary{
   display:flex;align-items:center;justify-content:center;gap:18px;
@@ -1105,12 +1124,27 @@ body::before{
   <!-- ===== 科目（チャプター管理） ===== -->
   <div class="panel" id="p-subj">
 
+    <!-- 苦手ヒートマップ -->
+    <div class="card">
+      <div class="ct" style="margin-bottom:8px;">🌡️ 苦手マップ（章IDをタップで設定）</div>
+      <div id="weakHeatmap"></div>
+      <div style="display:flex;justify-content:center;gap:12px;font-size:9px;color:var(--dim);margin-top:8px;">
+        <span style="display:flex;align-items:center;gap:3px;"><span style="width:10px;height:10px;border-radius:2px;background:var(--s3);display:inline-block;"></span>未設定</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="width:10px;height:10px;border-radius:2px;background:var(--red);display:inline-block;"></span>苦手</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="width:10px;height:10px;border-radius:2px;background:var(--yellow);display:inline-block;"></span>普通</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="width:10px;height:10px;border-radius:2px;background:var(--green);display:inline-block;"></span>得意</span>
+      </div>
+    </div>
+
     <div class="card" style="padding:12px 14px;margin-bottom:8px;">
       <div style="font-size:10px;color:var(--dim);margin-bottom:6px;font-weight:700;letter-spacing:0.06em;">チェックの意味</div>
-      <div style="display:flex;gap:10px;font-size:11px;flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;font-size:11px;flex-wrap:wrap;">
         <span>✅ 1周目完了</span>
         <span>🔁 2周目完了</span>
         <span>⭐ 3周目完了</span>
+      </div>
+      <div style="font-size:10px;color:var(--dim);margin-top:6px;line-height:1.5;">
+        💡 章ID（例: 2H）をタップ → 苦手/普通/得意を切替。苦手マップに反映されます
       </div>
     </div>
 
@@ -2454,7 +2488,60 @@ function toggleSubjectCheck(id, key) {
   renderSubjects();
 }
 
+// 苦手レベルをサイクル（0未設定→1苦手→2普通→3得意→0）
+function cycleWeakness(id) {
+  if (!state.subject_status[id]) state.subject_status[id] = {};
+  const cur = state.subject_status[id].acc || 0;
+  state.subject_status[id].acc = (cur + 1) % 4;
+  saveSubjectStatus();
+  renderSubjects();
+  const labels = ['未設定','苦手🔴','普通🟡','得意🟢'];
+  showToast(`${id}: ${labels[state.subject_status[id].acc]}`);
+}
+
+const ACC_CLASS = ['', 'weak', 'mid', 'strong'];
+
+// 苦手ヒートマップ描画
+function renderWeakHeatmap() {
+  const container = document.getElementById('weakHeatmap');
+  if (!container) return;
+  container.innerHTML = '';
+
+  for (let block = 1; block <= 5; block++) {
+    const chs = CHAPTERS.filter(c => c.block === block);
+    if (chs.length === 0) continue;
+
+    // 苦手の数をカウント
+    const weakCount = chs.filter(c => (state.subject_status[c.id]||{}).acc === 1).length;
+
+    const wb = document.createElement('div');
+    wb.className = 'weak-block';
+
+    const hdr = document.createElement('div');
+    hdr.className = 'weak-block-hdr';
+    hdr.innerHTML = `
+      <span class="weak-block-name" style="color:${BLOCK_COLORS[block]};">${BLOCK_NAMES[block]}</span>
+      <span class="weak-block-stat">${weakCount > 0 ? '🔴苦手 '+weakCount+'章' : ''}</span>`;
+    wb.appendChild(hdr);
+
+    const cells = document.createElement('div');
+    cells.className = 'weak-cells';
+    for (const ch of chs) {
+      const acc = (state.subject_status[ch.id]||{}).acc || 0;
+      const cell = document.createElement('div');
+      cell.className = 'weak-cell ' + ACC_CLASS[acc];
+      cell.textContent = ch.id;
+      cell.title = ch.subj || ch.id;
+      cell.addEventListener('click', () => cycleWeakness(ch.id));
+      cells.appendChild(cell);
+    }
+    wb.appendChild(cells);
+    container.appendChild(wb);
+  }
+}
+
 function renderSubjects() {
+  renderWeakHeatmap();
   const container = document.getElementById('subjList');
   if (!container) return;
   container.innerHTML = '';
@@ -2506,8 +2593,12 @@ function makeChapterRow(ch) {
   topLine.style.cssText = 'display:flex;align-items:baseline;gap:6px;';
 
   const idEl = document.createElement('span');
-  idEl.style.cssText = `font-family:'JetBrains Mono',monospace;font-weight:900;font-size:15px;color:${color};flex-shrink:0;`;
+  const accLevel = st.acc || 0;
+  const accUnderline = ['transparent','var(--red)','var(--yellow)','var(--green)'][accLevel];
+  idEl.style.cssText = `font-family:'JetBrains Mono',monospace;font-weight:900;font-size:15px;color:${color};flex-shrink:0;cursor:pointer;border-bottom:2px solid ${accUnderline};`;
   idEl.textContent = ch.id;
+  idEl.title = 'タップで苦手/普通/得意を設定';
+  idEl.addEventListener('click', (e) => { e.stopPropagation(); cycleWeakness(ch.id); });
 
   const nEl = document.createElement('span');
   nEl.style.cssText = 'font-size:11px;color:var(--dim);font-family:"JetBrains Mono",monospace;flex-shrink:0;';
