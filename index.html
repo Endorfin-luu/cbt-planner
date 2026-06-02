@@ -1238,53 +1238,62 @@ const QB = 3363, MONTE = 3573;
 
 // ── チャプターリスト（Studyフォルダ実データ、計3363問） ──
 const CHAPTERS = [
-  // Block 1 基礎医学（631問）
-  { id:'1A', n:35,  range:'1-1〜35',    block:1, subj:'医療倫理' },
-  { id:'1B', n:52,  range:'1-36〜87',   block:1, subj:'' },
-  { id:'1C', n:63,  range:'1-88〜150',  block:1, subj:'' },
-  { id:'1D', n:74,  range:'1-151〜224', block:1, subj:'' },
-  { id:'1E', n:47,  range:'1-225〜271', block:1, subj:'' },
-  { id:'1F', n:73,  range:'1-272〜344', block:1, subj:'感染症内科・アレルギー' },
-  { id:'1G', n:75,  range:'1-345〜419', block:1, subj:'' },
-  { id:'1H', n:59,  range:'1-420〜478', block:1, subj:'' },
-  { id:'1I', n:77,  range:'1-479〜555', block:1, subj:'法医学' },
-  { id:'1J', n:76,  range:'1-556〜631', block:1, subj:'' },
-  // Block 2 臨床各論（1337問）
-  { id:'2A', n:65,  range:'2-1〜65',      block:2, subj:'消化器内科' },
-  { id:'2B', n:52,  range:'2-66〜117',    block:2, subj:'消化器内科' },
-  { id:'2C', n:99,  range:'2-118〜216',   block:2, subj:'循環器内科' },
-  { id:'2D', n:59,  range:'2-217〜275',   block:2, subj:'呼吸器内科' },
-  { id:'2E', n:51,  range:'2-276〜326',   block:2, subj:'腎臓内科・泌尿器' },
-  { id:'2F', n:53,  range:'2-327〜379',   block:2, subj:'糖代謝・内分泌' },
-  { id:'2G', n:48,  range:'2-380〜427',   block:2, subj:'血液内科' },
-  { id:'2H', n:104, range:'2-428〜531',   block:2, subj:'神経内科・脳外' },
-  { id:'2I', n:61,  range:'2-532〜592',   block:2, subj:'整形外科・リハ' },
-  { id:'2J', n:126, range:'2-593〜718',   block:2, subj:'感染症内科・アレルギー' },
-  { id:'2K', n:26,  range:'2-719〜744',   block:2, subj:'膠原病・リウマチ' },
-  { id:'2L', n:23,  range:'2-745〜767',   block:2, subj:'' },
-  { id:'2M', n:26,  range:'2-768〜793',   block:2, subj:'小児科' },
-  { id:'2N', n:21,  range:'2-794〜814',   block:2, subj:'産婦人科' },
-  { id:'2O', n:66,  range:'2-815〜880',   block:2, subj:'産婦人科' },
-  { id:'2P', n:59,  range:'2-881〜939',   block:2, subj:'眼科' },
-  { id:'2Q', n:55,  range:'2-940〜994',   block:2, subj:'耳鼻科' },
-  { id:'2R', n:49,  range:'2-995〜1043',  block:2, subj:'皮膚科' },
-  { id:'2S', n:52,  range:'2-1044〜1095', block:2, subj:'精神科・心療内科' },
-  { id:'2T', n:70,  range:'2-1096〜1165', block:2, subj:'放射線科・基放医' },
-  { id:'2U', n:42,  range:'2-1166〜1207', block:2, subj:'救急医学' },
-  { id:'2V', n:51,  range:'2-1208〜1258', block:2, subj:'麻酔科' },
-  { id:'2W', n:36,  range:'2-1259〜1294', block:2, subj:'老年病科' },
-  { id:'2X', n:43,  range:'2-1295〜1337', block:2, subj:'' },
-  // Block 3 公衆衛生・社会医学（387問）
-  { id:'3A', n:55,  range:'3-1〜55',    block:3, subj:'臨床研究・社会医学' },
-  { id:'3B', n:60,  range:'3-56〜115',  block:3, subj:'臨床研究・社会医学' },
-  { id:'3C', n:30,  range:'3-116〜145', block:3, subj:'公衆衛生' },
-  { id:'3D', n:242, range:'3-146〜387', block:3, subj:'法医学・臨床研究' },
-  // Block 4 総合問題（848問）
-  { id:'4A', n:360, range:'4-1〜360',   block:4, subj:'総合問題（ランダム）' },
-  { id:'4B', n:488, range:'4-361〜848', block:4, subj:'総合問題（ランダム）' },
-  // Block 5 倫理・法（160問）
-  { id:'5A', n:160, range:'5-1〜160',   block:5, subj:'医療倫理・法' },
+  // vol.1 基礎医学（631問）※QB online 2027年版の実章名
+  { id:'1A', n:35,  block:1, subj:'細胞生物学' },
+  { id:'1B', n:52,  block:1, subj:'組織・解剖' },
+  { id:'1C', n:63,  block:1, subj:'生理学' },
+  { id:'1D', n:74,  block:1, subj:'生化学' },
+  { id:'1E', n:47,  block:1, subj:'分子生物学' },
+  { id:'1F', n:73,  block:1, subj:'発生' },
+  { id:'1G', n:75,  block:1, subj:'微生物' },
+  { id:'1H', n:59,  block:1, subj:'免疫' },
+  { id:'1I', n:77,  block:1, subj:'薬理学' },
+  { id:'1J', n:76,  block:1, subj:'病理学総論' },
+  // vol.2 臨床医学（1337問）
+  { id:'2A', n:65,  block:2, subj:'消化管' },
+  { id:'2B', n:52,  block:2, subj:'肝・胆・膵' },
+  { id:'2C', n:99,  block:2, subj:'循環器' },
+  { id:'2D', n:59,  block:2, subj:'代謝・内分泌' },
+  { id:'2E', n:51,  block:2, subj:'腎・泌尿器' },
+  { id:'2F', n:53,  block:2, subj:'免疫・膠原病' },
+  { id:'2G', n:48,  block:2, subj:'血液' },
+  { id:'2H', n:104, block:2, subj:'感染症' },
+  { id:'2I', n:61,  block:2, subj:'呼吸器' },
+  { id:'2J', n:126, block:2, subj:'神経' },
+  { id:'2K', n:26,  block:2, subj:'中毒' },
+  { id:'2L', n:23,  block:2, subj:'救急' },
+  { id:'2M', n:26,  block:2, subj:'' },  // 以降は要スクショ確認
+  { id:'2N', n:21,  block:2, subj:'' },
+  { id:'2O', n:66,  block:2, subj:'' },
+  { id:'2P', n:59,  block:2, subj:'' },
+  { id:'2Q', n:55,  block:2, subj:'' },
+  { id:'2R', n:49,  block:2, subj:'' },
+  { id:'2S', n:52,  block:2, subj:'' },
+  { id:'2T', n:70,  block:2, subj:'' },
+  { id:'2U', n:42,  block:2, subj:'' },
+  { id:'2V', n:51,  block:2, subj:'' },
+  { id:'2W', n:36,  block:2, subj:'' },
+  { id:'2X', n:43,  block:2, subj:'' },
+  // vol.3 公衆衛生・社会医学（387問）※要スクショ確認
+  { id:'3A', n:55,  block:3, subj:'' },
+  { id:'3B', n:60,  block:3, subj:'' },
+  { id:'3C', n:30,  block:3, subj:'' },
+  { id:'3D', n:242, block:3, subj:'' },
+  // vol.4 総合問題（848問）
+  { id:'4A', n:360, block:4, subj:'総合問題' },
+  { id:'4B', n:488, block:4, subj:'総合問題' },
+  // vol.5（160問）※要スクショ確認
+  { id:'5A', n:160, block:5, subj:'' },
 ];
+
+// ── 現在の進捗インポート（スクショ実データ・一度だけ自動反映） ──
+// 演習完了の章を1周目完了に、赤(×)割合から苦手レベルを推定（acc: 1苦手/2普通/3得意）
+const INITIAL_PROGRESS = {
+  '1A': { r1:true, acc:2 }, '1B': { r1:true, acc:2 }, '1C': { r1:true, acc:3 },
+  '1D': { r1:true, acc:1 }, '1E': { r1:true, acc:2 }, '1F': { r1:true, acc:1 },
+  '1H': { r1:true, acc:2 }, '1I': { r1:true, acc:1 },
+  '2A': { r1:true, acc:2 }, '2B': { r1:true, acc:2 }, '2G': { r1:true, acc:2 },
+};
 
 // ── 試験スケジュール ──
 const EXAMS = [
@@ -1318,7 +1327,7 @@ const WEEKLY_PLAN = [
   { start:'2026-05-11', chapters:['2D','2J','2K'],       note:'5/15 呼吸器/アレルギー' },
   { start:'2026-05-18', chapters:['2E','2F'],            note:'5/22 腎/内分泌' },
   { start:'2026-05-25', chapters:['1F','2J','2S'],       note:'6/1 感染/心療（復習中心）' },
-  { start:'2026-06-01', chapters:['1D','2F','2G'],       note:'6/8 糖代謝/血液（復習＋2G）' },
+  { start:'2026-06-01', chapters:['2D','2G'],            note:'6/8 糖代謝/血液内科' },
   { start:'2026-06-08', chapters:['2H','2W'],            note:'6/15 神経/老年' },
   { start:'2026-06-15', chapters:['1I','3D','3A'],       note:'6/22 法医学/臨床研究' },
   { start:'2026-06-22', chapters:['2U','4A'],            note:'6/26 外科3/救急' },
@@ -2663,11 +2672,11 @@ function runSim() {
 
 // ── チャプターステータス（localStorage 保存） ──
 const BLOCK_NAMES = {
-  1: 'Block 1　基礎医学',
-  2: 'Block 2　臨床各論',
-  3: 'Block 3　公衆衛生・社会医学',
-  4: 'Block 4　総合問題',
-  5: 'Block 5　倫理・法',
+  1: 'vol.1　基礎医学',
+  2: 'vol.2　臨床医学',
+  3: 'vol.3　公衆衛生・社会医学',
+  4: 'vol.4　総合問題',
+  5: 'vol.5',
 };
 const BLOCK_COLORS = {
   1: 'var(--purple)',
@@ -2682,6 +2691,24 @@ function loadSubjectStatus() {
     const s = localStorage.getItem('cbt_subj');
     state.subject_status = s ? JSON.parse(s) : {};
   } catch(e) { state.subject_status = {}; }
+
+  // 現在進捗を一度だけ反映（既に設定済みの章は上書きしない）
+  if (localStorage.getItem('cbt_import_v1') !== 'done') {
+    for (const id in INITIAL_PROGRESS) {
+      if (!state.subject_status[id] || Object.keys(state.subject_status[id]).length === 0) {
+        state.subject_status[id] = { ...INITIAL_PROGRESS[id] };
+      }
+    }
+    // スクショ実データの合計問題数(871)に補正（正答数は約61%で推定。進捗タブで微調整可）
+    const IMPORT_R1 = 871, IMPORT_OK = 529;
+    if (state.r1 < IMPORT_R1) {
+      state.r1 = IMPORT_R1;
+      state.ok = IMPORT_OK;
+      scheduleSave(); // Supabaseにも反映
+    }
+    localStorage.setItem('cbt_import_v1', 'done');
+    saveSubjectStatus();
+  }
 }
 function saveSubjectStatus() {
   localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
