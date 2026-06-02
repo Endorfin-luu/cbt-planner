@@ -453,6 +453,29 @@ body::before{
 .stepper-labels{display:flex;justify-content:center;gap:8px;margin-top:-8px;margin-bottom:8px;}
 .stepper-labels span{font-size:9px;color:var(--dim);text-align:center;width:44px;}
 .stepper-labels span.small{width:36px;}
+/* ── 間違い数入力 ── */
+.wrong-row{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--s2);border-radius:12px;padding:9px 12px;margin-top:4px;
+}
+.wrong-label{font-size:12px;color:var(--dim);font-weight:600;}
+.wrong-ctrl{display:flex;align-items:center;gap:8px;}
+.wrong-btn{
+  width:30px;height:30px;border-radius:8px;
+  background:var(--s3);border:1px solid var(--border);
+  color:var(--text);font-size:15px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all 0.15s;
+}
+.wrong-btn:active{transform:scale(0.9);background:var(--red);border-color:var(--red);}
+.wrong-val{
+  min-width:36px;text-align:center;
+  font-family:'JetBrains Mono',monospace;font-weight:900;font-size:18px;color:var(--red);
+  border-bottom:2px solid transparent;cursor:text;
+}
+.wrong-val:focus{outline:none;border-bottom:2px solid var(--red);}
+.wrong-hint{font-size:9px;color:var(--dim);text-align:center;margin-top:6px;}
+
 .add-btn{
   width:100%;padding:15px;border-radius:14px;
   background:linear-gradient(135deg,var(--blue),var(--purple));
@@ -675,6 +698,19 @@ body::before{
         <span>+5</span>
         <span class="small">+1</span>
       </div>
+
+      <!-- 間違い数（任意） -->
+      <div class="wrong-row">
+        <span class="wrong-label">うち間違えた数</span>
+        <div class="wrong-ctrl">
+          <button class="wrong-btn" onclick="stepWrong(-1)">−</button>
+          <div class="wrong-val" id="wrongVal" contenteditable="true" inputmode="numeric"
+            onblur="syncWrongVal()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">0</div>
+          <button class="wrong-btn" onclick="stepWrong(1)">＋</button>
+        </div>
+      </div>
+      <div class="wrong-hint" id="wrongHint">正答率は自動計算されます（任意・分からなければ0でOK）</div>
+
       <button class="add-btn" onclick="addToday()">✓ 今日の分を追加する</button>
     </div>
 
@@ -705,6 +741,13 @@ body::before{
           <span style="display:inline-block;width:16px;border-top:1.5px dashed rgba(255,201,64,0.6);"></span>目標
         </span>
         <span>今日</span>
+      </div>
+
+      <!-- 日別正答率グラフ -->
+      <div id="accChartWrap" style="display:none;">
+        <div style="border-top:1px solid var(--border);margin:12px -4px 12px;"></div>
+        <div class="ct" style="margin-bottom:6px;">日別正答率の推移</div>
+        <div id="accChart"></div>
       </div>
     </div>
 
@@ -1077,6 +1120,7 @@ let state = {
 
 // UI専用（Supabaseには保存しない）
 let todayStep = 0;
+let todayWrong = 0;
 
 // ── スケルトン表示制御 ──
 function showSkeleton(v) {
@@ -1347,31 +1391,68 @@ function syncStepVal() {
   const v = parseInt(el.textContent.replace(/[^0-9]/g, ''), 10);
   todayStep = isNaN(v) ? 0 : Math.max(0, v);
   el.textContent = todayStep;
+  clampWrong();
+}
+
+// 間違い数ステッパー
+function stepWrong(n) {
+  todayWrong = Math.max(0, todayWrong + n);
+  clampWrong();
+  document.getElementById('wrongVal').textContent = todayWrong;
+}
+function syncWrongVal() {
+  const el = document.getElementById('wrongVal');
+  const v = parseInt(el.textContent.replace(/[^0-9]/g, ''), 10);
+  todayWrong = isNaN(v) ? 0 : Math.max(0, v);
+  clampWrong();
+  el.textContent = todayWrong;
+}
+// 間違い数は問題数を超えない
+function clampWrong() {
+  if (todayStep > 0 && todayWrong > todayStep) todayWrong = todayStep;
+  const hint = document.getElementById('wrongHint');
+  if (hint) {
+    if (todayStep > 0 && todayWrong >= 0) {
+      const correct = todayStep - todayWrong;
+      const acc = todayStep > 0 ? (correct / todayStep * 100).toFixed(0) : 0;
+      hint.textContent = `今日の正答率: ${acc}%（${correct}/${todayStep}問正解）`;
+    } else {
+      hint.textContent = '正答率は自動計算されます（任意・分からなければ0でOK）';
+    }
+  }
 }
 
 function addToday() {
   if (todayStep === 0) { showToast('問題数を入力してね'); return; }
 
+  clampWrong();
   const prev = state.r1;
   state.r1 = Math.min(QB, state.r1 + todayStep);
   const added = state.r1 - prev;
 
+  // 今日の正解数 = 追加分 − 間違い数（間違いは追加分でクランプ）
+  const wrongToday   = Math.min(todayWrong, added);
+  const correctToday = added - wrongToday;
+
+  // 累計正解数を更新（state.ok）
+  state.ok = Math.min(state.r1, state.ok + correctToday);
+
   // daily_log に記録（当日分は加算、なければ追加）
   const logIdx = state.daily_log.findIndex(l => l.date === TODAY_STR);
   if (logIdx >= 0) {
-    state.daily_log[logIdx].n += added;
+    state.daily_log[logIdx].n  += added;
+    state.daily_log[logIdx].ok += correctToday;
   } else {
-    // ok は進捗タブで正解数を手動更新するため0で初期化
-    state.daily_log.push({ date: TODAY_STR, n: added, ok: 0 });
+    state.daily_log.push({ date: TODAY_STR, n: added, ok: correctToday });
   }
 
-  // streak（後方互換 — 最大7件保持）
+  // streak（後方互換 — 最大30件保持）
   const sIdx = state.streak.findIndex(s => s.date === TODAY_STR);
   if (sIdx >= 0) {
     state.streak[sIdx].n += added;
   } else {
     state.streak.push({ date: TODAY_STR, n: added });
-    if (state.streak.length > 30) state.streak.shift(); // 少し多めに保持
+    if (state.streak.length > 30) state.streak.shift();
   }
 
   state.last_date = TODAY_STR;
@@ -1392,11 +1473,15 @@ function addToday() {
   }
 
   todayStep = 0;
+  todayWrong = 0;
   document.getElementById('stepVal').textContent = 0;
+  document.getElementById('wrongVal').textContent = 0;
+  clampWrong();
 
   scheduleSave();
   updateAll();
-  showToast(`+${added}問 追加！ 🎉`);
+  const accMsg = added > 0 ? `（正答率${(correctToday/added*100).toFixed(0)}%）` : '';
+  showToast(`+${added}問 追加！${accMsg} 🎉`);
   if (state.r1 >= QB) confetti();
 }
 
@@ -1660,6 +1745,62 @@ function renderBarChart() {
     const s = new Date(TODAY); s.setDate(s.getDate() - 29);
     startEl.textContent = s.toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' });
   }
+
+  renderAccChart();
+}
+
+// ── 日別正答率の折れ線グラフ（過去30日・データのある日のみ） ──
+function renderAccChart() {
+  const wrap = document.getElementById('accChartWrap');
+  const container = document.getElementById('accChart');
+  if (!wrap || !container) return;
+
+  // 正答率データを持つ日を収集（n>0 かつ ok が記録されている日）
+  const points = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(TODAY);
+    d.setDate(d.getDate() - i);
+    const ds = d.toISOString().slice(0, 10);
+    const entry = state.daily_log.find(l => l.date === ds);
+    if (entry && entry.n > 0 && entry.ok != null && entry.ok > 0) {
+      const acc = entry.ok / entry.n * 100;
+      points.push({ idx: 29 - i, acc, ds });
+    }
+  }
+
+  // データが2点未満なら非表示
+  if (points.length < 2) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+
+  const W = 300, H = 70, pad = 4;
+  const x = idx => pad + (idx / 29) * (W - 2 * pad);
+  const y = acc => H - pad - (acc / 100) * (H - 2 * pad);
+
+  // 折れ線パス
+  let path = '';
+  points.forEach((p, i) => {
+    path += (i === 0 ? 'M' : 'L') + x(p.idx).toFixed(1) + ',' + y(p.acc).toFixed(1) + ' ';
+  });
+
+  // 50%・75%のグリッドライン
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;overflow:visible;">`;
+  [50, 75].forEach(g => {
+    svg += `<line x1="0" y1="${y(g)}" x2="${W}" y2="${y(g)}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="3,3"/>`;
+    svg += `<text x="2" y="${y(g)-2}" font-size="7" fill="var(--dim)">${g}%</text>`;
+  });
+  svg += `<path d="${path}" fill="none" stroke="var(--yellow)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  // 各点
+  points.forEach(p => {
+    const c = p.acc >= 70 ? 'var(--green)' : p.acc >= 50 ? 'var(--yellow)' : 'var(--red)';
+    svg += `<circle cx="${x(p.idx).toFixed(1)}" cy="${y(p.acc).toFixed(1)}" r="2.5" fill="${c}"/>`;
+  });
+  svg += '</svg>';
+
+  // 平均正答率
+  const avg = points.reduce((s,p)=>s+p.acc,0) / points.length;
+  svg += `<div style="text-align:center;font-size:9px;color:var(--dim);margin-top:2px;">記録のある${points.length}日間 · 平均正答率 <strong style="color:var(--yellow);">${avg.toFixed(0)}%</strong></div>`;
+
+  container.innerHTML = svg;
 }
 
 // ── 必要ペース + 次の試験カウントダウン更新 ──
