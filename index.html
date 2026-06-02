@@ -1213,7 +1213,7 @@ body::before{
         <div class="sl">3周目完了</div>
       </div>
     </div>
-    <div style="text-align:center;font-size:10px;color:var(--dim);margin-bottom:12px;">/ 41チャプター（3,363問）</div>
+    <div style="text-align:center;font-size:10px;color:var(--dim);margin-bottom:12px;">/ 41チャプター（3,359問）</div>
 
     <div id="subjList"></div>
 
@@ -1234,9 +1234,9 @@ body::before{
 
 <script>
 // ── 定数 ──
-const QB = 3363, MONTE = 3573;
+const QB = 3359, MONTE = 3573;
 
-// ── チャプターリスト（Studyフォルダ実データ、計3363問） ──
+// ── チャプターリスト（QB online 2027年版 実データ、計3359問） ──
 const CHAPTERS = [
   // vol.1 基礎医学（631問）※QB online 2027年版の実章名
   { id:'1A', n:35,  block:1, subj:'細胞生物学' },
@@ -1262,28 +1262,28 @@ const CHAPTERS = [
   { id:'2J', n:126, block:2, subj:'神経' },
   { id:'2K', n:26,  block:2, subj:'中毒' },
   { id:'2L', n:23,  block:2, subj:'救急' },
-  { id:'2M', n:26,  block:2, subj:'' },  // 以降は要スクショ確認
-  { id:'2N', n:21,  block:2, subj:'' },
-  { id:'2O', n:66,  block:2, subj:'' },
-  { id:'2P', n:59,  block:2, subj:'' },
-  { id:'2Q', n:55,  block:2, subj:'' },
-  { id:'2R', n:49,  block:2, subj:'' },
-  { id:'2S', n:52,  block:2, subj:'' },
-  { id:'2T', n:70,  block:2, subj:'' },
-  { id:'2U', n:42,  block:2, subj:'' },
-  { id:'2V', n:51,  block:2, subj:'' },
-  { id:'2W', n:36,  block:2, subj:'' },
-  { id:'2X', n:43,  block:2, subj:'' },
-  // vol.3 公衆衛生・社会医学（387問）※要スクショ確認
-  { id:'3A', n:55,  block:3, subj:'' },
-  { id:'3B', n:60,  block:3, subj:'' },
-  { id:'3C', n:30,  block:3, subj:'' },
-  { id:'3D', n:242, block:3, subj:'' },
-  // vol.4 総合問題（848問）
-  { id:'4A', n:360, block:4, subj:'総合問題' },
-  { id:'4B', n:488, block:4, subj:'総合問題' },
-  // vol.5（160問）※要スクショ確認
-  { id:'5A', n:160, block:5, subj:'' },
+  { id:'2M', n:26,  block:2, subj:'麻酔科' },
+  { id:'2N', n:21,  block:2, subj:'老年医学' },
+  { id:'2O', n:66,  block:2, subj:'小児科' },
+  { id:'2P', n:59,  block:2, subj:'婦人科・乳腺外科' },
+  { id:'2Q', n:55,  block:2, subj:'産科' },
+  { id:'2R', n:49,  block:2, subj:'眼科' },
+  { id:'2S', n:52,  block:2, subj:'耳鼻咽喉科' },
+  { id:'2T', n:70,  block:2, subj:'整形外科' },
+  { id:'2U', n:42,  block:2, subj:'精神科' },
+  { id:'2V', n:50,  block:2, subj:'皮膚科' },
+  { id:'2W', n:36,  block:2, subj:'泌尿器科' },
+  { id:'2X', n:43,  block:2, subj:'放射線科' },
+  // vol.3 医学総論・公衆衛生（388問）
+  { id:'3A', n:55,  block:3, subj:'症候・病態' },
+  { id:'3B', n:61,  block:3, subj:'診療の知識・技能' },
+  { id:'3C', n:30,  block:3, subj:'身体診察' },
+  { id:'3D', n:242, block:3, subj:'公衆衛生' },
+  // vol.4 多選択肢・4連問（844問）
+  { id:'4A', n:360, block:4, subj:'多選択肢問題' },
+  { id:'4B', n:484, block:4, subj:'順次解答4連問' },
+  // vol.5 追加問題（160問）
+  { id:'5A', n:160, block:5, subj:'追加問題' },
 ];
 
 // ── 現在の進捗インポート（スクショ実データ・一度だけ自動反映） ──
@@ -1318,37 +1318,30 @@ const EXAMS = [
 
 // ── 週次学習計画（StudyフォルダのスケジュールMDより） ──
 // start: その週の開始日（月曜）。chapters: 取り組む章。note: 補足
+// 実章名に基づき大学試験スケジュールと整合させた週次計画
 const WEEKLY_PLAN = [
-  { start:'2026-04-06', chapters:['1C','1D'],            note:'基礎固め' },
-  { start:'2026-04-13', chapters:['1E','1F'],            note:'基礎固め' },
-  { start:'2026-04-20', chapters:['1G','1H'],            note:'基礎固め' },
-  { start:'2026-04-27', chapters:['1I','1J'],            note:'基礎固め' },
-  { start:'2026-05-04', chapters:['2A','2B','2C'],       note:'消化器・循環器へ' },
-  { start:'2026-05-11', chapters:['2D','2J','2K'],       note:'5/15 呼吸器/アレルギー' },
-  { start:'2026-05-18', chapters:['2E','2F'],            note:'5/22 腎/内分泌' },
-  { start:'2026-05-25', chapters:['1F','2J','2S'],       note:'6/1 感染/心療（復習中心）' },
   { start:'2026-06-01', chapters:['2D','2G'],            note:'6/8 糖代謝/血液内科' },
-  { start:'2026-06-08', chapters:['2H','2W'],            note:'6/15 神経/老年' },
-  { start:'2026-06-15', chapters:['1I','3D','3A'],       note:'6/22 法医学/臨床研究' },
-  { start:'2026-06-22', chapters:['2U','4A'],            note:'6/26 外科3/救急' },
-  { start:'2026-06-29', chapters:['2I','3B','4A'],       note:'6/29 外科, 7/3 検査/整形' },
-  { start:'2026-07-06', chapters:['2H','2T','2S','2V'],  note:'7/6-10 脳外/基放/精神/麻酔' },
-  { start:'2026-07-13', chapters:['3C','3D'],            note:'夏：穴埋め開始' },
-  { start:'2026-07-20', chapters:['2C','2L','2X'],       note:'夏：穴埋め' },
-  { start:'2026-07-27', chapters:['4B'],                note:'夏：4B 1/4' },
-  { start:'2026-08-03', chapters:['4B'],                note:'夏：4B 2/4' },
-  { start:'2026-08-10', chapters:['4B'],                note:'夏：4B 3/4' },
-  { start:'2026-08-17', chapters:['4B','5A'],            note:'夏：4B 4/4 + 5A前半' },
-  { start:'2026-08-24', chapters:['2E','2I','3C'],       note:'再演習（2周目）' },
-  { start:'2026-08-31', chapters:['5A','2N','2O'],       note:'5A後半 + 産婦' },
-  { start:'2026-09-07', chapters:['2M','2O'],            note:'小児・産婦' },
-  { start:'2026-09-14', chapters:['2I','4A'],            note:'外科系再演習＋4A苦手戻り' },
-  { start:'2026-09-21', chapters:['2N','2O','2M'],       note:'9/25 産婦/小児（総復習）' },
-  { start:'2026-09-28', chapters:['2M','2I','2U'],       note:'10/2 小児外科/形成' },
-  { start:'2026-10-05', chapters:['2Q','2I'],            note:'10/9 口腔/耳鼻' },
-  { start:'2026-10-12', chapters:['2P','2T'],            note:'10/23 眼科/放射線' },
-  { start:'2026-10-19', chapters:['2P','2T'],            note:'眼科/放射線 誤答周回' },
-  { start:'2026-10-26', chapters:['2R','2E'],            note:'10/30 皮膚/泌尿器' },
+  { start:'2026-06-08', chapters:['2J','2N'],            note:'6/15 神経内科/老年病科' },
+  { start:'2026-06-15', chapters:['3D','3B'],            note:'6/22 法医学/臨床研究' },
+  { start:'2026-06-22', chapters:['2L','2A','2B'],       note:'6/26 救急, 6/29 外科' },
+  { start:'2026-06-29', chapters:['2T','3C'],            note:'7/3 検査/整形外科' },
+  { start:'2026-07-06', chapters:['2I','2C','2X','2U','2M'], note:'7/6-10 脳外/心外呼外/基放/精神/麻酔' },
+  { start:'2026-07-13', chapters:['2H'],                note:'夏：感染症(未着手104問)を消化' },
+  { start:'2026-07-20', chapters:['2H','2C'],            note:'夏：感染症 + 循環器の残り' },
+  { start:'2026-07-27', chapters:['3A','3C'],            note:'夏：症候・病態/身体診察' },
+  { start:'2026-08-03', chapters:['3D'],                note:'夏：公衆衛生 1/2' },
+  { start:'2026-08-10', chapters:['3D'],                note:'夏：公衆衛生 2/2' },
+  { start:'2026-08-17', chapters:['4A'],                note:'夏：多選択肢問題 1/2' },
+  { start:'2026-08-24', chapters:['4A'],                note:'夏：多選択肢問題 2/2' },
+  { start:'2026-08-31', chapters:['4B'],                note:'4連問 1/3' },
+  { start:'2026-09-07', chapters:['4B'],                note:'4連問 2/3' },
+  { start:'2026-09-14', chapters:['4B','5A'],            note:'4連問 3/3 + 追加問題' },
+  { start:'2026-09-21', chapters:['2O','2P','2Q'],       note:'9/25 産婦人科/小児科' },
+  { start:'2026-09-28', chapters:['2O'],                note:'10/2 小児外科/形成（小児復習）' },
+  { start:'2026-10-05', chapters:['2S'],                note:'10/9 口腔外科/耳鼻科' },
+  { start:'2026-10-12', chapters:['2R','2X'],            note:'10/23 眼科/放射線科' },
+  { start:'2026-10-19', chapters:['2R','2X'],            note:'眼科/放射線 誤答周回' },
+  { start:'2026-10-26', chapters:['2V','2W'],            note:'10/30 皮膚科/泌尿器科' },
   { start:'2026-11-02', chapters:['4A','4B','5A'],       note:'直前期：全誤答の最終確認' },
 ];
 
@@ -2674,9 +2667,9 @@ function runSim() {
 const BLOCK_NAMES = {
   1: 'vol.1　基礎医学',
   2: 'vol.2　臨床医学',
-  3: 'vol.3　公衆衛生・社会医学',
-  4: 'vol.4　総合問題',
-  5: 'vol.5',
+  3: 'vol.3　医学総論・公衆衛生',
+  4: 'vol.4　多選択肢・4連問',
+  5: 'vol.5　追加問題',
 };
 const BLOCK_COLORS = {
   1: 'var(--purple)',
