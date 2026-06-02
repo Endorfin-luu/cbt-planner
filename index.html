@@ -932,33 +932,34 @@ body::before{
     </div>
   </div>
 
-  <!-- ===== 科目 ===== -->
+  <!-- ===== 科目（チャプター管理） ===== -->
   <div class="panel" id="p-subj">
 
     <div class="card" style="padding:12px 14px;margin-bottom:8px;">
-      <div style="font-size:10px;color:var(--dim);margin-bottom:6px;font-weight:700;letter-spacing:0.06em;">チェックの凡例</div>
-      <div style="display:flex;gap:10px;font-size:11px;">
-        <span>🎓 試験済み</span>
-        <span>📖 QB1周完了</span>
-        <span>🔀 シャッフル完了</span>
+      <div style="font-size:10px;color:var(--dim);margin-bottom:6px;font-weight:700;letter-spacing:0.06em;">チェックの意味</div>
+      <div style="display:flex;gap:10px;font-size:11px;flex-wrap:wrap;">
+        <span>✅ 1周目完了</span>
+        <span>🔁 2周目完了</span>
+        <span>⭐ 3周目完了</span>
       </div>
     </div>
 
     <!-- 完了率サマリー -->
-    <div class="sg" style="margin-bottom:12px;">
+    <div class="sg" style="margin-bottom:4px;">
       <div class="sb">
         <div class="sv" style="color:var(--blue)" id="subj-cnt-exam">0</div>
-        <div class="sl">試験済み</div>
+        <div class="sl">1周目完了</div>
       </div>
       <div class="sb">
         <div class="sv" style="color:var(--green)" id="subj-cnt-qb1">0</div>
-        <div class="sl">QB1周完了</div>
+        <div class="sl">2周目完了</div>
       </div>
       <div class="sb">
         <div class="sv" style="color:var(--purple)" id="subj-cnt-shuf">0</div>
-        <div class="sl">シャッフル完了</div>
+        <div class="sl">3周目完了</div>
       </div>
     </div>
+    <div style="text-align:center;font-size:10px;color:var(--dim);margin-bottom:12px;">/ 41チャプター（3,363問）</div>
 
     <div id="subjList"></div>
 
@@ -979,44 +980,56 @@ body::before{
 
 <script>
 // ── 定数 ──
-const QB = 3359, MONTE = 3573;
+const QB = 3363, MONTE = 3573;
 
-// ── 科目リスト（試験日順） ──
-const SUBJECTS = [
-  { exam:'2026-06-01', name:'感染症内科' },
-  { exam:'2026-06-01', name:'心療内科' },
-  { exam:'2026-06-08', name:'糖代謝内科' },
-  { exam:'2026-06-08', name:'血液内科' },
-  { exam:'2026-06-15', name:'神経内科' },
-  { exam:'2026-06-15', name:'老年病科' },
-  { exam:'2026-06-22', name:'法医学' },
-  { exam:'2026-06-22', name:'臨床研究' },
-  { exam:'2026-06-26', name:'外科3' },
-  { exam:'2026-06-26', name:'救急医学' },
-  { exam:'2026-06-29', name:'外科1' },
-  { exam:'2026-06-29', name:'外科2' },
-  { exam:'2026-07-03', name:'検査医学' },
-  { exam:'2026-07-03', name:'整形外科' },
-  { exam:'2026-07-06', name:'脳外科' },
-  { exam:'2026-07-06', name:'心外科' },
-  { exam:'2026-07-06', name:'呼外科' },
-  { exam:'2026-07-08', name:'基放医' },
-  { exam:'2026-07-10', name:'精神科' },
-  { exam:'2026-07-10', name:'麻酔科' },
-  { exam:'2026-09-25', name:'産婦人科' },
-  { exam:'2026-09-25', name:'小児科' },
-  { exam:'2026-10-02', name:'小児外科' },
-  { exam:'2026-10-02', name:'形成外科' },
-  { exam:'2026-10-09', name:'口腔外科' },
-  { exam:'2026-10-09', name:'耳鼻科' },
-  { exam:'2026-10-23', name:'眼科' },
-  { exam:'2026-10-23', name:'放射線科' },
-  { exam:'2026-10-30', name:'皮膚科' },
-  { exam:'2026-10-30', name:'泌尿器科' },
-  { exam:null, name:'病理' },
-  { exam:null, name:'公衆衛生' },
-  { exam:null, name:'感染制御' },
-  { exam:null, name:'リハビリ' },
+// ── チャプターリスト（Studyフォルダ実データ、計3363問） ──
+const CHAPTERS = [
+  // Block 1 基礎医学（631問）
+  { id:'1A', n:35,  range:'1-1〜35',    block:1, subj:'医療倫理' },
+  { id:'1B', n:52,  range:'1-36〜87',   block:1, subj:'' },
+  { id:'1C', n:63,  range:'1-88〜150',  block:1, subj:'' },
+  { id:'1D', n:74,  range:'1-151〜224', block:1, subj:'' },
+  { id:'1E', n:47,  range:'1-225〜271', block:1, subj:'' },
+  { id:'1F', n:73,  range:'1-272〜344', block:1, subj:'感染症内科・アレルギー' },
+  { id:'1G', n:75,  range:'1-345〜419', block:1, subj:'' },
+  { id:'1H', n:59,  range:'1-420〜478', block:1, subj:'' },
+  { id:'1I', n:77,  range:'1-479〜555', block:1, subj:'法医学' },
+  { id:'1J', n:76,  range:'1-556〜631', block:1, subj:'' },
+  // Block 2 臨床各論（1337問）
+  { id:'2A', n:65,  range:'2-1〜65',      block:2, subj:'消化器内科' },
+  { id:'2B', n:52,  range:'2-66〜117',    block:2, subj:'消化器内科' },
+  { id:'2C', n:99,  range:'2-118〜216',   block:2, subj:'循環器内科' },
+  { id:'2D', n:59,  range:'2-217〜275',   block:2, subj:'呼吸器内科' },
+  { id:'2E', n:51,  range:'2-276〜326',   block:2, subj:'腎臓内科・泌尿器' },
+  { id:'2F', n:53,  range:'2-327〜379',   block:2, subj:'糖代謝・内分泌' },
+  { id:'2G', n:48,  range:'2-380〜427',   block:2, subj:'血液内科' },
+  { id:'2H', n:104, range:'2-428〜531',   block:2, subj:'神経内科・脳外' },
+  { id:'2I', n:61,  range:'2-532〜592',   block:2, subj:'整形外科・リハ' },
+  { id:'2J', n:126, range:'2-593〜718',   block:2, subj:'感染症内科・アレルギー' },
+  { id:'2K', n:26,  range:'2-719〜744',   block:2, subj:'膠原病・リウマチ' },
+  { id:'2L', n:23,  range:'2-745〜767',   block:2, subj:'' },
+  { id:'2M', n:26,  range:'2-768〜793',   block:2, subj:'小児科' },
+  { id:'2N', n:21,  range:'2-794〜814',   block:2, subj:'産婦人科' },
+  { id:'2O', n:66,  range:'2-815〜880',   block:2, subj:'産婦人科' },
+  { id:'2P', n:59,  range:'2-881〜939',   block:2, subj:'眼科' },
+  { id:'2Q', n:55,  range:'2-940〜994',   block:2, subj:'耳鼻科' },
+  { id:'2R', n:49,  range:'2-995〜1043',  block:2, subj:'皮膚科' },
+  { id:'2S', n:52,  range:'2-1044〜1095', block:2, subj:'精神科・心療内科' },
+  { id:'2T', n:70,  range:'2-1096〜1165', block:2, subj:'放射線科・基放医' },
+  { id:'2U', n:42,  range:'2-1166〜1207', block:2, subj:'救急医学' },
+  { id:'2V', n:51,  range:'2-1208〜1258', block:2, subj:'麻酔科' },
+  { id:'2W', n:36,  range:'2-1259〜1294', block:2, subj:'老年病科' },
+  { id:'2X', n:43,  range:'2-1295〜1337', block:2, subj:'' },
+  // Block 3 公衆衛生・社会医学（387問）
+  { id:'3A', n:55,  range:'3-1〜55',    block:3, subj:'臨床研究・社会医学' },
+  { id:'3B', n:60,  range:'3-56〜115',  block:3, subj:'臨床研究・社会医学' },
+  { id:'3C', n:30,  range:'3-116〜145', block:3, subj:'公衆衛生' },
+  { id:'3D', n:242, range:'3-146〜387', block:3, subj:'法医学・臨床研究' },
+  // Block 4 総合問題（848問）
+  { id:'4A', n:360, range:'4-1〜360',   block:4, subj:'総合問題（ランダム）' },
+  { id:'4B', n:488, range:'4-361〜848', block:4, subj:'総合問題（ランダム）' },
+  // Block 5 倫理・法（160問）
+  { id:'5A', n:160, range:'5-1〜160',   block:5, subj:'医療倫理・法' },
 ];
 
 // ── 試験スケジュール ──
@@ -1854,7 +1867,22 @@ function runSim() {
   }
 }
 
-// ── 科目ステータス（localStorage 保存） ──
+// ── チャプターステータス（localStorage 保存） ──
+const BLOCK_NAMES = {
+  1: 'Block 1　基礎医学',
+  2: 'Block 2　臨床各論',
+  3: 'Block 3　公衆衛生・社会医学',
+  4: 'Block 4　総合問題',
+  5: 'Block 5　倫理・法',
+};
+const BLOCK_COLORS = {
+  1: 'var(--purple)',
+  2: 'var(--blue)',
+  3: 'var(--teal)',
+  4: 'var(--orange)',
+  5: 'var(--green)',
+};
+
 function loadSubjectStatus() {
   try {
     const s = localStorage.getItem('cbt_subj');
@@ -1864,9 +1892,9 @@ function loadSubjectStatus() {
 function saveSubjectStatus() {
   localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
 }
-function toggleSubjectCheck(name, key) {
-  if (!state.subject_status[name]) state.subject_status[name] = {};
-  state.subject_status[name][key] = !state.subject_status[name][key];
+function toggleSubjectCheck(id, key) {
+  if (!state.subject_status[id]) state.subject_status[id] = {};
+  state.subject_status[id][key] = !state.subject_status[id][key];
   saveSubjectStatus();
   renderSubjects();
 }
@@ -1876,128 +1904,100 @@ function renderSubjects() {
   if (!container) return;
   container.innerHTML = '';
 
-  // グループ化（試験日別）
-  const groups = {};
-  const noExam = [];
-  for (const subj of SUBJECTS) {
-    if (subj.exam) {
-      if (!groups[subj.exam]) groups[subj.exam] = [];
-      groups[subj.exam].push(subj);
-    } else {
-      noExam.push(subj);
+  let cnt1 = 0, cnt2 = 0, cnt3 = 0;
+  let currentBlock = null;
+
+  for (const ch of CHAPTERS) {
+    // ブロックヘッダー
+    if (ch.block !== currentBlock) {
+      currentBlock = ch.block;
+      const blockQ = CHAPTERS.filter(c => c.block === ch.block).reduce((s,c)=>s+c.n, 0);
+      const hdr = document.createElement('div');
+      hdr.className = 'subj-group-hdr';
+      hdr.innerHTML = `
+        <span style="color:${BLOCK_COLORS[ch.block]};font-weight:800;">${BLOCK_NAMES[ch.block]}</span>
+        <span class="subj-badge" style="background:rgba(107,115,148,0.15);color:var(--dim);">${blockQ}問</span>`;
+      container.appendChild(hdr);
     }
+
+    const st = state.subject_status[ch.id] || {};
+    if (st.r1) cnt1++;
+    if (st.r2) cnt2++;
+    if (st.r3) cnt3++;
+    container.appendChild(makeChapterRow(ch));
   }
 
-  // サマリーカウント
-  let cntExam = 0, cntQb1 = 0, cntShuf = 0;
-
-  const allDates = Object.keys(groups).sort();
-  for (const examDate of allDates) {
-    const d = new Date(examDate);
-    d.setHours(0, 0, 0, 0);
-    const daysLeft = Math.round((d - TODAY) / 86400000);
-    const isPast    = daysLeft < 0;
-    const isUrgent  = !isPast && daysLeft <= 3;
-    const isSoon    = !isPast && !isUrgent && daysLeft <= 7;
-
-    // グループヘッダー
-    const hdr = document.createElement('div');
-    hdr.className = 'subj-group-hdr';
-    const dateStr = d.toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' });
-
-    let badgeHtml;
-    if (isPast) {
-      badgeHtml = `<span class="subj-badge" style="background:rgba(107,115,148,0.2);color:var(--dim);">試験済み</span>`;
-    } else if (isUrgent) {
-      badgeHtml = `<span class="subj-badge" style="background:rgba(255,64,96,0.15);color:var(--red);">⚠️ ${daysLeft}日後</span>`;
-    } else if (isSoon) {
-      badgeHtml = `<span class="subj-badge" style="background:rgba(255,201,64,0.15);color:var(--yellow);">⏰ ${daysLeft}日後</span>`;
-    } else {
-      badgeHtml = `<span class="subj-badge" style="background:rgba(91,143,255,0.1);color:var(--blue);">${daysLeft}日後</span>`;
-    }
-    hdr.innerHTML = `<span>${dateStr}</span>${badgeHtml}`;
-    container.appendChild(hdr);
-
-    for (const subj of groups[examDate]) {
-      const st = state.subject_status[subj.name] || {};
-      if (st.exam)  cntExam++;
-      if (st.qb1)   cntQb1++;
-      if (st.shuf)  cntShuf++;
-      container.appendChild(makeSubjRow(subj, isUrgent, isSoon, isPast));
-    }
-  }
-
-  // 試験日なし科目
-  if (noExam.length > 0) {
-    const hdr = document.createElement('div');
-    hdr.className = 'subj-group-hdr';
-    hdr.innerHTML = '<span>その他（CBT全体）</span>';
-    container.appendChild(hdr);
-    for (const subj of noExam) {
-      const st = state.subject_status[subj.name] || {};
-      if (st.exam)  cntExam++;
-      if (st.qb1)   cntQb1++;
-      if (st.shuf)  cntShuf++;
-      container.appendChild(makeSubjRow(subj, false, false, false));
-    }
-  }
-
-  // サマリー更新
-  setEl('subj-cnt-exam', cntExam);
-  setEl('subj-cnt-qb1',  cntQb1);
-  setEl('subj-cnt-shuf', cntShuf);
+  setEl('subj-cnt-exam', cnt1);
+  setEl('subj-cnt-qb1',  cnt2);
+  setEl('subj-cnt-shuf', cnt3);
 }
 
-function makeSubjRow(subj, isUrgent, isSoon, isPast) {
-  const st = state.subject_status[subj.name] || {};
-  const allDone = st.exam && st.qb1 && st.shuf;
+function makeChapterRow(ch) {
+  const st = state.subject_status[ch.id] || {};
+  const allDone = st.r1 && st.r2 && st.r3;
+  const color = BLOCK_COLORS[ch.block];
 
   const row = document.createElement('div');
-  row.className = 'subj-row'
-    + (isUrgent ? ' urgent' : isSoon ? ' soon' : '')
-    + (isPast && !st.exam ? ' past' : '');
+  row.className = 'subj-row' + (allDone ? ' past' : '');
+  row.style.borderLeft = `3px solid ${color}`;
+  row.style.borderRadius = '0 12px 12px 0';
 
-  // 科目名 + 進捗ドット
-  const nameWrap = document.createElement('div');
-  nameWrap.style.flex = '1';
-  const nameEl = document.createElement('div');
-  nameEl.className = 'subj-name';
-  nameEl.textContent = subj.name;
-  if (allDone) nameEl.style.cssText = 'color:var(--green);text-decoration:line-through;opacity:0.7;';
+  // 左側：ID + 問題数 + 科目名
+  const left = document.createElement('div');
+  left.style.flex = '1';
+  left.style.minWidth = '0';
 
+  const topLine = document.createElement('div');
+  topLine.style.cssText = 'display:flex;align-items:baseline;gap:6px;';
+
+  const idEl = document.createElement('span');
+  idEl.style.cssText = `font-family:'JetBrains Mono',monospace;font-weight:900;font-size:15px;color:${color};flex-shrink:0;`;
+  idEl.textContent = ch.id;
+
+  const nEl = document.createElement('span');
+  nEl.style.cssText = 'font-size:11px;color:var(--dim);font-family:"JetBrains Mono",monospace;flex-shrink:0;';
+  nEl.textContent = `${ch.n}問`;
+
+  const subjEl = document.createElement('span');
+  subjEl.style.cssText = 'font-size:10px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  subjEl.textContent = ch.subj || '';
+
+  topLine.appendChild(idEl);
+  topLine.appendChild(nEl);
+  if (ch.subj) topLine.appendChild(subjEl);
+
+  // 進捗ドット
   const dots = document.createElement('div');
   dots.className = 'subj-progress';
-  ['exam','qb1','shuf'].forEach(k => {
+  dots.style.marginTop = '3px';
+  ['r1','r2','r3'].forEach(k => {
     const dot = document.createElement('div');
     dot.className = 'subj-prog-dot' + (st[k] ? ' on' : '');
     dots.appendChild(dot);
   });
 
-  nameWrap.appendChild(nameEl);
-  nameWrap.appendChild(dots);
+  left.appendChild(topLine);
+  left.appendChild(dots);
 
-  // チェックボタン3つ
+  // チェックボタン3つ（1周/2周/3周）
   const checks = document.createElement('div');
   checks.className = 'subj-checks';
 
-  const checkDefs = [
-    { key:'exam', onIcon:'🎓', offIcon:'·', title:'大学試験済み' },
-    { key:'qb1',  onIcon:'📖', offIcon:'·', title:'QB1周目完了' },
-    { key:'shuf', onIcon:'🔀', offIcon:'·', title:'科目内シャッフル完了' },
+  const defs = [
+    { key:'r1', on:'✅', off:'·', title:'1周目完了' },
+    { key:'r2', on:'🔁', off:'·', title:'2周目完了' },
+    { key:'r3', on:'⭐', off:'·', title:'3周目完了' },
   ];
-
-  for (const { key, onIcon, offIcon, title } of checkDefs) {
+  for (const { key, on, off, title } of defs) {
     const btn = document.createElement('div');
     btn.className = 'subj-chk' + (st[key] ? ' on' : '');
-    btn.textContent = st[key] ? onIcon : offIcon;
+    btn.textContent = st[key] ? on : off;
     btn.title = title;
-    btn.addEventListener('click', () => {
-      toggleSubjectCheck(subj.name, key);
-    });
+    btn.addEventListener('click', () => toggleSubjectCheck(ch.id, key));
     checks.appendChild(btn);
   }
 
-  row.appendChild(nameWrap);
+  row.appendChild(left);
   row.appendChild(checks);
   return row;
 }
