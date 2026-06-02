@@ -1344,8 +1344,18 @@ const WEEKLY_PLAN = [
 ];
 
 const CBT = new Date('2026-11-06');
-const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
-const TODAY_STR = TODAY.toISOString().slice(0, 10);
+
+// ローカル日付を YYYY-MM-DD で返す（toISOStringはUTC変換で日本だと最大9時間ずれるため自前で）
+function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// 「今日」は const ではなく let にして、日付が変わったら更新できるようにする
+let TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
+let TODAY_STR = toLocalDateStr(TODAY);
 
 // ── Supabase ──
 const SUPA_URL = 'https://iexslocdhaqyxybbzcye.supabase.co';
@@ -1574,7 +1584,7 @@ function checkPenalty() {
   for (let i = 1; i <= gapDays; i++) {
     const d = new Date(lastDate);
     d.setDate(d.getDate() + i);
-    const ds = d.toISOString().slice(0, 10);
+    const ds = toLocalDateStr(d);
     const entry = state.daily_log.find(l => l.date === ds);
     if (!entry || entry.n === 0) {
       totalMissed += getDayTarget(d);
@@ -1617,6 +1627,33 @@ function updateCountdown() {
   const d = Math.ceil((CBT - TODAY) / 86400000);
   document.getElementById('dLeft').textContent = d;
 }
+
+// ── 日付の自動更新 ──
+// アプリを開きっぱなしで日付をまたいだ場合に「今日」を更新して全UIを再描画する
+function refreshDate() {
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const nowStr = toLocalDateStr(now);
+  if (nowStr === TODAY_STR) return; // 日付が変わっていなければ何もしない
+
+  // 日付が変わった → TODAY を更新
+  TODAY = now;
+  TODAY_STR = nowStr;
+
+  // 全UIを再計算（ターゲット・カウントダウン・ストリーク・試験日数など）
+  updateCountdown();
+  updateAll();
+  runSim();
+  // 新しい日のサボり判定（前日記録がなければペナルティ）
+  setTimeout(checkPenalty, 300);
+  showToast('📅 日付が変わりました。今日も頑張ろう！');
+}
+
+// 1分ごとにチェック ＋ アプリがフォアグラウンドに戻った時にチェック
+setInterval(refreshDate, 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshDate();
+});
+window.addEventListener('focus', refreshDate);
 
 // ── パネル切り替え ──
 function showPanel(id, btn) {
@@ -1768,7 +1805,7 @@ function renderStreak() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(TODAY);
     d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
+    const ds = toLocalDateStr(d);
 
     // daily_log から該当日を検索
     const entry = state.daily_log.find(l => l.date === ds)
@@ -1787,7 +1824,7 @@ function renderStreak() {
   for (let i = 0; ; i++) {
     const d = new Date(TODAY);
     d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
+    const ds = toLocalDateStr(d);
     const entry = state.daily_log.find(l => l.date === ds)
                   || state.streak.find(s => s.date === ds);
     if (entry && entry.n > 0) {
@@ -1841,7 +1878,7 @@ function renderWeekSummary() {
     let total = 0;
     for (let i = startDaysAgo; i <= endDaysAgo; i++) {
       const d = new Date(TODAY); d.setDate(d.getDate() - i);
-      const ds = d.toISOString().slice(0, 10);
+      const ds = toLocalDateStr(d);
       const entry = state.daily_log.find(l => l.date === ds) || state.streak.find(s => s.date === ds);
       total += entry ? entry.n : 0;
     }
@@ -1913,7 +1950,7 @@ function renderHeatmap() {
   for (let i = 29; i >= 0; i--) {
     const d = new Date(TODAY);
     d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
+    const ds = toLocalDateStr(d);
 
     // daily_log と streak の両方から検索（後方互換）
     const entry = state.daily_log.find(l => l.date === ds)
@@ -2067,7 +2104,7 @@ function renderBarChart() {
   for (let i = 29; i >= 0; i--) {
     const d = new Date(TODAY);
     d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
+    const ds = toLocalDateStr(d);
     const entry = state.daily_log.find(l => l.date === ds)
                   || state.streak.find(s => s.date === ds);
     data.push({ ds, n: entry ? entry.n : 0, isToday: i === 0 });
@@ -2119,7 +2156,7 @@ function renderAccChart() {
   for (let i = 29; i >= 0; i--) {
     const d = new Date(TODAY);
     d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
+    const ds = toLocalDateStr(d);
     const entry = state.daily_log.find(l => l.date === ds);
     if (entry && entry.n > 0 && entry.ok != null && entry.ok > 0) {
       const acc = entry.ok / entry.n * 100;
@@ -2196,7 +2233,7 @@ function getStreakCount() {
   let streak = 0;
   for (let i = 0; ; i++) {
     const d = new Date(TODAY); d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
+    const ds = toLocalDateStr(d);
     const entry = state.daily_log.find(l => l.date === ds) || state.streak.find(s => s.date === ds);
     if (entry && entry.n > 0) streak++;
     else if (i === 0) continue;
@@ -2448,7 +2485,7 @@ function updatePaceAndExam() {
     for (let i = 0; i < 7; i++) {
       const d = new Date(TODAY);
       d.setDate(d.getDate() - i);
-      const ds = d.toISOString().slice(0, 10);
+      const ds = toLocalDateStr(d);
       const entry = state.daily_log.find(l => l.date === ds)
                     || state.streak.find(s => s.date === ds);
       recentTotal += entry ? entry.n : 0;
