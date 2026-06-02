@@ -398,6 +398,29 @@ body::before{
 .cf{position:absolute;width:8px;height:8px;border-radius:2px;animation:fall 1.5s ease-in forwards;}
 @keyframes fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
 
+/* ── 今週やる章カード ── */
+.weekplan-card{
+  background:rgba(46,232,200,0.06);
+  border:1px solid rgba(46,232,200,0.22);
+  border-radius:14px;padding:13px 14px;margin-bottom:12px;
+  cursor:pointer;transition:transform 0.15s;
+}
+.weekplan-card:active{transform:scale(0.98);}
+.weekplan-hdr{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:9px;}
+.weekplan-title{font-size:12px;font-weight:800;color:var(--teal);}
+.weekplan-note{font-size:10px;color:var(--dim);text-align:right;}
+.weekplan-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.weekplan-chip{
+  display:flex;align-items:center;gap:4px;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;padding:4px 9px;
+  font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:700;
+}
+.weekplan-chip .cid{font-weight:900;}
+.weekplan-chip .cn{font-size:9px;color:var(--dim);font-family:'Outfit',sans-serif;font-weight:400;}
+.weekplan-chip.done{opacity:0.5;}
+.weekplan-chip.done .cid{text-decoration:line-through;}
+
 /* ── 苦手ヒートマップ ── */
 .weak-block{margin-bottom:8px;}
 .weak-block:last-child{margin-bottom:0;}
@@ -777,6 +800,15 @@ body::before{
         <div id="reqPaceStatus" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;"></div>
       </div>
       <div id="predText" style="font-size:10px;margin-top:6px;color:var(--dim);"></div>
+    </div>
+
+    <!-- 今週やる章サジェスト -->
+    <div class="weekplan-card" id="weekPlanCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
+      <div class="weekplan-hdr">
+        <span class="weekplan-title">📖 今週やる章</span>
+        <span class="weekplan-note" id="weekPlanNote"></span>
+      </div>
+      <div class="weekplan-chips" id="weekPlanChips"></div>
     </div>
 
     <!-- 次の試験カウントダウン -->
@@ -1256,6 +1288,43 @@ const EXAMS = [
   { date:'2026-11-06', name:'CBT本試験 🎯' },
   { date:'2026-11-21', name:'OSCE本試験' },
 ];
+
+// ── 週次学習計画（StudyフォルダのスケジュールMDより） ──
+// start: その週の開始日（月曜）。chapters: 取り組む章。note: 補足
+const WEEKLY_PLAN = [
+  { start:'2026-04-06', chapters:['1C','1D'],            note:'基礎固め' },
+  { start:'2026-04-13', chapters:['1E','1F'],            note:'基礎固め' },
+  { start:'2026-04-20', chapters:['1G','1H'],            note:'基礎固め' },
+  { start:'2026-04-27', chapters:['1I','1J'],            note:'基礎固め' },
+  { start:'2026-05-04', chapters:['2A','2B','2C'],       note:'消化器・循環器へ' },
+  { start:'2026-05-11', chapters:['2D','2J','2K'],       note:'5/15 呼吸器/アレルギー' },
+  { start:'2026-05-18', chapters:['2E','2F'],            note:'5/22 腎/内分泌' },
+  { start:'2026-05-25', chapters:['1F','2J','2S'],       note:'6/1 感染/心療（復習中心）' },
+  { start:'2026-06-01', chapters:['1D','2F','2G'],       note:'6/8 糖代謝/血液（復習＋2G）' },
+  { start:'2026-06-08', chapters:['2H','2W'],            note:'6/15 神経/老年' },
+  { start:'2026-06-15', chapters:['1I','3D','3A'],       note:'6/22 法医学/臨床研究' },
+  { start:'2026-06-22', chapters:['2U','4A'],            note:'6/26 外科3/救急' },
+  { start:'2026-06-29', chapters:['2I','3B','4A'],       note:'6/29 外科, 7/3 検査/整形' },
+  { start:'2026-07-06', chapters:['2H','2T','2S','2V'],  note:'7/6-10 脳外/基放/精神/麻酔' },
+  { start:'2026-07-13', chapters:['3C','3D'],            note:'夏：穴埋め開始' },
+  { start:'2026-07-20', chapters:['2C','2L','2X'],       note:'夏：穴埋め' },
+  { start:'2026-07-27', chapters:['4B'],                note:'夏：4B 1/4' },
+  { start:'2026-08-03', chapters:['4B'],                note:'夏：4B 2/4' },
+  { start:'2026-08-10', chapters:['4B'],                note:'夏：4B 3/4' },
+  { start:'2026-08-17', chapters:['4B','5A'],            note:'夏：4B 4/4 + 5A前半' },
+  { start:'2026-08-24', chapters:['2E','2I','3C'],       note:'再演習（2周目）' },
+  { start:'2026-08-31', chapters:['5A','2N','2O'],       note:'5A後半 + 産婦' },
+  { start:'2026-09-07', chapters:['2M','2O'],            note:'小児・産婦' },
+  { start:'2026-09-14', chapters:['2I','4A'],            note:'外科系再演習＋4A苦手戻り' },
+  { start:'2026-09-21', chapters:['2N','2O','2M'],       note:'9/25 産婦/小児（総復習）' },
+  { start:'2026-09-28', chapters:['2M','2I','2U'],       note:'10/2 小児外科/形成' },
+  { start:'2026-10-05', chapters:['2Q','2I'],            note:'10/9 口腔/耳鼻' },
+  { start:'2026-10-12', chapters:['2P','2T'],            note:'10/23 眼科/放射線' },
+  { start:'2026-10-19', chapters:['2P','2T'],            note:'眼科/放射線 誤答周回' },
+  { start:'2026-10-26', chapters:['2R','2E'],            note:'10/30 皮膚/泌尿器' },
+  { start:'2026-11-02', chapters:['4A','4B','5A'],       note:'直前期：全誤答の最終確認' },
+];
+
 const CBT = new Date('2026-11-06');
 const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
 const TODAY_STR = TODAY.toISOString().slice(0, 10);
@@ -1964,6 +2033,7 @@ function updateAll() {
   renderLevel();
   renderGhost();
   renderCheer();
+  renderWeekPlan();
   updatePaceAndExam();
   checkBadges();
   renderBadges();
@@ -2248,6 +2318,43 @@ function renderGhost() {
     statusEl.innerHTML = `ゴーストが<strong style="color:var(--orange);">${Math.abs(diff)}問</strong>先にいます。追いつこう！`;
     diffEl.textContent = diff;
     diffEl.style.color = 'var(--orange)';
+  }
+}
+
+// ── 今週やる章サジェスト ──
+function renderWeekPlan() {
+  const card   = document.getElementById('weekPlanCard');
+  const chips  = document.getElementById('weekPlanChips');
+  const noteEl = document.getElementById('weekPlanNote');
+  if (!card) return;
+
+  // 今日が含まれる週の計画を探す（start <= today < 次のstart）
+  let plan = null;
+  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
+    const start = new Date(WEEKLY_PLAN[i].start);
+    const nextStart = i + 1 < WEEKLY_PLAN.length ? new Date(WEEKLY_PLAN[i + 1].start) : new Date('2026-11-09');
+    if (TODAY >= start && TODAY < nextStart) { plan = WEEKLY_PLAN[i]; break; }
+  }
+
+  if (!plan) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  noteEl.textContent = plan.note || '';
+
+  chips.innerHTML = '';
+  // 章IDの重複を除去
+  const uniq = [...new Set(plan.chapters)];
+  for (const id of uniq) {
+    const ch = CHAPTERS.find(c => c.id === id);
+    if (!ch) continue;
+    const done = (state.subject_status[id] || {}).r1;
+    const chip = document.createElement('div');
+    chip.className = 'weekplan-chip' + (done ? ' done' : '');
+    chip.style.borderLeft = `3px solid ${BLOCK_COLORS[ch.block]}`;
+    chip.innerHTML = `<span class="cid" style="color:${BLOCK_COLORS[ch.block]};">${id}</span><span class="cn">${ch.subj || ch.n + '問'}</span>${done ? '✓' : ''}`;
+    chips.appendChild(chip);
   }
 }
 
