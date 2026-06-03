@@ -468,6 +468,15 @@ body::before{
   color:var(--teal);
 }
 
+/* ── データ管理ボタン ── */
+.data-btn{
+  flex:1;padding:11px 8px;border-radius:11px;
+  background:var(--s2);border:1px solid var(--border);color:var(--text);
+  font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;transition:transform 0.15s,background 0.15s;
+}
+.data-btn:active{transform:scale(0.96);background:var(--s3);}
+
 /* ── バッジグリッド ── */
 .badge-grid{
   display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
@@ -1251,6 +1260,23 @@ body::before{
       <div class="badge-grid" id="badgeGrid"></div>
     </div>
 
+    <!-- データ管理 -->
+    <div class="card">
+      <div class="ct" style="margin-bottom:10px;">💾 データ管理</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="data-btn" onclick="exportData()">⬇️ バックアップ書き出し</button>
+        <button class="data-btn" onclick="document.getElementById('importFile').click()">⬆️ 復元</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none;" onchange="importData(event)">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="data-btn" onclick="enableReminder()" id="reminderBtn">🔔 リマインダーON</button>
+      </div>
+      <div style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.5;">
+        書き出し：全進捗をJSONファイルで保存。復元：そのファイルから元に戻せます。<br>
+        リマインダー：夜まだ0問のとき通知（iPhoneはホーム画面追加後・通知許可が必要）。
+      </div>
+    </div>
+
     <div class="co warn">⚠️ 科目内シャッフルで解く → 2周目から全体シャッフルで本番形式に</div>
 
     <div class="sec">今すぐやること</div>
@@ -1868,6 +1894,7 @@ setInterval(refreshDate, 60 * 1000);
 function onForeground() {
   refreshDate();
   if (typeof refreshFromCloud === 'function') refreshFromCloud();
+  if (typeof checkReminder === 'function') checkReminder();
 }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) onForeground();
@@ -3624,8 +3651,100 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// ── データのバックアップ（エクスポート/インポート） ──
+const BACKUP_KEYS = ['cbt_subj','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter','cbt_week_seen'];
+
+function exportData() {
+  const ls = {};
+  for (const k of BACKUP_KEYS) { const v = localStorage.getItem(k); if (v != null) ls[k] = v; }
+  const backup = {
+    app: 'cbt-planner', version: 2,
+    exportedAt: new Date().toISOString(),
+    state: state,
+    localStorage: ls
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cbt-backup-${toLocalDateStr(new Date())}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('⬇️ バックアップを書き出しました');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const backup = JSON.parse(e.target.result);
+      if (!backup.state) throw new Error('不正なファイル');
+      if (!confirm('現在のデータを上書きして復元します。よろしいですか？')) return;
+      // state を復元
+      Object.assign(state, backup.state);
+      // localStorage を復元
+      if (backup.localStorage) {
+        for (const k in backup.localStorage) localStorage.setItem(k, backup.localStorage[k]);
+      }
+      localStorage.setItem('cbt_cache', JSON.stringify(state));
+      // subject_status も反映
+      if (state.subject_status) localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
+      recomputeTotalsFromChapters();
+      scheduleSave();
+      updateAll();
+      initChapterSelect();
+      renderSubjects();
+      showToast('⬆️ データを復元しました！');
+    } catch (err) {
+      alert('復元に失敗しました：' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = ''; // 同じファイルを再選択できるように
+}
+
+// ── ローカル通知リマインダー ──
+function enableReminder() {
+  if (!('Notification' in window)) { showToast('この端末は通知に対応していません'); return; }
+  Notification.requestPermission().then(perm => {
+    if (perm === 'granted') {
+      localStorage.setItem('cbt_reminder', 'on');
+      updateReminderBtn();
+      showToast('🔔 リマインダーをONにしました');
+    } else {
+      showToast('通知が許可されませんでした');
+    }
+  });
+}
+function updateReminderBtn() {
+  const btn = document.getElementById('reminderBtn');
+  if (!btn) return;
+  const on = localStorage.getItem('cbt_reminder') === 'on' && ('Notification' in window) && Notification.permission === 'granted';
+  btn.textContent = on ? '🔔 リマインダーON（有効）' : '🔔 リマインダーON';
+  btn.style.opacity = on ? '1' : '';
+}
+// 夜まだ0問なら通知（アプリが開いている/バックグラウンド時のみ）
+function checkReminder() {
+  if (localStorage.getItem('cbt_reminder') !== 'on') return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const hour = new Date().getHours();
+  if (hour < 20) return; // 夜20時以降
+  if (localStorage.getItem('reminder_sent') === TODAY_STR) return;
+  const today = state.daily_log.find(l => l.date === TODAY_STR);
+  if (today && today.n > 0) return; // もう解いてる
+  if (new Date() >= new Date('2026-11-01')) return; // 直前期は除外
+  try {
+    new Notification('QB Planner', { body: '今日まだ0問です。少しだけでも解こう！🔥', icon: 'icon-192.png' });
+    localStorage.setItem('reminder_sent', TODAY_STR);
+  } catch (e) {}
+}
+setInterval(checkReminder, 5 * 60 * 1000); // 5分ごと
+
 // ── 起動 ──
 init();
+updateReminderBtn();
 </script>
 </body>
 </html>
