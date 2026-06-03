@@ -1456,6 +1456,12 @@ async function init() {
       state.daily_log = data.daily_log  ?? [];
       state.debt      = data.debt       ?? 0;
       state.last_date = data.last_date  ?? '';
+      // 科目進捗（カラムがあれば採用）
+      if (data.subject_status) {
+        state.subject_status = data.subject_status;
+        localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
+      }
+      _loadedUpdatedAt = data.updated_at || '';
     } else {
       // 初回アクセス：行を作成
       await sb.from('progress').insert({
@@ -1510,6 +1516,9 @@ async function init() {
 }
 
 // ── Supabase にデバウンス保存（500ms） ──
+let _loadedUpdatedAt = '';   // 最後にロード/保存した時刻（競合検知用）
+let _noSubjectCol = false;   // subject_statusカラムが無い場合true（フォールバック）
+
 let _saveTimer = null;
 function scheduleSave() {
   setSyncState('saving');
@@ -1518,6 +1527,7 @@ function scheduleSave() {
 }
 
 async function doSave() {
+  const nowIso = new Date().toISOString();
   const payload = {
     id: 'user1',
     r1: state.r1,
@@ -1530,20 +1540,56 @@ async function doSave() {
     daily_log: state.daily_log,
     debt: state.debt,
     last_date: state.last_date,
-    updated_at: new Date().toISOString()
+    updated_at: nowIso
   };
+  // subject_statusカラムがある場合のみ含める
+  if (!_noSubjectCol) payload.subject_status = state.subject_status;
 
   try {
     const { error } = await sb.from('progress').upsert(payload);
     if (error) throw error;
     localStorage.setItem('cbt_cache', JSON.stringify(state));
+    _loadedUpdatedAt = nowIso;
     setSyncState('ok');
   } catch (err) {
+    // subject_statusカラムが無いエラーなら、カラム抜きで再保存
+    const msg = (err && (err.message || err.hint || '')) + (err && err.code ? ' '+err.code : '');
+    if (!_noSubjectCol && /subject_status|column|42703|PGRST204/i.test(msg)) {
+      console.warn('[Supabase] subject_status カラム未作成。同期せずローカル保存にフォールバック');
+      _noSubjectCol = true;
+      return doSave(); // カラム抜きで即リトライ
+    }
     console.warn('[Supabase] save failed:', err);
-    // localStorageには必ずバックアップ保存
     localStorage.setItem('cbt_cache', JSON.stringify(state));
     setSyncState('error');
   }
+}
+
+// ── クラウドから最新を取り込み（別端末の更新を反映・競合対策 #16） ──
+async function refreshFromCloud() {
+  if (_saveTimer) return;        // 自分の未保存編集があるときは触らない
+  try {
+    const { data, error } = await sb.from('progress').select('*').eq('id', 'user1').single();
+    if (error || !data) return;
+    // リモートが自分の最終保存より新しいときだけ採用
+    if (!_loadedUpdatedAt || (data.updated_at && data.updated_at > _loadedUpdatedAt)) {
+      state.r1 = data.r1 ?? 0; state.ok = data.ok ?? 0;
+      state.r2 = data.r2 ?? 0; state.r3 = data.r3 ?? 0;
+      state.m = data.m ?? 0; state.m_ok = data.m_ok ?? 0;
+      state.streak = data.streak ?? []; state.daily_log = data.daily_log ?? [];
+      state.debt = data.debt ?? 0; state.last_date = data.last_date ?? '';
+      if (data.subject_status) {
+        state.subject_status = data.subject_status;
+        localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
+      }
+      _loadedUpdatedAt = data.updated_at || '';
+      localStorage.setItem('cbt_cache', JSON.stringify(state));
+      recomputeTotalsFromChapters();
+      updateAll();
+      initChapterSelect();
+      showToast('🔄 別端末の更新を反映しました');
+    }
+  } catch (e) { /* オフライン等は無視 */ }
 }
 
 // ── フェーズ別日ノルマ ──
@@ -1681,12 +1727,16 @@ function refreshDate() {
   showToast('📅 日付が変わりました。今日も頑張ろう！');
 }
 
-// 1分ごとにチェック ＋ アプリがフォアグラウンドに戻った時にチェック
+// 1分ごとにチェック ＋ アプリがフォアグラウンドに戻った時にチェック（日付＋クラウド同期）
 setInterval(refreshDate, 60 * 1000);
+function onForeground() {
+  refreshDate();
+  if (typeof refreshFromCloud === 'function') refreshFromCloud();
+}
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) refreshDate();
+  if (!document.hidden) onForeground();
 });
-window.addEventListener('focus', refreshDate);
+window.addEventListener('focus', onForeground);
 
 // ── パネル切り替え ──
 function showPanel(id, btn) {
@@ -2804,6 +2854,7 @@ function loadSubjectStatus() {
 }
 function saveSubjectStatus() {
   localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
+  scheduleSave(); // クラウドにも同期（subject_status含む）
 }
 
 // 章別done/correctの合計を state.r1/state.ok に反映（章 = 真実の源）
