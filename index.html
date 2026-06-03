@@ -580,6 +580,28 @@ body::before{
 .stepper-labels{display:flex;justify-content:center;gap:8px;margin-top:-8px;margin-bottom:8px;}
 .stepper-labels span{font-size:9px;color:var(--dim);text-align:center;width:44px;}
 .stepper-labels span.small{width:36px;}
+/* ── 勉強タイマー ── */
+.timer-display{
+  font-size:48px;font-weight:900;font-family:'JetBrains Mono',monospace;
+  text-align:center;line-height:1;color:var(--text);
+  letter-spacing:0.02em;
+}
+.timer-display.running{color:var(--green);}
+.timer-display.break{color:var(--orange);}
+.timer-phase{text-align:center;font-size:11px;color:var(--dim);margin-top:6px;min-height:14px;}
+.timer-btns{display:flex;gap:8px;margin-top:12px;}
+.timer-btn{
+  flex:1;padding:12px;border-radius:12px;border:none;
+  font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;cursor:pointer;
+  transition:transform 0.15s,opacity 0.15s;
+}
+.timer-btn:active{transform:scale(0.96);}
+.timer-btn.start{background:linear-gradient(135deg,var(--green),var(--teal));color:#001b14;}
+.timer-btn.start.paused{background:linear-gradient(135deg,var(--yellow),var(--orange));color:#1a1400;}
+.timer-btn.stop{background:var(--s2);border:1px solid var(--border);color:var(--text);}
+.timer-summary{display:flex;justify-content:center;gap:18px;margin-top:10px;font-size:11px;color:var(--dim);}
+.timer-summary strong{font-family:'JetBrains Mono',monospace;font-weight:700;}
+
 /* ── 次の一手レコメンド ── */
 .reco-card{
   display:flex;align-items:center;gap:10px;
@@ -934,6 +956,26 @@ body::before{
       <div class="wrong-hint" id="wrongHint">正答率は自動計算されます（任意・分からなければ0でOK）</div>
 
       <button class="add-btn" onclick="addToday()">✓ 今日の分を追加する</button>
+    </div>
+
+    <!-- 勉強タイマー -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="ct" style="margin-bottom:0;">⏱ 勉強タイマー</div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim);cursor:pointer;">
+          <input type="checkbox" id="pomoToggle" onchange="togglePomodoro()" style="accent-color:var(--red);">🍅 ポモドーロ
+        </label>
+      </div>
+      <div class="timer-display" id="timerDisplay">00:00</div>
+      <div class="timer-phase" id="timerPhase"></div>
+      <div class="timer-btns">
+        <button class="timer-btn start" id="timerStartBtn" onclick="toggleTimer()">▶ 開始</button>
+        <button class="timer-btn stop" onclick="stopTimer()">⏹ 終了して記録</button>
+      </div>
+      <div class="timer-summary">
+        <span>今日 <strong id="timerToday" style="color:var(--blue);">0</strong>分</span>
+        <span>今週 <strong id="timerWeek" style="color:var(--green);">0</strong>分</span>
+      </div>
     </div>
 
     <!-- Streak + 30日ヒートマップ -->
@@ -1544,6 +1586,8 @@ async function init() {
   showSkeleton(false);
   updateAll();
   initChapterSelect();
+  renderTimer();
+  renderTimerSummary();
   runSim();
   updateCountdown();
   initTheme();
@@ -2032,6 +2076,119 @@ function addToday() {
   if (state.r1 >= QB) confetti();
 }
 
+// ── 勉強タイマー（ストップウォッチ / ポモドーロ） ──
+let timerRunning = false;
+let timerInterval = null;
+let timerElapsed = 0;        // ストップウォッチの経過秒
+let pomodoroMode = false;
+let pomoPhase = 'focus';     // 'focus' | 'break'
+let pomoRemaining = 25 * 60; // ポモドーロの残り秒
+let pomoFocusAccum = 0;      // 今セッションで集中した秒（記録用）
+const POMO_FOCUS = 25 * 60, POMO_BREAK = 5 * 60;
+
+function fmtTimer(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function renderTimer() {
+  const disp = document.getElementById('timerDisplay');
+  const phase = document.getElementById('timerPhase');
+  if (!disp) return;
+  if (pomodoroMode) {
+    disp.textContent = fmtTimer(pomoRemaining);
+    disp.className = 'timer-display' + (timerRunning ? (pomoPhase === 'break' ? ' break' : ' running') : '');
+    phase.textContent = pomoPhase === 'focus' ? '🍅 集中タイム' : '☕ 休憩タイム';
+  } else {
+    disp.textContent = fmtTimer(timerElapsed);
+    disp.className = 'timer-display' + (timerRunning ? ' running' : '');
+    phase.textContent = timerRunning ? '記録中…' : '';
+  }
+  const startBtn = document.getElementById('timerStartBtn');
+  if (startBtn) {
+    startBtn.textContent = timerRunning ? '⏸ 一時停止' : '▶ 開始';
+    startBtn.classList.toggle('paused', timerRunning);
+  }
+}
+
+function togglePomodoro() {
+  pomodoroMode = document.getElementById('pomoToggle').checked;
+  pauseTimer();
+  pomoPhase = 'focus'; pomoRemaining = POMO_FOCUS; pomoFocusAccum = 0;
+  renderTimer();
+}
+
+function toggleTimer() {
+  if (timerRunning) pauseTimer();
+  else startTimer();
+}
+
+function startTimer() {
+  timerRunning = true;
+  timerInterval = setInterval(timerTick, 1000);
+  renderTimer();
+}
+function pauseTimer() {
+  timerRunning = false;
+  clearInterval(timerInterval);
+  renderTimer();
+}
+
+function timerTick() {
+  if (pomodoroMode) {
+    pomoRemaining--;
+    if (pomoPhase === 'focus') pomoFocusAccum++;
+    if (pomoRemaining <= 0) {
+      // フェーズ切り替え
+      if (navigator.vibrate) navigator.vibrate(200);
+      if (pomoPhase === 'focus') {
+        pomoPhase = 'break'; pomoRemaining = POMO_BREAK;
+        showToast('🍅 25分完了！5分休憩しよう');
+      } else {
+        pomoPhase = 'focus'; pomoRemaining = POMO_FOCUS;
+        showToast('☕ 休憩おわり！再開しよう');
+      }
+    }
+  } else {
+    timerElapsed++;
+  }
+  renderTimer();
+}
+
+function stopTimer() {
+  pauseTimer();
+  // 記録する分数を決定
+  let minutes;
+  if (pomodoroMode) minutes = Math.round(pomoFocusAccum / 60);
+  else minutes = Math.round(timerElapsed / 60);
+
+  if (minutes > 0) {
+    const logIdx = state.daily_log.findIndex(l => l.date === TODAY_STR);
+    if (logIdx >= 0) state.daily_log[logIdx].min = (state.daily_log[logIdx].min || 0) + minutes;
+    else state.daily_log.push({ date: TODAY_STR, n: 0, ok: 0, min: minutes });
+    scheduleSave();
+    showToast(`⏱ ${minutes}分を記録！おつかれさま`);
+  }
+  // リセット
+  timerElapsed = 0; pomoFocusAccum = 0;
+  pomoPhase = 'focus'; pomoRemaining = POMO_FOCUS;
+  renderTimer();
+  renderTimerSummary();
+}
+
+function renderTimerSummary() {
+  const today = state.daily_log.find(l => l.date === TODAY_STR);
+  setEl('timerToday', today ? (today.min || 0) : 0);
+  let week = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(TODAY); d.setDate(d.getDate() - i);
+    const ds = toLocalDateStr(d);
+    const e = state.daily_log.find(l => l.date === ds);
+    if (e) week += (e.min || 0);
+  }
+  setEl('timerWeek', week);
+}
+
 // ── トースト ──
 let _toastTimer = null;
 function showToast(msg) {
@@ -2345,6 +2502,7 @@ function updateAll() {
   renderStreak();
   renderHeatmap();
   renderBarChart();
+  renderTimerSummary();
   renderLevel();
   renderGhost();
   renderCheer();
