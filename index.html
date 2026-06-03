@@ -985,6 +985,7 @@ body::before{
       <div style="display:flex;justify-content:center;gap:16px;font-size:11px;color:var(--dim);margin-top:6px;">
         <span>🔥 連続 <span id="streakCount" style="color:var(--green);font-weight:700;font-family:'JetBrains Mono',monospace;">0</span> 日</span>
         <span>🏅 最長 <span id="streakBest" style="color:var(--yellow);font-weight:700;font-family:'JetBrains Mono',monospace;">0</span> 日</span>
+        <span id="freezeStatus" title="月1回サボりを救済">🛡 <span id="freezeText">利用可</span></span>
       </div>
 
       <!-- 週間サマリー -->
@@ -1719,6 +1720,29 @@ function calcRequiredPace() {
 // ── ペナルティ検出 ──
 let _pendingDebt = 0;
 
+// ── ストリークフリーズ（月1回までサボりを救済） ──
+function currentMonthStr() { return TODAY_STR.slice(0, 7); } // YYYY-MM
+function getFreezeState() {
+  try { return JSON.parse(localStorage.getItem('cbt_freeze') || '{}'); } catch(e) { return {}; }
+}
+function freezeAvailable() {
+  const f = getFreezeState();
+  if (f.month !== currentMonthStr()) return true; // 新しい月はリセット
+  return (f.used || 0) < 1;
+}
+function getFrozenDates() {
+  try { return JSON.parse(localStorage.getItem('cbt_freeze_dates') || '[]'); } catch(e) { return []; }
+}
+function useFreeze(date) {
+  const f = getFreezeState();
+  if (f.month !== currentMonthStr()) { f.month = currentMonthStr(); f.used = 0; }
+  f.used = (f.used || 0) + 1;
+  localStorage.setItem('cbt_freeze', JSON.stringify(f));
+  const dates = getFrozenDates();
+  if (!dates.includes(date)) dates.push(date);
+  localStorage.setItem('cbt_freeze_dates', JSON.stringify(dates));
+}
+
 function checkPenalty() {
   // 直前期・初回起動はスキップ
   if (new Date() >= new Date('2026-11-01')) return;
@@ -1750,6 +1774,17 @@ function checkPenalty() {
     }
   }
   if (totalMissed <= 0) return;
+
+  // 🛡 ストリークフリーズ：サボりが1日だけ＆今月分が残っていれば自動救済
+  if (missedDates.length === 1 && freezeAvailable()) {
+    useFreeze(missedDates[0]);
+    localStorage.setItem('penalty_checked', TODAY_STR);
+    state.last_date = TODAY_STR;  // 連続記録を維持
+    scheduleSave();
+    updateAll();
+    setTimeout(() => showToast('🛡 ストリークフリーズ発動！連続記録を守りました'), 700);
+    return;
+  }
 
   _pendingDebt = totalMissed;
 
@@ -2227,13 +2262,22 @@ function renderStreak() {
     // daily_log から該当日を検索
     const entry = state.daily_log.find(l => l.date === ds)
                   || state.streak.find(s => s.date === ds); // 後方互換
+    const isFrozen = getFrozenDates().includes(ds);
 
     const isToday = (i === 0);
     const div = document.createElement('div');
-    div.className = 'streak-dot ' + (isToday ? 'today' : (entry && entry.n > 0 ? 'done' : 'empty'));
-    div.textContent = (entry && entry.n > 0) ? '✓' : days[d.getDay()];
-    div.title = ds + (entry ? ` (${entry.n}問)` : '');
+    div.className = 'streak-dot ' + (isToday ? 'today' : (entry && entry.n > 0 ? 'done' : (isFrozen ? 'done' : 'empty')));
+    div.textContent = (entry && entry.n > 0) ? '✓' : (isFrozen ? '🛡' : days[d.getDay()]);
+    div.title = ds + (isFrozen ? '（フリーズで保護）' : (entry ? ` (${entry.n}問)` : ''));
     row.appendChild(div);
+  }
+
+  // フリーズ状態表示
+  const ft = document.getElementById('freezeText');
+  const fs = document.getElementById('freezeStatus');
+  if (ft && fs) {
+    if (freezeAvailable()) { ft.textContent = '利用可'; fs.style.color = 'var(--blue)'; }
+    else { ft.textContent = '使用済'; fs.style.color = 'var(--dim)'; }
   }
 
   // 連続日数をdaily_logから正確に計算（日付ギャップを検出）
@@ -2647,14 +2691,16 @@ function blockDone(block) {
   return chs.length > 0 && chs.every(c => isChapterDone(c.id));
 }
 
-// 連続記録日数（renderStreakと同ロジック）
+// 連続記録日数（フリーズ日は橋渡しとしてカウント）
 function getStreakCount() {
+  const frozen = getFrozenDates();
   let streak = 0;
   for (let i = 0; ; i++) {
     const d = new Date(TODAY); d.setDate(d.getDate() - i);
     const ds = toLocalDateStr(d);
     const entry = state.daily_log.find(l => l.date === ds) || state.streak.find(s => s.date === ds);
     if (entry && entry.n > 0) streak++;
+    else if (frozen.includes(ds)) streak++;     // 🛡 フリーズ日は連続として扱う
     else if (i === 0) continue;
     else break;
     if (streak > 365) break;
