@@ -630,6 +630,22 @@ body::before{
 }
 .reco-btn:active{transform:scale(0.95);}
 
+/* ── 折りたたみカード ── */
+.card.collapsible > .ct,
+.card.collapsible > div:first-child{cursor:pointer;}
+.card.collapsible > .ct::after{content:' ▾';color:var(--dim);font-size:9px;}
+.card.collapsed.collapsible > .ct::after{content:' ▸';}
+.card.collapsed > *:not(:first-child){display:none !important;}
+
+/* ── 表示設定 ── */
+.pref-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 0;border-bottom:1px solid var(--border);
+  font-size:12px;cursor:pointer;
+}
+.pref-row span{flex:1;color:var(--text);}
+.pref-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--blue);cursor:pointer;flex-shrink:0;}
+
 /* ── クイック入力プリセット ── */
 .quick-presets{display:flex;gap:6px;margin-bottom:4px;}
 .quick-btn{
@@ -893,7 +909,7 @@ body::before{
     <!-- 励ましメッセージ -->
     <div class="cheer-banner" id="cheerBanner"></div>
 
-    <div class="today-card">
+    <div class="today-card" id="todayCard">
       <div class="today-label">TODAY'S TARGET</div>
       <div class="today-q" id="todayTarget">— <span>問/日</span></div>
       <div class="today-note" id="todayPhase">計算中...</div>
@@ -960,7 +976,7 @@ body::before{
     </div>
 
     <!-- Stepper -->
-    <div class="card">
+    <div class="card" id="recordCard">
       <div class="ct">今日解いた問題数を記録</div>
 
       <!-- 章セレクタ -->
@@ -1010,7 +1026,7 @@ body::before{
     </div>
 
     <!-- 勉強タイマー -->
-    <div class="card">
+    <div class="card" id="timerCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div class="ct" style="margin-bottom:0;">⏱ 勉強タイマー</div>
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim);cursor:pointer;">
@@ -1041,7 +1057,7 @@ body::before{
     </div>
 
     <!-- Streak + 30日ヒートマップ -->
-    <div class="card">
+    <div class="card" id="streakCard">
       <div class="ct">直近7日間</div>
       <div class="streak-row" id="streakRow"></div>
       <div style="display:flex;justify-content:center;gap:16px;font-size:11px;color:var(--dim);margin-top:6px;">
@@ -1094,7 +1110,7 @@ body::before{
     </div>
 
     <!-- Progress rings -->
-    <div class="card">
+    <div class="card" id="ringsCard">
       <div class="ct">全体進捗</div>
       <div style="display:flex;justify-content:space-around;flex-wrap:wrap;gap:12px;">
         <div class="today-ring">
@@ -1130,7 +1146,7 @@ body::before{
       </div>
     </div>
 
-    <div class="sg">
+    <div class="sg" id="statsGrid">
       <div class="sb">
         <div class="sv" style="color:var(--blue)" id="hs-done">0</div>
         <div class="sl">解いた問題</div>
@@ -1143,6 +1159,16 @@ body::before{
         <div class="sv" style="color:var(--yellow)" id="hs-acc">—%</div>
         <div class="sl">正答率</div>
       </div>
+    </div>
+
+    <!-- 表示設定 -->
+    <div class="card" id="homePrefsCard">
+      <div class="ct" style="margin-bottom:10px;">⚙️ ホームの表示設定</div>
+      <label class="pref-row"><span>やる気カード（レベル・ゴースト）</span><input type="checkbox" id="pref-motivation" onchange="saveHomePrefs()" checked></label>
+      <label class="pref-row"><span>励ましメッセージ</span><input type="checkbox" id="pref-cheer" onchange="saveHomePrefs()" checked></label>
+      <label class="pref-row"><span>勉強タイマー</span><input type="checkbox" id="pref-timer" onchange="saveHomePrefs()" checked></label>
+      <label class="pref-row"><span>週次目標</span><input type="checkbox" id="pref-weekgoal" onchange="saveHomePrefs()" checked></label>
+      <label class="pref-row" style="border-bottom:none;"><span>統計・グラフ（直近7日/ヒートマップ/リング）</span><input type="checkbox" id="pref-stats" onchange="saveHomePrefs()" checked></label>
     </div>
 
   </div>
@@ -3821,9 +3847,90 @@ function checkReminder() {
 }
 setInterval(checkReminder, 5 * 60 * 1000); // 5分ごと
 
+// ── ホーム整理（並べ替え + 折りたたみ + 表示設定） ──
+// 「今日やること」を上部に、グラフ類を下部に並べ替え
+function reorderHome() {
+  const panel = document.getElementById('p-home');
+  if (!panel) return;
+  const order = [
+    'cheerBanner', 'todayCard', 'recoCard', 'recordCard',
+    'examCard', 'debt-card', 'weekPlanCard', 'reviewCard',
+    'levelCard', 'ghostCard', 'timerCard', 'weekGoalCard',
+    'streakCard', 'ringsCard', 'statsGrid', 'homePrefsCard'
+  ];
+  for (const id of order) {
+    const el = document.getElementById(id);
+    if (el) panel.appendChild(el); // 既存ノードを末尾に移動＝この順に整列
+  }
+}
+
+// 折りたたみ可能カードを設定（タイトルクリックで開閉）
+function setupCollapsibles() {
+  const defs = [
+    { id: 'timerCard',  collapsed: false },
+    { id: 'weekGoalCard', collapsed: false },
+    { id: 'streakCard', collapsed: true },
+    { id: 'ringsCard',  collapsed: true },
+  ];
+  for (const { id, collapsed } of defs) {
+    const card = document.getElementById(id);
+    if (!card || card.dataset.collapsibleSet) continue;
+    card.classList.add('collapsible');
+    // 保存状態を復元（なければデフォルト）
+    const saved = localStorage.getItem('collapse_' + id);
+    const isCollapsed = saved == null ? collapsed : saved === '1';
+    if (isCollapsed) card.classList.add('collapsed');
+    const header = card.querySelector('.ct') || card.firstElementChild;
+    if (header) {
+      header.addEventListener('click', (e) => {
+        // タイマー等のヘッダー内ボタン/入力はトグル対象外
+        if (e.target.closest('button, input, select')) return;
+        card.classList.toggle('collapsed');
+        localStorage.setItem('collapse_' + id, card.classList.contains('collapsed') ? '1' : '0');
+      });
+    }
+    card.dataset.collapsibleSet = '1';
+  }
+}
+
+// 表示設定の読み込み/適用
+function loadHomePrefs() {
+  let prefs = {};
+  try { prefs = JSON.parse(localStorage.getItem('cbt_home_prefs') || '{}'); } catch(e) {}
+  return Object.assign({ motivation: true, cheer: true, timer: true, weekgoal: true, stats: true }, prefs);
+}
+function applyHomePrefs() {
+  const p = loadHomePrefs();
+  const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
+  show('levelCard', p.motivation);
+  show('ghostCard', p.motivation);
+  show('cheerBanner', p.cheer);
+  show('timerCard', p.timer);
+  show('weekGoalCard', p.weekgoal);
+  show('streakCard', p.stats);
+  show('ringsCard', p.stats);
+  show('statsGrid', p.stats);
+  // チェックボックスに反映
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
+  set('pref-motivation', p.motivation); set('pref-cheer', p.cheer);
+  set('pref-timer', p.timer); set('pref-weekgoal', p.weekgoal); set('pref-stats', p.stats);
+}
+function saveHomePrefs() {
+  const get = (id) => { const el = document.getElementById(id); return el ? el.checked : true; };
+  const prefs = {
+    motivation: get('pref-motivation'), cheer: get('pref-cheer'),
+    timer: get('pref-timer'), weekgoal: get('pref-weekgoal'), stats: get('pref-stats')
+  };
+  localStorage.setItem('cbt_home_prefs', JSON.stringify(prefs));
+  applyHomePrefs();
+}
+
 // ── 起動 ──
 init();
 updateReminderBtn();
+reorderHome();
+setupCollapsibles();
+applyHomePrefs();
 </script>
 </body>
 </html>
