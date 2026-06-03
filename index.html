@@ -630,6 +630,25 @@ body::before{
 }
 .reco-btn:active{transform:scale(0.95);}
 
+/* ── クイック入力プリセット ── */
+.quick-presets{display:flex;gap:6px;margin-bottom:4px;}
+.quick-btn{
+  flex:1;padding:8px 0;border-radius:10px;
+  background:var(--s2);border:1px solid var(--border);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;
+  cursor:pointer;transition:all 0.15s;
+}
+.quick-btn:active{transform:scale(0.92);background:var(--blue);border-color:var(--blue);color:#fff;}
+
+/* ── アンドゥボタン ── */
+.undo-btn{
+  width:100%;padding:10px;border-radius:11px;margin-top:8px;
+  background:transparent;border:1px solid rgba(255,138,60,0.4);
+  color:var(--orange);font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;transition:transform 0.15s;
+}
+.undo-btn:active{transform:scale(0.97);}
+
 /* ── 章セレクタ ── */
 .chapter-select-row{
   display:flex;align-items:center;gap:8px;margin-bottom:8px;
@@ -950,6 +969,14 @@ body::before{
         <select id="chapterSelect" class="chapter-select" onchange="onChapterSelect()"></select>
       </div>
 
+      <!-- クイック入力プリセット -->
+      <div class="quick-presets">
+        <button class="quick-btn" onclick="setStep(10)">10</button>
+        <button class="quick-btn" onclick="setStep(20)">20</button>
+        <button class="quick-btn" onclick="setStep(30)">30</button>
+        <button class="quick-btn" onclick="setStep(50)">50</button>
+      </div>
+
       <div class="stepper">
         <button class="step-btn small" onclick="step(-1)" title="-1">−1</button>
         <button class="step-btn" onclick="step(-5)" title="-5">−</button>
@@ -979,6 +1006,7 @@ body::before{
       <div class="wrong-hint" id="wrongHint">正答率は自動計算されます（任意・分からなければ0でOK）</div>
 
       <button class="add-btn" onclick="addToday()">✓ 今日の分を追加する</button>
+      <button class="undo-btn" id="undoBtn" onclick="undoLastRecord()" style="display:none;">↩︎ 直前の記録を取り消す</button>
     </div>
 
     <!-- 勉強タイマー -->
@@ -1926,6 +1954,13 @@ function step(n) {
   document.getElementById('stepVal').textContent = todayStep;
 }
 
+// クイック入力プリセット（値をセット）
+function setStep(n) {
+  todayStep = n;
+  document.getElementById('stepVal').textContent = todayStep;
+  clampWrong();
+}
+
 // ── 章セレクタの初期化 ──
 function initChapterSelect() {
   const sel = document.getElementById('chapterSelect');
@@ -2088,9 +2123,22 @@ function clampWrong() {
   }
 }
 
+let _undoSnapshot = null;  // アンドゥ用の直前スナップショット
+
 function addToday() {
   if (todayStep === 0) { showToast('問題数を入力してね'); return; }
   if (!selectedChapter) { showToast('章を選んでね'); return; }
+
+  // アンドゥ用に記録前の状態を保存
+  _undoSnapshot = {
+    chapter: selectedChapter,
+    subject_status: JSON.parse(JSON.stringify(state.subject_status)),
+    daily_log: JSON.parse(JSON.stringify(state.daily_log)),
+    streak: JSON.parse(JSON.stringify(state.streak)),
+    debt: state.debt,
+    last_date: state.last_date,
+    r1: state.r1, ok: state.ok
+  };
 
   clampWrong();
   const added = todayStep;                      // 今日の努力量（2周目含む）
@@ -2165,7 +2213,30 @@ function addToday() {
   initChapterSelect();  // done数の表示更新＋完了したら次の章へ
   const accMsg = added > 0 ? `（正答率${(correctToday/added*100).toFixed(0)}%）` : '';
   showToast(`+${added}問 追加！${accMsg} 🎉`);
+  // アンドゥボタンを表示
+  const undoBtn = document.getElementById('undoBtn');
+  if (undoBtn) undoBtn.style.display = 'block';
   if (state.r1 >= QB) confetti();
+}
+
+// 直前の記録を取り消す
+function undoLastRecord() {
+  if (!_undoSnapshot) { showToast('取り消せる記録がありません'); return; }
+  state.subject_status = _undoSnapshot.subject_status;
+  state.daily_log      = _undoSnapshot.daily_log;
+  state.streak         = _undoSnapshot.streak;
+  state.debt           = _undoSnapshot.debt;
+  state.last_date      = _undoSnapshot.last_date;
+  state.r1             = _undoSnapshot.r1;
+  state.ok             = _undoSnapshot.ok;
+  saveSubjectStatus();
+  recomputeTotalsFromChapters();
+  scheduleSave();
+  updateAll();
+  initChapterSelect();
+  _undoSnapshot = null;
+  document.getElementById('undoBtn').style.display = 'none';
+  showToast('↩︎ 直前の記録を取り消しました');
 }
 
 // ── 勉強タイマー（ストップウォッチ / ポモドーロ） ──
