@@ -580,6 +580,22 @@ body::before{
 .stepper-labels{display:flex;justify-content:center;gap:8px;margin-top:-8px;margin-bottom:8px;}
 .stepper-labels span{font-size:9px;color:var(--dim);text-align:center;width:44px;}
 .stepper-labels span.small{width:36px;}
+/* ── 章セレクタ ── */
+.chapter-select-row{
+  display:flex;align-items:center;gap:8px;margin-bottom:8px;
+}
+.chapter-select-label{font-size:12px;color:var(--dim);font-weight:600;flex-shrink:0;}
+.chapter-select{
+  flex:1;background:var(--s2);border:1px solid var(--border);
+  border-radius:10px;padding:9px 10px;color:var(--text);
+  font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;
+  outline:none;cursor:pointer;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7394' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;
+}
+.chapter-select:focus{border-color:var(--blue);}
+
 /* ── 間違い数入力 ── */
 .wrong-row{
   display:flex;align-items:center;justify-content:space-between;
@@ -854,6 +870,13 @@ body::before{
     <!-- Stepper -->
     <div class="card">
       <div class="ct">今日解いた問題数を記録</div>
+
+      <!-- 章セレクタ -->
+      <div class="chapter-select-row">
+        <span class="chapter-select-label">どの章？</span>
+        <select id="chapterSelect" class="chapter-select" onchange="onChapterSelect()"></select>
+      </div>
+
       <div class="stepper">
         <button class="step-btn small" onclick="step(-1)" title="-1">−1</button>
         <button class="step-btn" onclick="step(-5)" title="-5">−</button>
@@ -1089,8 +1112,8 @@ body::before{
   <div class="panel" id="p-log">
     <div class="card">
       <div class="ct">現在の進捗を更新</div>
-      <div class="log-item"><label>QB 1周目（解いた数）</label><input class="log-ni" type="number" id="l_r1" value="0" min="0" max="3359" oninput="updateLog()"></div>
-      <div class="log-item"><label>QB 1周目 正解数</label><input class="log-ni" type="number" id="l_ok" value="0" min="0" oninput="updateLog()"></div>
+      <div class="log-item"><label>QB 1周目（解いた数）<span style="font-size:9px;color:var(--dim);display:block;">📚科目タブで章別に自動集計</span></label><input class="log-ni" type="number" id="l_r1" value="0" readonly style="opacity:0.6;"></div>
+      <div class="log-item"><label>QB 1周目 正解数<span style="font-size:9px;color:var(--dim);display:block;">章別から自動計算</span></label><input class="log-ni" type="number" id="l_ok" value="0" readonly style="opacity:0.6;"></div>
       <div class="log-item"><label>QB 2周目（解いた数）</label><input class="log-ni" type="number" id="l_r2" value="0" min="0" oninput="updateLog()"></div>
       <div class="log-item"><label>QB 3周目（解いた数）</label><input class="log-ni" type="number" id="l_r3" value="0" min="0" oninput="updateLog()"></div>
       <div class="log-item"><label>モントレ（解いた数）</label><input class="log-ni" type="number" id="l_m" value="0" min="0" max="3573" oninput="updateLog()"></div>
@@ -1287,12 +1310,18 @@ const CHAPTERS = [
 ];
 
 // ── 現在の進捗インポート（スクショ実データ・一度だけ自動反映） ──
-// 演習完了の章を1周目完了に、赤(×)割合から苦手レベルを推定（acc: 1苦手/2普通/3得意）
+// done: 1周目でやった問題数, correct: そのうち正解数（×以外。○+△）
+// 苦手レベルは correct/done から自動算出するので acc は持たない
 const INITIAL_PROGRESS = {
-  '1A': { r1:true, acc:2 }, '1B': { r1:true, acc:2 }, '1C': { r1:true, acc:3 },
-  '1D': { r1:true, acc:1 }, '1E': { r1:true, acc:2 }, '1F': { r1:true, acc:1 },
-  '1H': { r1:true, acc:2 }, '1I': { r1:true, acc:1 },
-  '2A': { r1:true, acc:2 }, '2B': { r1:true, acc:2 }, '2G': { r1:true, acc:2 },
+  // vol.1（done合計525）
+  '1A': { done:35, correct:23 }, '1B': { done:52, correct:36 }, '1C': { done:63, correct:48 },
+  '1D': { done:74, correct:36 }, '1E': { done:47, correct:30 }, '1F': { done:73, correct:37 },
+  '1G': { done:30, correct:10 }, '1H': { done:59, correct:37 }, '1I': { done:77, correct:45 },
+  '1J': { done:15, correct:3 },
+  // vol.2（done合計346）
+  '2A': { done:65, correct:43 }, '2B': { done:52, correct:33 }, '2C': { done:56, correct:34 },
+  '2E': { done:49, correct:32 }, '2F': { done:44, correct:28 }, '2G': { done:48, correct:35 },
+  '2I': { done:32, correct:19 },
 };
 
 // ── 試験スケジュール ──
@@ -1381,6 +1410,7 @@ let state = {
 // UI専用（Supabaseには保存しない）
 let todayStep = 0;
 let todayWrong = 0;
+let selectedChapter = '';  // 記録対象の章ID
 
 // ── スケルトン表示制御 ──
 function showSkeleton(v) {
@@ -1472,6 +1502,7 @@ async function init() {
   checkBadges(true);
   showSkeleton(false);
   updateAll();
+  initChapterSelect();
   runSim();
   updateCountdown();
   initTheme();
@@ -1674,6 +1705,60 @@ function step(n) {
   document.getElementById('stepVal').textContent = todayStep;
 }
 
+// ── 章セレクタの初期化 ──
+function initChapterSelect() {
+  const sel = document.getElementById('chapterSelect');
+  if (!sel) return;
+  sel.innerHTML = '';
+
+  let currentBlock = null;
+  let optgroup = null;
+  for (const ch of CHAPTERS) {
+    if (ch.block !== currentBlock) {
+      currentBlock = ch.block;
+      optgroup = document.createElement('optgroup');
+      optgroup.label = BLOCK_NAMES[ch.block];
+      sel.appendChild(optgroup);
+    }
+    const st = state.subject_status[ch.id] || {};
+    const done = Math.min(st.done || 0, ch.n);
+    const complete = done >= ch.n;
+    const opt = document.createElement('option');
+    opt.value = ch.id;
+    opt.textContent = `${ch.id} ${ch.subj || ''}（${done}/${ch.n}）${complete ? '✓' : ''}`;
+    optgroup.appendChild(opt);
+  }
+
+  // デフォルト章を決定：記憶 → 今週の計画の未完了 → 最初の未完了
+  let def = localStorage.getItem('cbt_cur_chapter');
+  if (!def || !CHAPTERS.find(c => c.id === def)) def = pickDefaultChapter();
+  selectedChapter = def;
+  sel.value = def;
+}
+
+// おすすめのデフォルト章（今週の計画の未完了 → 全体の最初の未完了）
+function pickDefaultChapter() {
+  // 今週の計画から未完了を探す
+  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
+    const start = new Date(WEEKLY_PLAN[i].start);
+    const nextStart = i + 1 < WEEKLY_PLAN.length ? new Date(WEEKLY_PLAN[i + 1].start) : new Date('2026-11-09');
+    if (TODAY >= start && TODAY < nextStart) {
+      for (const id of WEEKLY_PLAN[i].chapters) {
+        if (!isChapterDone(id)) return id;
+      }
+    }
+  }
+  // 全体の最初の未完了
+  for (const ch of CHAPTERS) if (!isChapterDone(ch.id)) return ch.id;
+  return CHAPTERS[0].id;
+}
+
+function onChapterSelect() {
+  const sel = document.getElementById('chapterSelect');
+  selectedChapter = sel.value;
+  localStorage.setItem('cbt_cur_chapter', selectedChapter);
+}
+
 // contenteditable の値を todayStep に同期
 function syncStepVal() {
   const el = document.getElementById('stepVal');
@@ -1713,18 +1798,34 @@ function clampWrong() {
 
 function addToday() {
   if (todayStep === 0) { showToast('問題数を入力してね'); return; }
+  if (!selectedChapter) { showToast('章を選んでね'); return; }
 
   clampWrong();
-  const prev = state.r1;
-  state.r1 = Math.min(QB, state.r1 + todayStep);
-  const added = state.r1 - prev;
-
-  // 今日の正解数 = 追加分 − 間違い数（間違いは追加分でクランプ）
+  const added = todayStep;                      // 今日の努力量（2周目含む）
   const wrongToday   = Math.min(todayWrong, added);
   const correctToday = added - wrongToday;
 
-  // 累計正解数を更新（state.ok）
-  state.ok = Math.min(state.r1, state.ok + correctToday);
+  // 選択中の章に記録（1周目はn問でキャップ）
+  const ch = CHAPTERS.find(c => c.id === selectedChapter);
+  if (ch) {
+    if (!state.subject_status[ch.id]) state.subject_status[ch.id] = {};
+    const st = state.subject_status[ch.id];
+    const wasDone = isChapterDone(ch.id);
+    const remaining = Math.max(0, ch.n - (st.done || 0));
+    const chapterAdd = Math.min(added, remaining);
+    const chapterCorrect = added > 0 ? Math.round(chapterAdd * (correctToday / added)) : 0;
+    st.done    = (st.done || 0) + chapterAdd;
+    st.correct = (st.correct || 0) + chapterCorrect;
+    // 1周目完了に到達 → 完了日記録＋祝福
+    if (!wasDone && st.done >= ch.n) {
+      st.r1_date = TODAY_STR;
+      setTimeout(() => { confetti(); showToast(`🎉 ${ch.id} ${ch.subj} 1周完了！`); }, 600);
+    }
+    saveSubjectStatus();
+  }
+
+  // 章別合計から全体r1/okを再集計（真実の源）
+  recomputeTotalsFromChapters();
 
   // daily_log に記録（当日分は加算、なければ追加）
   const logIdx = state.daily_log.findIndex(l => l.date === TODAY_STR);
@@ -1769,6 +1870,7 @@ function addToday() {
 
   scheduleSave();
   updateAll();
+  initChapterSelect();  // done数の表示更新＋完了したら次の章へ
   const accMsg = added > 0 ? `（正答率${(correctToday/added*100).toFixed(0)}%）` : '';
   showToast(`+${added}問 追加！${accMsg} 🎉`);
   if (state.r1 >= QB) confetti();
@@ -2227,7 +2329,7 @@ const BADGES = [
 // ブロックの全章が1周目完了か
 function blockDone(block) {
   const chs = CHAPTERS.filter(c => c.block === block);
-  return chs.length > 0 && chs.every(c => (state.subject_status[c.id]||{}).r1);
+  return chs.length > 0 && chs.every(c => isChapterDone(c.id));
 }
 
 // 連続記録日数（renderStreakと同ロジック）
@@ -2407,7 +2509,7 @@ function renderWeekPlan() {
   for (const id of uniq) {
     const ch = CHAPTERS.find(c => c.id === id);
     if (!ch) continue;
-    const done = (state.subject_status[id] || {}).r1;
+    const done = isChapterDone(id);
     const chip = document.createElement('div');
     chip.className = 'weekplan-chip' + (done ? ' done' : '');
     chip.style.borderLeft = `3px solid ${BLOCK_COLORS[ch.block]}`;
@@ -2429,7 +2531,7 @@ function renderReviewReminder() {
   for (const ch of CHAPTERS) {
     const st = state.subject_status[ch.id] || {};
     // 1周目完了済み・完了日あり・2周目未完了 が対象
-    if (!st.r1 || !st.r1_date || st.r2) continue;
+    if (!isChapterDone(ch.id) || !st.r1_date || st.r2) continue;
     const completed = new Date(st.r1_date);
     completed.setHours(0, 0, 0, 0);
     const daysSince = Math.round((TODAY - completed) / 86400000);
@@ -2554,8 +2656,7 @@ function setPB(barId, pct, pctId, pctText) {
 
 // ── 進捗タブ：入力変更時にリアルタイム更新 ──
 function updateLog() {
-  state.r1   = +document.getElementById('l_r1').value   || 0;
-  state.ok   = +document.getElementById('l_ok').value   || 0;
+  // r1/ok は章別から自動集計するため、ここでは更新しない（読み取り専用）
   state.r2   = +document.getElementById('l_r2').value   || 0;
   state.r3   = +document.getElementById('l_r3').value   || 0;
   state.m    = +document.getElementById('l_m').value    || 0;
@@ -2685,26 +2786,55 @@ function loadSubjectStatus() {
     state.subject_status = s ? JSON.parse(s) : {};
   } catch(e) { state.subject_status = {}; }
 
-  // 現在進捗を一度だけ反映（既に設定済みの章は上書きしない）
-  if (localStorage.getItem('cbt_import_v1') !== 'done') {
+  // 現在進捗(章別done/correct)を一度だけ反映（v2: 章ベース）
+  if (localStorage.getItem('cbt_import_v2') !== 'done') {
     for (const id in INITIAL_PROGRESS) {
-      if (!state.subject_status[id] || Object.keys(state.subject_status[id]).length === 0) {
-        state.subject_status[id] = { ...INITIAL_PROGRESS[id] };
+      const cur = state.subject_status[id] || {};
+      // done未設定の章のみシード（既存編集は尊重）
+      if (cur.done == null) {
+        state.subject_status[id] = { ...cur, ...INITIAL_PROGRESS[id] };
       }
     }
-    // スクショ実データの合計問題数(871)に補正（正答数は約61%で推定。進捗タブで微調整可）
-    const IMPORT_R1 = 871, IMPORT_OK = 529;
-    if (state.r1 < IMPORT_R1) {
-      state.r1 = IMPORT_R1;
-      state.ok = IMPORT_OK;
-      scheduleSave(); // Supabaseにも反映
-    }
-    localStorage.setItem('cbt_import_v1', 'done');
+    localStorage.setItem('cbt_import_v2', 'done');
     saveSubjectStatus();
   }
+
+  // 章別データから全体r1/okを再集計（章を真実の源とする）
+  recomputeTotalsFromChapters();
 }
 function saveSubjectStatus() {
   localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
+}
+
+// 章別done/correctの合計を state.r1/state.ok に反映（章 = 真実の源）
+function recomputeTotalsFromChapters() {
+  let totalDone = 0, totalCorrect = 0, hasChapterData = false;
+  for (const ch of CHAPTERS) {
+    const st = state.subject_status[ch.id];
+    if (st && st.done != null) {
+      hasChapterData = true;
+      totalDone    += Math.min(st.done, ch.n);
+      totalCorrect += Math.min(st.correct || 0, st.done);
+    }
+  }
+  // 章データがあれば全体を上書き（なければ既存のr1/okを維持＝後方互換）
+  if (hasChapterData) {
+    state.r1 = totalDone;
+    state.ok = totalCorrect;
+  }
+}
+
+// 章の1周目完了フラグ（done >= n）
+function isChapterDone(id) {
+  const ch = CHAPTERS.find(c => c.id === id);
+  const st = state.subject_status[id] || {};
+  return ch && st.done != null && st.done >= ch.n;
+}
+// 章の正答率（done>0のとき）
+function chapterAcc(id) {
+  const st = state.subject_status[id] || {};
+  if (!st.done || st.done <= 0) return null;
+  return (st.correct || 0) / st.done * 100;
 }
 function toggleSubjectCheck(id, key) {
   if (!state.subject_status[id]) state.subject_status[id] = {};
@@ -2745,8 +2875,8 @@ function renderWeakHeatmap() {
     const chs = CHAPTERS.filter(c => c.block === block);
     if (chs.length === 0) continue;
 
-    // 苦手の数をカウント
-    const weakCount = chs.filter(c => (state.subject_status[c.id]||{}).acc === 1).length;
+    // 苦手の数をカウント（正答率<50% または手動苦手）
+    const weakCount = chs.filter(c => weaknessLevel(c.id) === 1).length;
 
     const wb = document.createElement('div');
     wb.className = 'weak-block';
@@ -2761,11 +2891,12 @@ function renderWeakHeatmap() {
     const cells = document.createElement('div');
     cells.className = 'weak-cells';
     for (const ch of chs) {
-      const acc = (state.subject_status[ch.id]||{}).acc || 0;
+      const lvl = weaknessLevel(ch.id);
       const cell = document.createElement('div');
-      cell.className = 'weak-cell ' + ACC_CLASS[acc];
+      cell.className = 'weak-cell ' + ACC_CLASS[lvl];
       cell.textContent = ch.id;
-      cell.title = ch.subj || ch.id;
+      const acc = chapterAcc(ch.id);
+      cell.title = `${ch.id} ${ch.subj}` + (acc != null ? `（正答${acc.toFixed(0)}%）` : '（未着手）');
       cell.addEventListener('click', () => cycleWeakness(ch.id));
       cells.appendChild(cell);
     }
@@ -2796,8 +2927,8 @@ function renderSubjects() {
       container.appendChild(hdr);
     }
 
+    if (isChapterDone(ch.id)) cnt1++;
     const st = state.subject_status[ch.id] || {};
-    if (st.r1) cnt1++;
     if (st.r2) cnt2++;
     if (st.r3) cnt3++;
     container.appendChild(makeChapterRow(ch));
@@ -2808,63 +2939,83 @@ function renderSubjects() {
   setEl('subj-cnt-shuf', cnt3);
 }
 
+// 苦手レベル（0未設定/1苦手/2普通/3得意）：手動acc優先、なければ正答率から自動
+function weaknessLevel(id) {
+  const st = state.subject_status[id] || {};
+  if (st.acc) return st.acc;          // 手動設定があれば優先
+  const acc = chapterAcc(id);
+  if (acc == null) return 0;          // 未着手
+  if (acc < 50) return 1;             // 苦手
+  if (acc < 70) return 2;             // 普通
+  return 3;                           // 得意
+}
+
 function makeChapterRow(ch) {
   const st = state.subject_status[ch.id] || {};
-  const allDone = st.r1 && st.r2 && st.r3;
+  const done = Math.min(st.done || 0, ch.n);
+  const complete = done >= ch.n;
+  const acc = chapterAcc(ch.id);
   const color = BLOCK_COLORS[ch.block];
 
   const row = document.createElement('div');
-  row.className = 'subj-row' + (allDone ? ' past' : '');
+  row.className = 'subj-row';
   row.style.borderLeft = `3px solid ${color}`;
   row.style.borderRadius = '0 12px 12px 0';
 
-  // 左側：ID + 問題数 + 科目名
+  // 左側：ID + 科目名 + 進捗バー
   const left = document.createElement('div');
   left.style.flex = '1';
   left.style.minWidth = '0';
+  left.style.cursor = 'pointer';
+  left.title = 'タップで「やった数・正解数」を編集';
+  left.addEventListener('click', () => editChapterProgress(ch.id));
 
   const topLine = document.createElement('div');
-  topLine.style.cssText = 'display:flex;align-items:baseline;gap:6px;';
+  topLine.style.cssText = 'display:flex;align-items:baseline;gap:6px;margin-bottom:5px;';
 
   const idEl = document.createElement('span');
-  const accLevel = st.acc || 0;
-  const accUnderline = ['transparent','var(--red)','var(--yellow)','var(--green)'][accLevel];
-  idEl.style.cssText = `font-family:'JetBrains Mono',monospace;font-weight:900;font-size:15px;color:${color};flex-shrink:0;cursor:pointer;border-bottom:2px solid ${accUnderline};`;
+  idEl.style.cssText = `font-family:'JetBrains Mono',monospace;font-weight:900;font-size:15px;color:${color};flex-shrink:0;`;
   idEl.textContent = ch.id;
-  idEl.title = 'タップで苦手/普通/得意を設定';
-  idEl.addEventListener('click', (e) => { e.stopPropagation(); cycleWeakness(ch.id); });
-
-  const nEl = document.createElement('span');
-  nEl.style.cssText = 'font-size:11px;color:var(--dim);font-family:"JetBrains Mono",monospace;flex-shrink:0;';
-  nEl.textContent = `${ch.n}問`;
 
   const subjEl = document.createElement('span');
-  subjEl.style.cssText = 'font-size:10px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  subjEl.style.cssText = 'font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   subjEl.textContent = ch.subj || '';
 
-  topLine.appendChild(idEl);
-  topLine.appendChild(nEl);
-  if (ch.subj) topLine.appendChild(subjEl);
+  const accEl = document.createElement('span');
+  accEl.style.cssText = 'font-size:10px;font-family:"JetBrains Mono",monospace;flex-shrink:0;margin-left:auto;';
+  if (acc != null) {
+    const c = acc < 50 ? 'var(--red)' : acc < 70 ? 'var(--yellow)' : 'var(--green)';
+    accEl.style.color = c;
+    accEl.textContent = `正答${acc.toFixed(0)}%`;
+  } else {
+    accEl.style.color = 'var(--dim)';
+    accEl.textContent = '未着手';
+  }
 
-  // 進捗ドット
-  const dots = document.createElement('div');
-  dots.className = 'subj-progress';
-  dots.style.marginTop = '3px';
-  ['r1','r2','r3'].forEach(k => {
-    const dot = document.createElement('div');
-    dot.className = 'subj-prog-dot' + (st[k] ? ' on' : '');
-    dots.appendChild(dot);
-  });
+  topLine.appendChild(idEl);
+  if (ch.subj) topLine.appendChild(subjEl);
+  topLine.appendChild(accEl);
+
+  // 進捗バー（done/n、正答率で色分け）
+  const barWrap = document.createElement('div');
+  barWrap.style.cssText = 'display:flex;align-items:center;gap:7px;';
+  const bar = document.createElement('div');
+  bar.style.cssText = 'flex:1;height:6px;background:var(--s3);border-radius:3px;overflow:hidden;';
+  const fillColor = complete ? 'var(--green)' : (acc != null && acc < 50 ? 'var(--red)' : color);
+  bar.innerHTML = `<div style="height:100%;width:${(done/ch.n*100).toFixed(0)}%;background:${fillColor};border-radius:3px;transition:width 0.5s;"></div>`;
+  const cntEl = document.createElement('span');
+  cntEl.style.cssText = `font-size:10px;font-family:'JetBrains Mono',monospace;color:${complete?'var(--green)':'var(--dim)'};flex-shrink:0;`;
+  cntEl.textContent = complete ? `${ch.n}/${ch.n} ✓` : `${done}/${ch.n}`;
+  barWrap.appendChild(bar);
+  barWrap.appendChild(cntEl);
 
   left.appendChild(topLine);
-  left.appendChild(dots);
+  left.appendChild(barWrap);
 
-  // チェックボタン3つ（1周/2周/3周）
+  // 右側：2周目/3周目チェック（1周目は進捗バーで表現）
   const checks = document.createElement('div');
   checks.className = 'subj-checks';
-
   const defs = [
-    { key:'r1', on:'✅', off:'·', title:'1周目完了' },
     { key:'r2', on:'🔁', off:'·', title:'2周目完了' },
     { key:'r3', on:'⭐', off:'·', title:'3周目完了' },
   ];
@@ -2873,13 +3024,47 @@ function makeChapterRow(ch) {
     btn.className = 'subj-chk' + (st[key] ? ' on' : '');
     btn.textContent = st[key] ? on : off;
     btn.title = title;
-    btn.addEventListener('click', () => toggleSubjectCheck(ch.id, key));
+    btn.addEventListener('click', (e) => { e.stopPropagation(); toggleSubjectCheck(ch.id, key); });
     checks.appendChild(btn);
   }
 
   row.appendChild(left);
   row.appendChild(checks);
   return row;
+}
+
+// 章のやった数・正解数を編集（簡易prompt）
+function editChapterProgress(id) {
+  const ch = CHAPTERS.find(c => c.id === id);
+  const st = state.subject_status[id] || {};
+  const curDone = st.done || 0;
+  const curCorrect = st.correct || 0;
+
+  const doneInput = prompt(`【${id} ${ch.subj}】\nやった問題数を入力（最大${ch.n}）`, curDone);
+  if (doneInput === null) return;
+  let done = parseInt(doneInput, 10);
+  if (isNaN(done)) return;
+  done = Math.max(0, Math.min(ch.n, done));
+
+  const correctInput = prompt(`【${id}】そのうち正解数（○+△）を入力（最大${done}）`, Math.min(curCorrect, done));
+  if (correctInput === null) return;
+  let correct = parseInt(correctInput, 10);
+  if (isNaN(correct)) correct = 0;
+  correct = Math.max(0, Math.min(done, correct));
+
+  if (!state.subject_status[id]) state.subject_status[id] = {};
+  const wasDone = isChapterDone(id);
+  state.subject_status[id].done = done;
+  state.subject_status[id].correct = correct;
+  // 1周目完了に到達したら完了日を記録
+  if (!wasDone && done >= ch.n) state.subject_status[id].r1_date = TODAY_STR;
+
+  saveSubjectStatus();
+  recomputeTotalsFromChapters();
+  scheduleSave();
+  renderSubjects();
+  updateAll();
+  showToast(`${id}: ${done}/${ch.n}問 記録`);
 }
 
 // ── テーマ管理（ダーク/ライト） ──
