@@ -630,6 +630,22 @@ body::before{
 }
 .reco-btn:active{transform:scale(0.95);}
 
+/* ── デイリークエスト ── */
+.quest-row{
+  display:flex;align-items:center;gap:10px;padding:9px 0;
+  border-bottom:1px solid var(--border);
+}
+.quest-row:last-child{border-bottom:none;}
+.quest-check{
+  width:22px;height:22px;border-radius:50%;flex-shrink:0;
+  border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:12px;
+  transition:all 0.2s;
+}
+.quest-check.done{background:var(--green);border-color:var(--green);color:#001b14;}
+.quest-text{flex:1;font-size:12px;}
+.quest-text.done{color:var(--dim);text-decoration:line-through;}
+
 /* ── IRTゲージ ── */
 .irt-gauge{
   position:relative;height:14px;border-radius:7px;overflow:hidden;
@@ -1043,6 +1059,15 @@ body::before{
 
       <button class="add-btn" onclick="addToday()">✓ 今日の分を追加する</button>
       <button class="undo-btn" id="undoBtn" onclick="undoLastRecord()" style="display:none;">↩︎ 直前の記録を取り消す</button>
+    </div>
+
+    <!-- デイリークエスト -->
+    <div class="card" id="questCard">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="ct" style="margin-bottom:0;">⚔️ 今日のクエスト</div>
+        <span id="questProgress" style="font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--purple);">0/3</span>
+      </div>
+      <div id="questList"></div>
     </div>
 
     <!-- 勉強タイマー -->
@@ -2873,6 +2898,8 @@ function updateAll() {
   renderWeekPlan();
   renderRecommendation();
   renderReviewReminder();
+  renderQuests();
+  checkStreakMilestone();
   updatePaceAndExam();
   checkBadges();
   renderBadges();
@@ -3921,6 +3948,68 @@ function checkReminder() {
 }
 setInterval(checkReminder, 5 * 60 * 1000); // 5分ごと
 
+// ════════ デイリークエスト ════════
+// 今日のdaily_logから達成判定できるクエストのプール
+const QUEST_POOL = [
+  { id:'q10',  text:'10問解く',              check:(t)=> t.n >= 10 },
+  { id:'q30',  text:'30問解く',              check:(t)=> t.n >= 30 },
+  { id:'qacc', text:'正答率70%以上で10問解く', check:(t)=> t.n >= 10 && t.ok/Math.max(1,t.n) >= 0.7 },
+  { id:'qmin', text:'25分以上 勉強する',      check:(t)=> (t.min||0) >= 25 },
+  { id:'qfew', text:'間違いを5問以内に抑える（10問以上）', check:(t)=> t.n >= 10 && (t.n - t.ok) <= 5 },
+  { id:'qreco',text:'おすすめの章を進める',    check:(t)=> t.n >= 5 },
+  { id:'qbig', text:'50問解く（チャレンジ）',  check:(t)=> t.n >= 50 },
+];
+// 日付シードで3つ選ぶ（毎日同じ組み合わせ、日替わり）
+function todaysQuests() {
+  const seed = TODAY_STR.split('-').reduce((a,b)=>a + parseInt(b,10), 0);
+  const pool = [...QUEST_POOL];
+  const picked = [];
+  let s = seed;
+  for (let k = 0; k < 3 && pool.length; k++) {
+    s = (s * 9301 + 49297) % 233280;
+    const idx = Math.floor(s / 233280 * pool.length);
+    picked.push(pool.splice(idx, 1)[0]);
+  }
+  return picked;
+}
+function renderQuests() {
+  const list = document.getElementById('questList');
+  if (!list) return;
+  const today = state.daily_log.find(l => l.date === TODAY_STR) || { n:0, ok:0, min:0 };
+  const quests = todaysQuests();
+  let doneCount = 0;
+  list.innerHTML = '';
+  for (const q of quests) {
+    const done = q.check(today);
+    if (done) doneCount++;
+    const row = document.createElement('div');
+    row.className = 'quest-row';
+    row.innerHTML = `<div class="quest-check ${done?'done':''}">${done?'✓':''}</div><div class="quest-text ${done?'done':''}">${q.text}</div>`;
+    list.appendChild(row);
+  }
+  setEl('questProgress', `${doneCount}/3`);
+  // 全クエスト達成で祝福（1日1回）
+  if (doneCount === 3 && localStorage.getItem('quest_done') !== TODAY_STR) {
+    localStorage.setItem('quest_done', TODAY_STR);
+    setTimeout(() => { confetti(); showToast('⚔️ 今日のクエスト全クリア！'); }, 300);
+  }
+}
+
+// ════════ ストリークマイルストーン ════════
+const STREAK_MILESTONES = [7, 14, 30, 50, 100, 200];
+function checkStreakMilestone() {
+  const streak = getStreakCount();
+  let celebrated = [];
+  try { celebrated = JSON.parse(localStorage.getItem('streak_milestones') || '[]'); } catch(e) {}
+  for (const m of STREAK_MILESTONES) {
+    if (streak >= m && !celebrated.includes(m)) {
+      celebrated.push(m);
+      localStorage.setItem('streak_milestones', JSON.stringify(celebrated));
+      setTimeout(() => { confetti(); showToast(`🔥 ${m}日連続達成！素晴らしい継続力！`); }, 500);
+    }
+  }
+}
+
 // ════════ 分析（IRT・模試・予測・ランキング） ════════
 // QB正答率 → IRTスコア推定（アンカー間を線形補間。本番はQBより難しいため目安）
 const IRT_ANCHORS = [[40,280],[50,340],[60,410],[65,440],[70,490],[75,550],[80,610],[85,670],[90,730],[95,790],[100,840]];
@@ -4137,7 +4226,7 @@ function reorderHome() {
   const panel = document.getElementById('p-home');
   if (!panel) return;
   const order = [
-    'cheerBanner', 'todayCard', 'recoCard', 'recordCard',
+    'cheerBanner', 'todayCard', 'recoCard', 'recordCard', 'questCard',
     'examCard', 'debt-card', 'weekPlanCard', 'reviewCard',
     'levelCard', 'ghostCard', 'timerCard', 'weekGoalCard',
     'streakCard', 'ringsCard', 'statsGrid', 'homePrefsCard'
