@@ -1266,6 +1266,13 @@ body::before{
     </div>
     <div style="text-align:center;font-size:10px;color:var(--dim);margin-bottom:12px;">/ 41チャプター（3,359問）</div>
 
+    <!-- 復習優先（間違いが多い章 = 2周目フォーカス） -->
+    <div class="card" id="reviewPriorityCard" style="display:none;">
+      <div class="ct" style="margin-bottom:8px;">🔁 2周目の優先順位（間違いが多い章）</div>
+      <div id="reviewPriorityList"></div>
+      <div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5;">💡 間違えた問題が多い章ほど復習価値が高い。2周目はここから。</div>
+    </div>
+
     <div id="subjList"></div>
 
   </div>
@@ -3056,8 +3063,42 @@ function renderWeakHeatmap() {
   }
 }
 
+// 2周目フォーカス：間違いが多い章を優先表示
+function renderReviewPriority() {
+  const card = document.getElementById('reviewPriorityCard');
+  const list = document.getElementById('reviewPriorityList');
+  if (!card || !list) return;
+
+  // 間違い数 = done - correct（done>0の章）
+  const items = [];
+  for (const ch of CHAPTERS) {
+    const st = state.subject_status[ch.id] || {};
+    if (!st.done || st.done <= 0) continue;
+    const wrong = Math.max(0, (st.done) - (st.correct || 0));
+    if (wrong > 0) items.push({ ch, wrong, done: st.done });
+  }
+  if (items.length === 0) { card.style.display = 'none'; return; }
+
+  items.sort((a, b) => b.wrong - a.wrong);
+  card.style.display = 'block';
+  list.innerHTML = '';
+  for (const { ch, wrong } of items.slice(0, 6)) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;';
+    row.addEventListener('click', () => editChapterProgress(ch.id));
+    row.innerHTML = `
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:900;color:${BLOCK_COLORS[ch.block]};flex-shrink:0;">${ch.id}</span>
+      <span style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ch.subj}</span>
+      <span style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--red);flex-shrink:0;">✗${wrong}</span>`;
+    list.appendChild(row);
+  }
+  // 最後の区切り線を消す
+  if (list.lastChild) list.lastChild.style.borderBottom = 'none';
+}
+
 function renderSubjects() {
   renderWeakHeatmap();
+  renderReviewPriority();
   const container = document.getElementById('subjList');
   if (!container) return;
   container.innerHTML = '';
@@ -3143,8 +3184,20 @@ function makeChapterRow(ch) {
     accEl.textContent = '未着手';
   }
 
+  // 安定/要強化バッジ（完了章のみ）
+  const badge = document.createElement('span');
+  badge.style.cssText = 'font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:6px;flex-shrink:0;';
+  if (complete && acc != null && acc >= 80) {
+    badge.style.cssText += 'background:rgba(52,232,160,0.15);color:var(--green);';
+    badge.textContent = '✅安定';
+  } else if (acc != null && acc < 40) {
+    badge.style.cssText += 'background:rgba(255,64,96,0.12);color:var(--red);';
+    badge.textContent = '⚠️要強化';
+  } else { badge.style.display = 'none'; }
+
   topLine.appendChild(idEl);
   if (ch.subj) topLine.appendChild(subjEl);
+  if (badge.textContent) topLine.appendChild(badge);
   topLine.appendChild(accEl);
 
   // 進捗バー（done/n、正答率で色分け）
