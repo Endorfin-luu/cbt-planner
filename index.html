@@ -630,6 +630,26 @@ body::before{
 }
 .reco-btn:active{transform:scale(0.95);}
 
+/* ── IRTゲージ ── */
+.irt-gauge{
+  position:relative;height:14px;border-radius:7px;overflow:hidden;
+  background:linear-gradient(90deg,
+    var(--red) 0%, var(--orange) 30%, var(--yellow) 50%, var(--green) 75%, var(--teal) 100%);
+}
+.irt-gauge .irt-marker{
+  position:absolute;top:-3px;width:3px;height:20px;background:var(--text);
+  border-radius:2px;box-shadow:0 0 4px rgba(0,0,0,0.5);transition:left 0.6s;
+}
+.irt-gauge .irt-target{
+  position:absolute;top:-3px;width:0;height:20px;
+  border-left:2px dashed #fff;transition:left 0.6s;
+}
+.irt-gauge-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--dim);margin-top:3px;font-family:'JetBrains Mono',monospace;}
+
+/* 模試/ランキング行 */
+.mock-row,.rank-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.mock-row:last-child,.rank-row:last-child{border-bottom:none;}
+
 /* ── 折りたたみカード ── */
 .card.collapsible > .ct,
 .card.collapsible > div:first-child{cursor:pointer;}
@@ -1304,6 +1324,58 @@ body::before{
         <div class="pb-bg"><div class="pb-fill" id="dbmok" style="background:var(--teal);"></div></div>
       </div>
     </div>
+
+    <!-- IRTスコア推定 -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="ct" style="margin-bottom:0;">📈 IRTスコア（推定）</div>
+        <button onclick="setIrtTarget()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;color:var(--dim);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;">目標設定</button>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
+        <span id="irtEst" style="font-size:34px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--blue);">—</span>
+        <span id="irtStage" style="font-size:13px;font-weight:700;">段階—</span>
+        <span id="irtTargetLabel" style="font-size:11px;color:var(--dim);margin-left:auto;">目標 —</span>
+      </div>
+      <!-- 6段階ゲージ -->
+      <div class="irt-gauge" id="irtGauge"></div>
+      <div class="irt-gauge-labels"><span>300</span><span>400</span><span>500</span><span>600</span><span>700</span></div>
+      <div id="irtNote" style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.6;"></div>
+    </div>
+
+    <!-- 模試スコア記録 -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="ct" style="margin-bottom:0;">📝 模試スコア記録</div>
+        <button onclick="addMockScore()" style="background:linear-gradient(135deg,var(--blue),var(--purple));border:none;border-radius:8px;padding:5px 12px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;">＋ 記録</button>
+      </div>
+      <div id="mockChart"></div>
+      <div id="mockList"></div>
+    </div>
+
+    <!-- 完了予測 -->
+    <div class="card">
+      <div class="ct">🔮 完了予測（直近7日の実ペース）</div>
+      <div id="finishPredict" style="font-size:13px;line-height:1.7;"></div>
+    </div>
+
+    <!-- ブロック別達成率 -->
+    <div class="card">
+      <div class="ct">🧩 ブロック別 達成率</div>
+      <div id="blockProgress"></div>
+    </div>
+
+    <!-- 科目別正答率ランキング -->
+    <div class="card">
+      <div class="ct">🏆 正答率ランキング（演習した章）</div>
+      <div id="accRanking"></div>
+    </div>
+
+    <!-- 曜日別の学習量 -->
+    <div class="card">
+      <div class="ct">📅 曜日別の学習量（過去4週）</div>
+      <div id="dowChart"></div>
+    </div>
+
   </div>
 
   <!-- ===== 対策 ===== -->
@@ -1972,6 +2044,7 @@ function showPanel(id, btn) {
   document.getElementById('scroll').scrollTop = 0;
   if (id === 'sim')  runSim();
   if (id === 'subj') renderSubjects();
+  if (id === 'log')  renderAnalytics();
 }
 
 // ── ステッパー ──
@@ -2803,6 +2876,7 @@ function updateAll() {
   updatePaceAndExam();
   checkBadges();
   renderBadges();
+  if (document.getElementById('p-log').classList.contains('active')) renderAnalytics();
 }
 
 // ── 日別バーチャート（過去30日） ──
@@ -3757,7 +3831,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ── データのバックアップ（エクスポート/インポート） ──
-const BACKUP_KEYS = ['cbt_subj','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter','cbt_week_seen'];
+const BACKUP_KEYS = ['cbt_subj','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter','cbt_week_seen','cbt_mocks','cbt_irt_target','cbt_home_prefs'];
 
 function exportData() {
   const ls = {};
@@ -3846,6 +3920,216 @@ function checkReminder() {
   } catch (e) {}
 }
 setInterval(checkReminder, 5 * 60 * 1000); // 5分ごと
+
+// ════════ 分析（IRT・模試・予測・ランキング） ════════
+// QB正答率 → IRTスコア推定（アンカー間を線形補間。本番はQBより難しいため目安）
+const IRT_ANCHORS = [[40,280],[50,340],[60,410],[65,440],[70,490],[75,550],[80,610],[85,670],[90,730],[95,790],[100,840]];
+function estimateIRT(accPct) {
+  if (accPct <= IRT_ANCHORS[0][0]) return IRT_ANCHORS[0][1];
+  for (let i = 1; i < IRT_ANCHORS.length; i++) {
+    if (accPct <= IRT_ANCHORS[i][0]) {
+      const [x0,y0] = IRT_ANCHORS[i-1], [x1,y1] = IRT_ANCHORS[i];
+      return Math.round(y0 + (y1 - y0) * (accPct - x0) / (x1 - x0));
+    }
+  }
+  return IRT_ANCHORS[IRT_ANCHORS.length-1][1];
+}
+function irtStage(irt) {
+  if (irt < 300) return 1;
+  if (irt < 400) return 2;
+  if (irt < 500) return 3;
+  if (irt < 600) return 4;
+  if (irt < 700) return 5;
+  return 6;
+}
+const STAGE_COLOR = { 1:'var(--red)', 2:'var(--orange)', 3:'var(--yellow)', 4:'var(--blue)', 5:'var(--green)', 6:'var(--teal)' };
+
+function getMocks() { try { return JSON.parse(localStorage.getItem('cbt_mocks') || '[]'); } catch(e) { return []; } }
+function getIrtTarget() { return parseInt(localStorage.getItem('cbt_irt_target') || '650', 10); }
+
+function setIrtTarget() {
+  const cur = getIrtTarget();
+  const v = prompt('目標IRTスコアを入力（都内人気病院は段階5-6＝600-700+目安）', cur);
+  if (v === null) return;
+  const n = Math.max(300, Math.min(840, parseInt(v, 10) || cur));
+  localStorage.setItem('cbt_irt_target', String(n));
+  renderAnalytics();
+  showToast(`🎯 目標IRT: ${n}（段階${irtStage(n)}）`);
+}
+
+function addMockScore() {
+  const v = prompt('模試/本番形式のIRTスコアを入力（例: 620）');
+  if (v === null) return;
+  const score = parseInt(v, 10);
+  if (isNaN(score)) return;
+  const name = prompt('模試名（任意・例: QB模試①）', '') || '';
+  const mocks = getMocks();
+  mocks.push({ date: TODAY_STR, score, name });
+  localStorage.setItem('cbt_mocks', JSON.stringify(mocks));
+  renderAnalytics();
+  showToast(`📝 IRT ${score} を記録（段階${irtStage(score)}）`);
+}
+function deleteMock(idx) {
+  const mocks = getMocks();
+  mocks.splice(idx, 1);
+  localStorage.setItem('cbt_mocks', JSON.stringify(mocks));
+  renderAnalytics();
+}
+
+function renderAnalytics() {
+  const acc = state.r1 > 0 ? (state.ok / state.r1 * 100) : 0;
+  const target = getIrtTarget();
+  const mocks = getMocks();
+
+  // ── IRT推定 ──
+  const estIrt = state.r1 > 0 ? estimateIRT(acc) : null;
+  const irtEstEl = document.getElementById('irtEst');
+  if (irtEstEl) {
+    if (estIrt != null) {
+      const stg = irtStage(estIrt);
+      irtEstEl.textContent = '~' + estIrt;
+      irtEstEl.style.color = STAGE_COLOR[stg];
+      setEl('irtStage', `段階${stg}`);
+      document.getElementById('irtStage').style.color = STAGE_COLOR[stg];
+    } else {
+      irtEstEl.textContent = '—'; setEl('irtStage', '段階—');
+    }
+    setEl('irtTargetLabel', `目標 ${target}（段階${irtStage(target)}）`);
+    // ゲージ（300-700の範囲を0-100%にマップ）
+    const toPct = v => Math.max(0, Math.min(100, (v - 300) / 400 * 100));
+    const gauge = document.getElementById('irtGauge');
+    gauge.innerHTML = '';
+    if (estIrt != null) {
+      const m = document.createElement('div'); m.className = 'irt-marker'; m.style.left = `calc(${toPct(estIrt)}% - 1.5px)`; gauge.appendChild(m);
+    }
+    const t = document.createElement('div'); t.className = 'irt-target'; t.style.left = `${toPct(target)}%`; gauge.appendChild(t);
+    // メモ
+    const latestMock = mocks.length ? mocks[mocks.length-1].score : null;
+    let note = '⚠️ QB正答率からの目安。本番はやや難しめ＆1周目は低めに出ます。';
+    if (latestMock != null) note += `<br>📝 最新の模試: <strong style="color:${STAGE_COLOR[irtStage(latestMock)]};">IRT ${latestMock}（段階${irtStage(latestMock)}）</strong>`;
+    if (estIrt != null) {
+      const gap = target - estIrt;
+      note += gap > 0 ? `<br>目標まで <strong style="color:var(--orange);">あと約${gap}</strong>（正答率を上げよう）` : `<br><strong style="color:var(--green);">✅ 目標到達ペース！</strong>`;
+    }
+    document.getElementById('irtNote').innerHTML = note;
+  }
+
+  // ── 模試スコア推移＋一覧 ──
+  const mockChart = document.getElementById('mockChart');
+  const mockList = document.getElementById('mockList');
+  if (mockChart && mockList) {
+    if (mocks.length === 0) {
+      mockChart.innerHTML = '';
+      mockList.innerHTML = '<div style="text-align:center;font-size:11px;color:var(--dim);padding:8px 0;">模試を受けたら「＋記録」でスコアを残そう</div>';
+    } else {
+      // ミニ折れ線（IRT 300-800）
+      const W = 300, H = 60, pad = 4;
+      const xs = mocks.length > 1 ? (i) => pad + i/(mocks.length-1)*(W-2*pad) : () => W/2;
+      const y = s => H - pad - (Math.max(300,Math.min(800,s))-300)/500*(H-2*pad);
+      let path = '';
+      mocks.forEach((m,i) => { path += (i===0?'M':'L') + xs(i).toFixed(1) + ',' + y(m.score).toFixed(1) + ' '; });
+      let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;overflow:visible;">`;
+      // 目標ライン
+      svg += `<line x1="0" y1="${y(target)}" x2="${W}" y2="${y(target)}" stroke="var(--teal)" stroke-width="1" stroke-dasharray="3,3"/>`;
+      svg += `<path d="${path}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>`;
+      mocks.forEach((m,i) => { svg += `<circle cx="${xs(i).toFixed(1)}" cy="${y(m.score).toFixed(1)}" r="3" fill="${STAGE_COLOR[irtStage(m.score)]}"/>`; });
+      svg += '</svg>';
+      mockChart.innerHTML = svg + '<div style="border-top:1px solid var(--border);margin:8px 0;"></div>';
+      // 一覧（新しい順）
+      mockList.innerHTML = '';
+      [...mocks].reverse().forEach((m, ri) => {
+        const idx = mocks.length - 1 - ri;
+        const stg = irtStage(m.score);
+        const row = document.createElement('div'); row.className = 'mock-row';
+        row.innerHTML = `
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);flex-shrink:0;">${m.date.slice(5)}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.name || '模試'}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:800;color:${STAGE_COLOR[stg]};">${m.score}<span style="font-size:9px;color:var(--dim);">（段${stg}）</span></span>
+          <span onclick="deleteMock(${idx})" style="cursor:pointer;color:var(--dim);font-size:14px;flex-shrink:0;">×</span>`;
+        mockList.appendChild(row);
+      });
+    }
+  }
+
+  // ── 完了予測 ──
+  const fp = document.getElementById('finishPredict');
+  if (fp) {
+    let recent = 0;
+    for (let i = 0; i < 7; i++) { const d=new Date(TODAY); d.setDate(d.getDate()-i); const e=state.daily_log.find(l=>l.date===toLocalDateStr(d)); recent += e?(e.n||0):0; }
+    const avg = recent / 7;
+    const remaining = QB - state.r1;
+    if (state.r1 >= QB) fp.innerHTML = '🎉 1周目完了！次は2周目へ。';
+    else if (avg <= 0) fp.innerHTML = '<span style="color:var(--dim);">直近7日のデータが貯まると予測します。</span>';
+    else {
+      const days = Math.ceil(remaining / avg);
+      const fin = new Date(TODAY); fin.setDate(fin.getDate()+days);
+      const finStr = `${fin.getFullYear()}/${fin.getMonth()+1}/${fin.getDate()}`;
+      const safe = fin < CBT;
+      fp.innerHTML = `直近の実ペース <strong>${avg.toFixed(0)}問/日</strong> なら、1周目完了は<br><strong style="color:${safe?'var(--green)':'var(--red)'};font-size:16px;">${finStr}</strong>（残り${remaining}問・約${days}日）<br><span style="font-size:11px;color:var(--dim);">${safe?'✅ CBT本番に間に合います':'⚠️ CBTに間に合いません。ペースUPを'}</span>`;
+    }
+  }
+
+  // ── ブロック別達成率 ──
+  const bp = document.getElementById('blockProgress');
+  if (bp) {
+    bp.innerHTML = '';
+    for (let b = 1; b <= 5; b++) {
+      const chs = CHAPTERS.filter(c => c.block === b);
+      const total = chs.reduce((s,c)=>s+c.n,0);
+      let done = 0; chs.forEach(c => { const st=state.subject_status[c.id]; if(st&&st.done) done += Math.min(st.done,c.n); });
+      const pct = total>0 ? done/total*100 : 0;
+      const row = document.createElement('div'); row.style.marginBottom = '8px';
+      row.innerHTML = `
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+          <span style="color:${BLOCK_COLORS[b]};font-weight:700;">${BLOCK_NAMES[b]}</span>
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--dim);">${done}/${total}（${pct.toFixed(0)}%）</span>
+        </div>
+        <div class="pb-bg"><div class="pb-fill" style="width:${pct}%;background:${BLOCK_COLORS[b]};"></div></div>`;
+      bp.appendChild(row);
+    }
+  }
+
+  // ── 正答率ランキング ──
+  const ar = document.getElementById('accRanking');
+  if (ar) {
+    const items = [];
+    for (const ch of CHAPTERS) { const a = chapterAcc(ch.id); if (a != null) items.push({ ch, acc: a }); }
+    if (items.length === 0) ar.innerHTML = '<div style="text-align:center;font-size:11px;color:var(--dim);padding:8px 0;">演習するとランキングが出ます</div>';
+    else {
+      items.sort((a,b)=>b.acc-a.acc);
+      const best = items.slice(0,3), worst = items.slice(-3).reverse();
+      const mk = (label, arr, color) => {
+        let h = `<div style="font-size:10px;color:var(--dim);font-weight:700;margin:6px 0 3px;">${label}</div>`;
+        arr.forEach(it => { h += `<div class="rank-row"><span style="font-family:'JetBrains Mono',monospace;font-weight:800;color:${BLOCK_COLORS[it.ch.block]};flex-shrink:0;">${it.ch.id}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.ch.subj}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${color};">${it.acc.toFixed(0)}%</span></div>`; });
+        return h;
+      };
+      ar.innerHTML = mk('🟢 得意トップ3', best, 'var(--green)') + mk('🔴 苦手ワースト3', worst, 'var(--red)');
+    }
+  }
+
+  // ── 曜日別学習量（過去4週） ──
+  const dow = document.getElementById('dowChart');
+  if (dow) {
+    const sums = [0,0,0,0,0,0,0]; // 月..日
+    for (let i = 0; i < 28; i++) {
+      const d = new Date(TODAY); d.setDate(d.getDate()-i);
+      const e = state.daily_log.find(l => l.date === toLocalDateStr(d));
+      if (e) { const idx = (d.getDay()+6)%7; sums[idx] += (e.n||0); }
+    }
+    const max = Math.max(...sums, 1);
+    const labels = ['月','火','水','木','金','土','日'];
+    let h = '<div style="display:flex;align-items:flex-end;gap:6px;height:70px;">';
+    sums.forEach((s,i) => {
+      const pct = s/max*100;
+      h += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;justify-content:flex-end;height:100%;">
+        <span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--dim);">${s}</span>
+        <div style="width:100%;height:${pct}%;min-height:${s>0?3:0}px;background:${i>=5?'var(--orange)':'var(--blue)'};border-radius:3px 3px 0 0;"></div>
+        <span style="font-size:9px;color:var(--dim);">${labels[i]}</span></div>`;
+    });
+    h += '</div>';
+    dow.innerHTML = h;
+  }
+}
 
 // ── ホーム整理（並べ替え + 折りたたみ + 表示設定） ──
 // 「今日やること」を上部に、グラフ類を下部に並べ替え
