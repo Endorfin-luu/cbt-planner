@@ -580,6 +580,24 @@ body::before{
 .stepper-labels{display:flex;justify-content:center;gap:8px;margin-top:-8px;margin-bottom:8px;}
 .stepper-labels span{font-size:9px;color:var(--dim);text-align:center;width:44px;}
 .stepper-labels span.small{width:36px;}
+/* ── 次の一手レコメンド ── */
+.reco-card{
+  display:flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,rgba(46,232,200,0.1),rgba(91,143,255,0.07));
+  border:1px solid rgba(46,232,200,0.3);
+  border-radius:16px;padding:14px;margin-bottom:12px;
+}
+.reco-label{font-size:10px;font-weight:700;color:var(--teal);letter-spacing:0.06em;margin-bottom:3px;}
+.reco-name{font-size:15px;font-weight:800;}
+.reco-reason{font-size:11px;color:var(--dim);margin-top:2px;}
+.reco-btn{
+  flex-shrink:0;background:linear-gradient(135deg,var(--teal),var(--blue));
+  color:#001b18;border:none;border-radius:11px;padding:11px 14px;
+  font-family:'Outfit',sans-serif;font-size:12px;font-weight:800;
+  cursor:pointer;transition:transform 0.15s;white-space:nowrap;
+}
+.reco-btn:active{transform:scale(0.95);}
+
 /* ── 章セレクタ ── */
 .chapter-select-row{
   display:flex;align-items:center;gap:8px;margin-bottom:8px;
@@ -865,6 +883,16 @@ body::before{
         <div class="debt-num"><span id="debtNum">0</span><span style="font-size:14px;font-weight:400;"> 問</span></div>
         <div class="debt-note">今日のノルマ × 1.5 で返済ペース</div>
       </div>
+    </div>
+
+    <!-- 次の一手レコメンド -->
+    <div class="reco-card" id="recoCard" style="display:none;">
+      <div style="flex:1;min-width:0;">
+        <div class="reco-label">🎯 今おすすめの章</div>
+        <div class="reco-name" id="recoName">—</div>
+        <div class="reco-reason" id="recoReason"></div>
+      </div>
+      <button class="reco-btn" id="recoBtn" onclick="applyReco()">記録する →</button>
     </div>
 
     <!-- Stepper -->
@@ -1809,6 +1837,77 @@ function onChapterSelect() {
   localStorage.setItem('cbt_cur_chapter', selectedChapter);
 }
 
+// ── 次の一手レコメンド（苦手×試験近い×やりかけでスコアリング） ──
+let _recoChapterId = '';
+function computeRecommendation() {
+  // 各章が登場する最も近い週（今週以降）までの距離を求める
+  const weekDistance = {};
+  let curWeekIdx = WEEKLY_PLAN.length;
+  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
+    const start = new Date(WEEKLY_PLAN[i].start);
+    const nextStart = i + 1 < WEEKLY_PLAN.length ? new Date(WEEKLY_PLAN[i + 1].start) : new Date('2026-11-09');
+    if (TODAY >= start && TODAY < nextStart) curWeekIdx = i;
+  }
+  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
+    const dist = i - curWeekIdx;
+    if (dist < 0) continue;
+    for (const id of WEEKLY_PLAN[i].chapters) {
+      if (weekDistance[id] == null) weekDistance[id] = dist;
+    }
+  }
+
+  let best = null, bestScore = -1;
+  for (const ch of CHAPTERS) {
+    if (isChapterDone(ch.id)) continue;       // 1周目未完了のみ対象
+    const st = state.subject_status[ch.id] || {};
+    const done = st.done || 0;
+    const partial = done > 0;
+    const acc = chapterAcc(ch.id);
+    const weak = acc != null && acc < 50;
+
+    let score = 0;
+    const dist = weekDistance[ch.id];
+    if (dist != null) score += Math.max(0, 200 - dist * 40); // 計画で近いほど高得点
+    if (partial) score += 60;                                 // やりかけは優先
+    if (weak)    score += 40;                                 // 苦手は強化
+    score += (6 - ch.block) * 3;                              // 基礎ブロックをやや優先（タイブレーク）
+
+    if (score > bestScore) { bestScore = score; best = { ch, dist, partial, acc, done }; }
+  }
+  return best;
+}
+
+function renderRecommendation() {
+  const card = document.getElementById('recoCard');
+  if (!card) return;
+  const rec = computeRecommendation();
+  if (!rec) { card.style.display = 'none'; return; }
+
+  _recoChapterId = rec.ch.id;
+  card.style.display = 'flex';
+  setEl('recoName', `${rec.ch.id} ${rec.ch.subj}`);
+
+  // 理由を組み立て
+  const reasons = [];
+  if (rec.dist === 0) reasons.push('今週の試験範囲');
+  else if (rec.dist === 1) reasons.push('来週の範囲');
+  if (rec.partial) reasons.push(`やりかけ（あと${rec.ch.n - rec.done}問）`);
+  if (rec.acc != null && rec.acc < 50) reasons.push(`正答${rec.acc.toFixed(0)}%・要強化`);
+  if (reasons.length === 0) reasons.push('計画通り次の章へ');
+  setEl('recoReason', reasons.join(' · '));
+}
+
+// レコメンドを記録対象にセットして記録カードへスクロール
+function applyReco() {
+  if (!_recoChapterId) return;
+  selectedChapter = _recoChapterId;
+  localStorage.setItem('cbt_cur_chapter', selectedChapter);
+  const sel = document.getElementById('chapterSelect');
+  if (sel) sel.value = _recoChapterId;
+  document.getElementById('chapterSelect').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  showToast(`${_recoChapterId} を記録対象にセット`);
+}
+
 // contenteditable の値を todayStep に同期
 function syncStepVal() {
   const el = document.getElementById('stepVal');
@@ -2243,6 +2342,7 @@ function updateAll() {
   renderGhost();
   renderCheer();
   renderWeekPlan();
+  renderRecommendation();
   renderReviewReminder();
   updatePaceAndExam();
   checkBadges();
