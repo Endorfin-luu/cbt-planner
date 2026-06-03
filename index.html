@@ -776,6 +776,16 @@ body::before{
   </div>
 </div>
 
+<!-- 週間レビューモーダル -->
+<div id="review-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box" style="border-color:rgba(91,143,255,0.35);">
+    <div class="modal-icon">📊</div>
+    <div class="modal-title" style="color:var(--blue);">先週の振り返り</div>
+    <div id="reviewStats" style="margin-bottom:18px;"></div>
+    <button class="modal-btn" style="background:linear-gradient(135deg,var(--blue),var(--purple));" onclick="closeWeekReview()">今週も頑張る！💪</button>
+  </div>
+</div>
+
 <!-- HEADER -->
 <div class="hdr">
   <div class="hdr-top">
@@ -975,6 +985,17 @@ body::before{
       <div class="timer-summary">
         <span>今日 <strong id="timerToday" style="color:var(--blue);">0</strong>分</span>
         <span>今週 <strong id="timerWeek" style="color:var(--green);">0</strong>分</span>
+      </div>
+    </div>
+
+    <!-- 週次コミットメント -->
+    <div class="card" id="weekGoalCard">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="ct" style="margin-bottom:0;">🎯 今週の目標</div>
+        <button onclick="setWeekGoal()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;color:var(--dim);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;">設定</button>
+      </div>
+      <div id="weekGoalBody">
+        <div style="text-align:center;font-size:12px;color:var(--dim);padding:6px 0;">「設定」から今週解く目標問題数を決めよう</div>
       </div>
     </div>
 
@@ -1593,6 +1614,7 @@ async function init() {
   updateCountdown();
   initTheme();
   setTimeout(checkPenalty, 600);
+  setTimeout(maybeShowWeekReview, 1200);
 }
 
 // ── Supabase にデバウンス保存（500ms） ──
@@ -2364,6 +2386,98 @@ function renderWeekSummary() {
   }
 }
 
+// ── 週次コミットメント（今週の目標） ──
+// 月曜始まりの週開始日(YYYY-MM-DD)
+function weekStartStr(date) {
+  const d = new Date(date); d.setHours(0,0,0,0);
+  const day = (d.getDay() + 6) % 7; // 月曜=0
+  d.setDate(d.getDate() - day);
+  return toLocalDateStr(d);
+}
+// 月曜〜今日の問題数合計
+function thisWeekSolved() {
+  const ws = weekStartStr(TODAY);
+  let total = 0;
+  for (const l of state.daily_log) {
+    if (l.date >= ws && l.date <= TODAY_STR) total += (l.n || 0);
+  }
+  return total;
+}
+function getCommit() {
+  try { return JSON.parse(localStorage.getItem('cbt_commit') || '{}'); } catch(e) { return {}; }
+}
+function setWeekGoal() {
+  const cur = getCommit();
+  const def = (cur.week === weekStartStr(TODAY) && cur.goal) ? cur.goal : 150;
+  const input = prompt('今週の目標問題数を入力（月曜〜日曜）', def);
+  if (input === null) return;
+  const goal = Math.max(1, parseInt(input, 10) || 0);
+  localStorage.setItem('cbt_commit', JSON.stringify({ week: weekStartStr(TODAY), goal, achieved: false }));
+  renderWeekGoal();
+  showToast(`🎯 今週の目標: ${goal}問！`);
+}
+function renderWeekGoal() {
+  const body = document.getElementById('weekGoalBody');
+  if (!body) return;
+  const commit = getCommit();
+  const ws = weekStartStr(TODAY);
+  if (commit.week !== ws || !commit.goal) {
+    body.innerHTML = '<div style="text-align:center;font-size:12px;color:var(--dim);padding:6px 0;">「設定」から今週解く目標問題数を決めよう</div>';
+    return;
+  }
+  const solved = thisWeekSolved();
+  const pct = Math.min(solved / commit.goal * 100, 100);
+  const done = solved >= commit.goal;
+
+  // 達成検知（初回のみ祝福）
+  if (done && !commit.achieved) {
+    commit.achieved = true;
+    localStorage.setItem('cbt_commit', JSON.stringify(commit));
+    setTimeout(() => { confetti(); showToast('🎊 今週の目標達成！すごい！'); }, 300);
+  }
+
+  body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+      <span style="font-size:22px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${done?'var(--green)':'var(--blue)'};">${solved}<span style="font-size:13px;color:var(--dim);font-weight:400;"> / ${commit.goal}問</span></span>
+      <span style="font-size:12px;font-weight:700;color:${done?'var(--green)':'var(--dim)'};">${done?'✅ 達成!':pct.toFixed(0)+'%'}</span>
+    </div>
+    <div class="pb-bg"><div class="pb-fill" style="width:${pct}%;background:${done?'var(--green)':'linear-gradient(90deg,var(--blue),var(--purple))'};"></div></div>
+    <div style="font-size:10px;color:var(--dim);margin-top:5px;">残り ${Math.max(0,commit.goal-solved)}問 · 1日あたり ${Math.ceil(Math.max(0,commit.goal-solved)/Math.max(1,(7-((new Date(TODAY).getDay()+6)%7))))}問ペース</div>`;
+}
+
+// ── 週間レビューモーダル（週が変わったら先週分を表示） ──
+function maybeShowWeekReview() {
+  const curWeek = weekStartStr(TODAY);
+  const seen = localStorage.getItem('cbt_week_seen');
+  if (!seen) { localStorage.setItem('cbt_week_seen', curWeek); return; }
+  if (seen >= curWeek) return; // まだ同じ週
+
+  // 先週(=seen週)のサマリーを集計
+  const prevStart = seen;
+  const prevEnd = (() => { const d = new Date(seen); d.setDate(d.getDate()+6); return toLocalDateStr(d); })();
+  let q = 0, correct = 0, min = 0, daysActive = 0;
+  for (const l of state.daily_log) {
+    if (l.date >= prevStart && l.date <= prevEnd) {
+      q += (l.n || 0); correct += (l.ok || 0); min += (l.min || 0);
+      if ((l.n || 0) > 0) daysActive++;
+    }
+  }
+  const acc = q > 0 ? (correct / q * 100).toFixed(0) : '—';
+  const statsEl = document.getElementById('reviewStats');
+  statsEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center;">
+      <div style="background:var(--s2);border-radius:12px;padding:12px;"><div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--blue);">${q}</div><div style="font-size:10px;color:var(--dim);">解いた問題</div></div>
+      <div style="background:var(--s2);border-radius:12px;padding:12px;"><div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--yellow);">${acc}%</div><div style="font-size:10px;color:var(--dim);">正答率</div></div>
+      <div style="background:var(--s2);border-radius:12px;padding:12px;"><div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--green);">${daysActive}<span style="font-size:12px;color:var(--dim);">日</span></div><div style="font-size:10px;color:var(--dim);">勉強した日</div></div>
+      <div style="background:var(--s2);border-radius:12px;padding:12px;"><div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--teal);">${min}<span style="font-size:12px;color:var(--dim);">分</span></div><div style="font-size:10px;color:var(--dim);">勉強時間</div></div>
+    </div>`;
+  document.getElementById('review-modal').style.display = 'flex';
+  localStorage.setItem('cbt_week_seen', curWeek);
+}
+function closeWeekReview() {
+  document.getElementById('review-modal').style.display = 'none';
+}
+
 // ── 励ましメッセージ（時間帯・進捗で変化） ──
 function renderCheer() {
   const el = document.getElementById('cheerBanner');
@@ -2547,6 +2661,7 @@ function updateAll() {
   renderHeatmap();
   renderBarChart();
   renderTimerSummary();
+  renderWeekGoal();
   renderLevel();
   renderGhost();
   renderCheer();
