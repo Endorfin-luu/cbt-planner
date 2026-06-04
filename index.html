@@ -1741,6 +1741,8 @@ async function init() {
         state.subject_status = data.subject_status;
         localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
       }
+      if (data.misc) applyMisc(data.misc);  // 各種設定もクラウドから反映
+      localStorage.setItem('cbt_last_sync', data.updated_at || new Date().toISOString());
       _loadedUpdatedAt = data.updated_at || '';
     } else {
       // 初回アクセス：行を作成
@@ -1786,6 +1788,7 @@ async function init() {
   loadSubjectStatus();
   // 初回ロード時は既存進捗分のバッジを無音で登録（一斉コンフェッティ防止）
   checkBadges(true);
+  _lastMiscJson = JSON.stringify(buildMisc()); // 初回saveの空振り防止
   showSkeleton(false);
   updateAll();
   initChapterSelect();
@@ -1801,6 +1804,39 @@ async function init() {
 // ── Supabase にデバウンス保存（500ms） ──
 let _loadedUpdatedAt = '';   // 最後にロード/保存した時刻（競合検知用）
 let _noSubjectCol = false;   // subject_statusカラムが無い場合true（フォールバック）
+let _noMiscCol = false;      // miscカラムが無い場合true（フォールバック）
+
+// クラウド同期するlocalStorageキー（端末固有のUI設定は除外）
+const MISC_KEYS = [
+  'cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak',
+  'cbt_mocks','cbt_irt_target','cbt_home_prefs','cbt_week_seen','streak_milestones','cbt_level'
+];
+// localStorageからmiscオブジェクトを構築
+function buildMisc() {
+  const misc = {};
+  for (const k of MISC_KEYS) { const v = localStorage.getItem(k); if (v != null) misc[k] = v; }
+  return misc;
+}
+// クラウドのmiscをlocalStorageに反映
+function applyMisc(misc) {
+  if (!misc || typeof misc !== 'object') return;
+  for (const k of MISC_KEYS) {
+    if (misc[k] != null) localStorage.setItem(k, misc[k]);
+  }
+  _lastMiscJson = JSON.stringify(buildMisc());
+}
+
+// misc（localStorage設定群）に変更があればクラウド保存をトリガー
+let _lastMiscJson = '';
+function syncMiscIfChanged() {
+  const cur = JSON.stringify(buildMisc());
+  if (cur !== _lastMiscJson) {
+    _lastMiscJson = cur;
+    scheduleSave();
+  }
+}
+// 念のため定期チェック（localStorage直書きの機能も拾う）
+setInterval(syncMiscIfChanged, 4000);
 
 let _saveTimer = null;
 function scheduleSave() {
@@ -1825,22 +1861,32 @@ async function doSave() {
     last_date: state.last_date,
     updated_at: nowIso
   };
-  // subject_statusカラムがある場合のみ含める
+  // 各カラムがある場合のみ含める（無ければフォールバック）
   if (!_noSubjectCol) payload.subject_status = state.subject_status;
+  if (!_noMiscCol)    payload.misc = buildMisc();
 
   try {
     const { error } = await sb.from('progress').upsert(payload);
     if (error) throw error;
     localStorage.setItem('cbt_cache', JSON.stringify(state));
+    localStorage.setItem('cbt_last_sync', nowIso);
     _loadedUpdatedAt = nowIso;
     setSyncState('ok');
   } catch (err) {
-    // subject_statusカラムが無いエラーなら、カラム抜きで再保存
+    // 未作成カラムのエラーなら、そのカラム抜きで再保存
     const msg = (err && (err.message || err.hint || '')) + (err && err.code ? ' '+err.code : '');
-    if (!_noSubjectCol && /subject_status|column|42703|PGRST204/i.test(msg)) {
-      console.warn('[Supabase] subject_status カラム未作成。同期せずローカル保存にフォールバック');
-      _noSubjectCol = true;
-      return doSave(); // カラム抜きで即リトライ
+    if (!_noSubjectCol && /subject_status/i.test(msg)) {
+      console.warn('[Supabase] subject_status カラム未作成。フォールバック');
+      _noSubjectCol = true; return doSave();
+    }
+    if (!_noMiscCol && /\bmisc\b/i.test(msg)) {
+      console.warn('[Supabase] misc カラム未作成。フォールバック');
+      _noMiscCol = true; return doSave();
+    }
+    // どのカラムか不明だがカラム系エラーなら両方抜く
+    if ((!_noSubjectCol || !_noMiscCol) && /column|42703|PGRST204/i.test(msg)) {
+      console.warn('[Supabase] カラム未作成のためsubject_status/miscを除外');
+      _noSubjectCol = true; _noMiscCol = true; return doSave();
     }
     console.warn('[Supabase] save failed:', err);
     localStorage.setItem('cbt_cache', JSON.stringify(state));
@@ -1865,11 +1911,14 @@ async function refreshFromCloud() {
         state.subject_status = data.subject_status;
         localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
       }
+      if (data.misc) applyMisc(data.misc);
       _loadedUpdatedAt = data.updated_at || '';
       localStorage.setItem('cbt_cache', JSON.stringify(state));
+      localStorage.setItem('cbt_last_sync', data.updated_at || new Date().toISOString());
       recomputeTotalsFromChapters();
       updateAll();
       initChapterSelect();
+      applyHomePrefs();
       showToast('🔄 別端末の更新を反映しました');
     }
   } catch (e) { /* オフライン等は無視 */ }
@@ -2904,6 +2953,7 @@ function updateAll() {
   checkBadges();
   renderBadges();
   if (document.getElementById('p-log').classList.contains('active')) renderAnalytics();
+  if (typeof syncMiscIfChanged === 'function') syncMiscIfChanged();
 }
 
 // ── 日別バーチャート（過去30日） ──
