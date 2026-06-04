@@ -873,6 +873,7 @@ body::before{
     <div>
       <h1>QB <em>Planner</em> <span class="sync-dot" id="syncDot" title="同期状態"></span></h1>
       <div class="hdr-sub" id="hdr-sub">読み込み中...</div>
+      <div id="syncLabel" style="font-size:9px;font-family:'JetBrains Mono',monospace;margin-top:1px;color:var(--green);"></div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
       <button id="themeBtn" onclick="toggleTheme()"
@@ -1699,14 +1700,37 @@ function showSkeleton(v) {
 }
 
 // ── 同期状態インジケーター ──
+let _syncState = 'ok';
 function setSyncState(s) {
   // s: 'ok' | 'saving' | 'error' | 'offline'
+  _syncState = s;
   const dot = document.getElementById('syncDot');
   dot.className = 'sync-dot';
   if (s === 'saving') dot.classList.add('saving');
   else if (s === 'error' || s === 'offline') dot.classList.add('error');
   dot.title = {ok:'同期済み', saving:'保存中...', error:'保存失敗', offline:'オフライン'}[s] || '';
+  renderSyncLabel();
 }
+
+// 「最終同期 ○分前」をヘッダーに表示
+function renderSyncLabel() {
+  const el = document.getElementById('syncLabel');
+  if (!el) return;
+  if (_syncState === 'saving') { el.textContent = '保存中…'; el.style.color = 'var(--yellow)'; return; }
+  if (_syncState === 'error')  { el.textContent = '⚠ 保存失敗'; el.style.color = 'var(--red)'; return; }
+  if (_syncState === 'offline'){ el.textContent = '📴 オフライン'; el.style.color = 'var(--orange)'; return; }
+  const last = localStorage.getItem('cbt_last_sync');
+  if (!last) { el.textContent = ''; return; }
+  const mins = Math.floor((Date.now() - new Date(last).getTime()) / 60000);
+  let txt;
+  if (mins < 1) txt = '同期済み';
+  else if (mins < 60) txt = `${mins}分前に同期`;
+  else if (mins < 1440) txt = `${Math.floor(mins/60)}時間前に同期`;
+  else txt = `${Math.floor(mins/1440)}日前に同期`;
+  el.textContent = '✓ ' + txt;
+  el.style.color = 'var(--green)';
+}
+setInterval(renderSyncLabel, 30000); // 表示を定期更新
 
 // ── Supabase からロード ──
 async function init() {
