@@ -801,6 +801,33 @@ body::before{
 .round-seg-btn.active[data-round="3"]{background:linear-gradient(135deg,rgba(255,138,60,0.28),rgba(255,138,60,0.06));color:var(--orange);box-shadow:0 0 18px rgba(255,138,60,0.4),inset 0 0 0 1px rgba(255,138,60,0.45);}
 .round-sub{text-align:center;font-size:10px;color:var(--dim);margin:-2px 0 11px;font-weight:600;letter-spacing:0.04em;}
 
+/* ── バンク横断ダッシュボード ── */
+.bankdash-row{background:var(--s2);border:1px solid transparent;border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:transform 0.12s,border-color 0.2s;}
+.bankdash-row:last-child{margin-bottom:0;}
+.bankdash-row:active{transform:scale(0.98);}
+.bankdash-row.active{border-color:var(--border);background:var(--s3);}
+.bankdash-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+.bankdash-name{font-size:13px;font-weight:800;}
+.bankdash-num{font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace;}
+.bankdash-den{font-size:10px;color:var(--dim);font-weight:600;}
+.bankdash-bar{height:7px;background:var(--s3);border-radius:4px;overflow:hidden;}
+.bankdash-bar>div{height:100%;border-radius:4px;transition:width 0.6s cubic-bezier(0.4,0,0.2,1);}
+.bankdash-sub{font-size:10px;color:var(--dim);margin-top:5px;}
+
+/* ── ペース判定 ── */
+.pace-inputs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.pace-inputs label{flex:1;min-width:80px;font-size:10px;color:var(--dim);display:flex;align-items:center;gap:4px;font-weight:600;}
+.pace-inputs input{width:52px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;padding:6px 4px;text-align:center;}
+.pace-inputs input:focus{outline:none;border-color:var(--blue);}
+.pace-grid{display:flex;gap:8px;margin-bottom:10px;}
+.pace-box{flex:1;background:var(--s2);border-radius:10px;padding:10px 4px;text-align:center;}
+.pace-v{font-size:20px;font-weight:900;font-family:'JetBrains Mono',monospace;line-height:1;}
+.pace-v .pace-u{font-size:11px;color:var(--dim);}
+.pace-l{font-size:9px;color:var(--dim);margin-top:5px;}
+.pace-verdict{text-align:center;font-size:14px;font-weight:800;padding:9px;border:1px solid;border-radius:10px;margin-bottom:8px;}
+.pace-note{font-size:10.5px;color:var(--dim);line-height:1.5;text-align:center;}
+.pace-note strong{color:var(--text);}
+
 /* ── 問題集バンク切り替え（ヘッダー） ── */
 .bank-seg{display:flex;gap:6px;margin-top:11px;background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:4px;}
 .bank-seg-btn{
@@ -1045,6 +1072,23 @@ body.bank-orig .qb-only{display:none !important;}
 
   <!-- ===== HOME ===== -->
   <div class="panel active" id="p-home">
+
+    <!-- バンク横断ダッシュボード（QB / Original / モントレ 一覧） -->
+    <div class="card" id="bankDashCard">
+      <div class="ct">📚 3つの問題集</div>
+      <div id="bankDashBody"></div>
+    </div>
+
+    <!-- 受験日までに間に合う？（勉強時間→ペース判定） -->
+    <div class="card" id="paceCard">
+      <div class="ct">⏱ 受験日までに間に合う？</div>
+      <div class="pace-inputs">
+        <label>平日<input type="number" id="availWd" min="0" max="16" step="0.5" value="3" oninput="renderPacePlan()">h/日</label>
+        <label>休日<input type="number" id="availWe" min="0" max="16" step="0.5" value="6" oninput="renderPacePlan()">h/日</label>
+        <label>速度<input type="number" id="solveSpeed" min="1" max="60" step="1" value="16" oninput="renderPacePlan()">問/h</label>
+      </div>
+      <div id="paceResult"></div>
+    </div>
 
     <!-- レベルカード -->
     <div class="level-card qb-only" id="levelCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
@@ -2089,6 +2133,10 @@ async function init() {
   _lastMiscJson = JSON.stringify(buildMisc()); // 初回saveの空振り防止
   showSkeleton(false);
   updateBankUI();              // バンク状態（トグル/body class/記録先バッジ）を反映
+  // ペース判定の入力を復元
+  const _wd = localStorage.getItem('cbt_avail_wd'); if (_wd != null) document.getElementById('availWd').value = _wd;
+  const _we = localStorage.getItem('cbt_avail_we'); if (_we != null) document.getElementById('availWe').value = _we;
+  const _sp = localStorage.getItem('cbt_solve_speed'); if (_sp != null) document.getElementById('solveSpeed').value = _sp;
   updateAll();
   initChapterSelect();
   // 周回モードを復元（保存された周回 → なければ1周目）
@@ -3270,6 +3318,79 @@ function renderHeatmap() {
   }
 }
 
+// ── バンク横断ダッシュボード（3つの問題集の進捗を俯瞰） ──
+const BANK_COLORS = { qb:'var(--red)', orig:'var(--teal)', monte:'var(--purple)' };
+function renderBankDash() {
+  const body = document.getElementById('bankDashBody');
+  if (!body) return;
+  body.innerHTML = '';
+  for (const key of ['qb', 'orig', 'monte']) {
+    const b = BANKS[key], t = BANK_TOTALS[key];
+    const pct = Math.min(t.r1 / b.total * 100, 100);
+    const acc = t.r1 > 0 ? (t.ok / t.r1 * 100) : 0;
+    const color = BANK_COLORS[key];
+    const row = document.createElement('div');
+    row.className = 'bankdash-row' + (key === currentBank ? ' active' : '');
+    row.innerHTML =
+      `<div class="bankdash-top">` +
+        `<span class="bankdash-name" style="color:${color};">${b.name}${key === currentBank ? ' ●' : ''}</span>` +
+        `<span class="bankdash-num">${t.r1.toLocaleString()}<span class="bankdash-den">/${b.total.toLocaleString()}</span></span>` +
+      `</div>` +
+      `<div class="bankdash-bar"><div style="width:${pct.toFixed(1)}%;background:${color};"></div></div>` +
+      `<div class="bankdash-sub">1周目 <strong style="color:${color};">${pct.toFixed(0)}%</strong>` +
+        `${t.r1 > 0 ? ` ・ 正答率 ${acc.toFixed(0)}%` : ' ・ 未着手'}` +
+        `${t.r2 > 0 ? ` ・ 2周目 ${Math.min(t.r2 / b.total * 100, 100).toFixed(0)}%` : ''}</div>`;
+    row.addEventListener('click', () => switchBank(key));
+    body.appendChild(row);
+  }
+}
+
+// ── 受験日までに間に合う？（勉強時間→ペース判定・現在バンク基準） ──
+function renderPacePlan() {
+  const result = document.getElementById('paceResult');
+  if (!result) return;
+  // 入力（localStorageに保存して次回復元）
+  const wdH = Math.max(0, +document.getElementById('availWd').value || 0);
+  const weH = Math.max(0, +document.getElementById('availWe').value || 0);
+  const speed = Math.max(1, +document.getElementById('solveSpeed').value || 16);
+  localStorage.setItem('cbt_avail_wd', wdH);
+  localStorage.setItem('cbt_avail_we', weH);
+  localStorage.setItem('cbt_solve_speed', speed);
+
+  // 受験日までの平日・休日をカウント（今日を含む）
+  const daysLeft = Math.max(0, Math.round((CBT - TODAY) / 86400000));
+  let wd = 0, we = 0;
+  for (let i = 0; i < daysLeft; i++) {
+    const d = new Date(TODAY); d.setDate(d.getDate() + i);
+    if (d.getDay() === 0 || d.getDay() === 6) we++; else wd++;
+  }
+  const availHours = wd * wdH + we * weH;
+  const capacity = Math.round(availHours * speed);           // こなせる問数
+  const remaining = Math.max(0, bankTotal() - BANK_TOTALS[currentBank].r1); // 現在バンクの1周目残り
+  const bankName = BANKS[currentBank].name;
+
+  // 必要ペース（1周目を受験日までに終える）
+  const neededPerDay = daysLeft > 0 ? Math.ceil(remaining / daysLeft) : remaining;
+  const inTime = capacity >= remaining;
+  const diff = Math.abs(capacity - remaining);
+
+  const verdictColor = inTime ? 'var(--green)' : 'var(--red)';
+  const verdictText = inTime
+    ? `✅ 間に合う（余裕 約${diff.toLocaleString()}問）`
+    : `⚠️ このペースだと約${diff.toLocaleString()}問 不足`;
+
+  result.innerHTML =
+    `<div class="pace-grid">` +
+      `<div class="pace-box"><div class="pace-v">${daysLeft}</div><div class="pace-l">受験まで(日)</div></div>` +
+      `<div class="pace-box"><div class="pace-v" style="color:var(--blue);">${availHours.toFixed(0)}<span class="pace-u">h</span></div><div class="pace-l">勉強できる時間</div></div>` +
+      `<div class="pace-box"><div class="pace-v" style="color:var(--purple);">${capacity.toLocaleString()}</div><div class="pace-l">こなせる問数</div></div>` +
+    `</div>` +
+    `<div class="pace-verdict" style="color:${verdictColor};border-color:${verdictColor};">${verdictText}</div>` +
+    `<div class="pace-note">${bankName}の1周目残り <strong>${remaining.toLocaleString()}問</strong>` +
+      ` ／ 間に合わせるには <strong>${neededPerDay}問/日</strong>` +
+      `（平日${wdH}h・休日${weH}h・${speed}問/hで計算）</div>`;
+}
+
 // ── 全UI更新 ──
 function updateAll() {
   const planning = BANKS[currentBank].planning;   // QB専用機能を出すか
@@ -3382,6 +3503,8 @@ function updateAll() {
     document.getElementById('todayPhase').textContent = phase;
   }
 
+  renderBankDash();             // 3バンク横断ダッシュボード（常に表示）
+  renderPacePlan();             // 受験日までのペース判定（現在バンク基準）
   renderStreak();
   renderHeatmap();
   renderBarChart();
@@ -4519,8 +4642,20 @@ function makeChapterRow(ch) {
     badge.textContent = '⚠️要強化';
   } else { badge.style.display = 'none'; }
 
+  // 復習日バッジ（SRSで今日 or 超過の章）
+  const rs = reviewStatus(ch.id);
+  let rvBadge = null;
+  if (rs && rs.overdueDays >= 0) {
+    rvBadge = document.createElement('span');
+    rvBadge.style.cssText = 'font-size:8.5px;font-weight:800;padding:1px 5px;border-radius:6px;flex-shrink:0;background:rgba(255,138,60,0.15);color:var(--orange);cursor:pointer;';
+    rvBadge.textContent = rs.overdueDays === 0 ? '🧠今日' : `🧠${rs.overdueDays}日超`;
+    rvBadge.title = 'タップで復習完了';
+    rvBadge.addEventListener('click', (e) => { e.stopPropagation(); markReviewed(ch.id); });
+  }
+
   topLine.appendChild(idEl);
   if (ch.subj) topLine.appendChild(subjEl);
+  if (rvBadge) topLine.appendChild(rvBadge);
   if (badge.textContent) topLine.appendChild(badge);
   topLine.appendChild(accEl);
 
