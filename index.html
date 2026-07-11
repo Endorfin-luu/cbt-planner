@@ -813,6 +813,7 @@ body::before{
 .bank-seg-btn:active{transform:scale(0.97);}
 .bank-seg-btn.active[data-bank="qb"]{background:linear-gradient(135deg,rgba(255,64,96,0.22),rgba(255,138,60,0.1));color:var(--red);box-shadow:0 0 14px rgba(255,64,96,0.3),inset 0 0 0 1px rgba(255,64,96,0.4);}
 .bank-seg-btn.active[data-bank="orig"]{background:linear-gradient(135deg,rgba(46,232,200,0.22),rgba(91,143,255,0.1));color:var(--teal);box-shadow:0 0 14px rgba(46,232,200,0.3),inset 0 0 0 1px rgba(46,232,200,0.4);}
+.bank-seg-btn.active[data-bank="monte"]{background:linear-gradient(135deg,rgba(176,127,255,0.22),rgba(91,143,255,0.1));color:var(--purple);box-shadow:0 0 14px rgba(176,127,255,0.3),inset 0 0 0 1px rgba(176,127,255,0.4);}
 /* Originalバンク表示中はQB専用UIを隠す */
 body.bank-orig .qb-only{display:none !important;}
 /* 記録カードの「記録先」バッジ */
@@ -1005,8 +1006,9 @@ body.bank-orig .qb-only{display:none !important;}
   </div>
   <!-- 問題集バンク切り替え（QB ⇄ Original） -->
   <div class="bank-seg" role="tablist" aria-label="問題集の切り替え">
-    <button class="bank-seg-btn active" data-bank="qb"   onclick="switchBank('qb')">QB<span class="bank-sub">3,359問</span></button>
-    <button class="bank-seg-btn"        data-bank="orig" onclick="switchBank('orig')">Original<span class="bank-sub">6,622問</span></button>
+    <button class="bank-seg-btn active" data-bank="qb"    onclick="switchBank('qb')">QB<span class="bank-sub">3,359問</span></button>
+    <button class="bank-seg-btn"         data-bank="orig"  onclick="switchBank('orig')">Original<span class="bank-sub">6,622問</span></button>
+    <button class="bank-seg-btn"         data-bank="monte" onclick="switchBank('monte')">モントレ<span class="bank-sub">3,573問</span></button>
   </div>
 </div>
 
@@ -1807,18 +1809,53 @@ const CHAPTERS_ORIG = [
   { id:'5A', n:1456, block:5, subj:'臨床医学' },
 ];
 
-// ── 問題集バンク定義（QB / Original を切り替え） ──
+// ── モントレ CBT（テコプラ / M3）26科目・計3573問 ──
+// block 1=基礎, 2=臨床各科, 3=公衆衛生・総論（色分け用のゆるいグループ）
+const CHAPTERS_MONTE = [
+  { id:'MA', n:413, block:1, subj:'基礎医学' },
+  // 臨床各科（22科目）
+  { id:'MB', n:153, block:2, subj:'循環器' },
+  { id:'MC', n:128, block:2, subj:'呼吸器' },
+  { id:'MD', n:196, block:2, subj:'消化器' },
+  { id:'ME', n:62,  block:2, subj:'腎臓' },
+  { id:'MF', n:158, block:2, subj:'内分泌代謝' },
+  { id:'MG', n:213, block:2, subj:'神経' },
+  { id:'MH', n:106, block:2, subj:'血液' },
+  { id:'MI', n:108, block:2, subj:'免疫' },
+  { id:'MJ', n:165, block:2, subj:'感染症' },
+  { id:'MK', n:39,  block:2, subj:'中毒・環境異常症' },
+  { id:'ML', n:10,  block:2, subj:'救急' },
+  { id:'MM', n:135, block:2, subj:'小児' },
+  { id:'MN', n:90,  block:2, subj:'産科' },
+  { id:'MO', n:114, block:2, subj:'婦人科' },
+  { id:'MP', n:55,  block:2, subj:'泌尿器' },
+  { id:'MQ', n:60,  block:2, subj:'眼科' },
+  { id:'MR', n:85,  block:2, subj:'耳鼻咽喉科' },
+  { id:'MS', n:83,  block:2, subj:'皮膚' },
+  { id:'MT', n:62,  block:2, subj:'精神' },
+  { id:'MU', n:94,  block:2, subj:'整形' },
+  { id:'MV', n:15,  block:2, subj:'麻酔' },
+  { id:'MW', n:27,  block:2, subj:'放射線' },
+  // 公衆衛生・総論（3科目）
+  { id:'MX', n:185, block:3, subj:'公衆衛生' },
+  { id:'MY', n:148, block:3, subj:'臨床医学総論' },
+  { id:'MZ', n:669, block:3, subj:'症候学' },
+];
+
+// ── 問題集バンク定義（QB / Original / モントレ を切り替え） ──
 const BANKS = {
   qb:   { name:'QB',       total:3359, chapters:CHAPTERS_QB,   subjKey:'cbt_subj',      planning:true,
           blockNames:{1:'vol.1　基礎医学',2:'vol.2　臨床医学',3:'vol.3　医学総論・公衆衛生',4:'vol.4　多選択肢・4連問',5:'vol.5　追加問題'} },
   orig: { name:'Original', total:6622, chapters:CHAPTERS_ORIG, subjKey:'cbt_subj_orig', planning:false,
           blockNames:{1:'01　基礎医学',2:'02　臨床医学',3:'03　公衆衛生・プロ',4:'04　多選択肢型',5:'05　4連問'} },
+  monte:{ name:'モントレ', total:3573, chapters:CHAPTERS_MONTE, subjKey:'cbt_subj_monte', planning:false,
+          blockNames:{1:'基礎医学',2:'臨床各科',3:'公衆衛生・総論'} },
 };
 // 現在バンクの分野名（科目タブ・記録セレクタの見出しに使う）
 function bankBlockName(block) { return (BANKS[currentBank].blockNames || {})[block] || ''; }
 let currentBank = 'qb';                     // 現在表示中のバンク
-const BANK_SUBJ    = { qb:{}, orig:{} };    // バンクごとの subject_status
-const BANK_TOTALS  = { qb:{r1:0,ok:0,r2:0,r3:0}, orig:{r1:0,ok:0,r2:0,r3:0} }; // バンクごとの集計
+const BANK_SUBJ    = { qb:{}, orig:{}, monte:{} };    // バンクごとの subject_status
+const BANK_TOTALS  = { qb:{r1:0,ok:0,r2:0,r3:0}, orig:{r1:0,ok:0,r2:0,r3:0}, monte:{r1:0,ok:0,r2:0,r3:0} };
 // 現在バンクの章配列（let にして切り替え時に差し替える）
 let CHAPTERS = CHAPTERS_QB;
 // 現在バンクの総問題数（ヘッダー/リング/分析の分母に使う）
@@ -2074,7 +2111,8 @@ let _noMiscCol = false;      // miscカラムが無い場合true（フォール�
 const MISC_KEYS = [
   'cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak',
   'cbt_mocks','cbt_irt_target','cbt_home_prefs','cbt_week_seen','streak_milestones','cbt_level',
-  'cbt_subj_orig'   // Originalバンクの進捗（misc経由でクラウド同期）
+  'cbt_subj_orig',   // Originalバンクの進捗（misc経由でクラウド同期）
+  'cbt_subj_monte'   // モントレバンクの進捗
 ];
 // localStorageからmiscオブジェクトを構築
 function buildMisc() {
@@ -2182,13 +2220,14 @@ async function refreshFromCloud() {
         localStorage.setItem('cbt_subj', JSON.stringify(BANK_SUBJ.qb));
         if (currentBank === 'qb') state.subject_status = BANK_SUBJ.qb;
       }
-      if (data.misc) applyMisc(data.misc);                        // Original等もlocalStorageへ反映
-      try { BANK_SUBJ.orig = JSON.parse(localStorage.getItem('cbt_subj_orig') || '{}'); } catch(e) {}
-      if (currentBank === 'orig') state.subject_status = BANK_SUBJ.orig;
+      if (data.misc) applyMisc(data.misc);                        // Original/モントレ等もlocalStorageへ反映
+      try { BANK_SUBJ.orig  = JSON.parse(localStorage.getItem('cbt_subj_orig')  || '{}'); } catch(e) {}
+      try { BANK_SUBJ.monte = JSON.parse(localStorage.getItem('cbt_subj_monte') || '{}'); } catch(e) {}
+      if (currentBank !== 'qb') state.subject_status = BANK_SUBJ[currentBank];
       _loadedUpdatedAt = data.updated_at || '';
       localStorage.setItem('cbt_cache', JSON.stringify(state));
       localStorage.setItem('cbt_last_sync', data.updated_at || new Date().toISOString());
-      recomputeBank('qb'); recomputeBank('orig');
+      recomputeBank('qb'); recomputeBank('orig'); recomputeBank('monte');
       updateAll();
       initChapterSelect();
       applyHomePrefs();
@@ -4129,6 +4168,11 @@ function loadSubjectStatus() {
     const so = localStorage.getItem('cbt_subj_orig');
     BANK_SUBJ.orig = so ? JSON.parse(so) : {};
   } catch(e) { BANK_SUBJ.orig = {}; }
+  // モントレバンク（新キー 'cbt_subj_monte'）
+  try {
+    const sm = localStorage.getItem('cbt_subj_monte');
+    BANK_SUBJ.monte = sm ? JSON.parse(sm) : {};
+  } catch(e) { BANK_SUBJ.monte = {}; }
 
   // 現在進捗(章別done/correct)を一度だけQBに反映（v2: 章ベース）
   if (localStorage.getItem('cbt_import_v2') !== 'done') {
@@ -4141,13 +4185,15 @@ function loadSubjectStatus() {
   }
 
   // 現在バンクをグローバルに反映（既定はQB）
-  currentBank = localStorage.getItem('cbt_cur_bank') === 'orig' ? 'orig' : 'qb';
+  const savedBank = localStorage.getItem('cbt_cur_bank');
+  currentBank = BANKS[savedBank] ? savedBank : 'qb';
   CHAPTERS = BANKS[currentBank].chapters;
   state.subject_status = BANK_SUBJ[currentBank];
 
-  // QBの集計は常に state.r1..r3 に反映（同期・計画系で使用）。両バンクの合計も算出
+  // 各バンクの合計を算出（QBは state.r1..r3、モントレは state.m/m_ok にミラー）
   recomputeBank('qb');
   recomputeBank('orig');
+  recomputeBank('monte');
   recomputeTotalsFromChapters();
 }
 // 現在バンクの subject_status を保存（バンクごとのキーに）＋クラウド同期
@@ -4173,6 +4219,8 @@ function recomputeBank(bank) {
   BANK_TOTALS[bank] = { r1: d1, ok, r2: d2, r3: d3 };
   // QBは同期カラム/計画系のため state にもミラー
   if (bank === 'qb') { state.r1 = d1; state.ok = ok; state.r2 = d2; state.r3 = d3; }
+  // モントレは章別データがあれば既存の montre 集計(state.m/m_ok)にミラー（QBの計画バーに反映）
+  if (bank === 'monte' && d1 > 0) { state.m = d1; state.m_ok = ok; }
 }
 
 // 現在バンクを再集計（記録直後などに呼ぶ）
@@ -4614,7 +4662,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ── データのバックアップ（エクスポート/インポート） ──
-const BACKUP_KEYS = ['cbt_subj','cbt_subj_orig','cbt_cur_bank','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter','cbt_week_seen','cbt_mocks','cbt_irt_target','cbt_home_prefs'];
+const BACKUP_KEYS = ['cbt_subj','cbt_subj_orig','cbt_subj_monte','cbt_cur_bank','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter','cbt_week_seen','cbt_mocks','cbt_irt_target','cbt_home_prefs'];
 
 function exportData() {
   const ls = {};
