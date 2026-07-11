@@ -1147,6 +1147,7 @@ body.bank-orig .qb-only{display:none !important;}
         <span class="weekplan-title" style="color:var(--orange);">🧠 そろそろ復習</span>
         <span class="weekplan-note"><span id="reviewNote">—</span>が復習どき</span>
       </div>
+      <div style="font-size:9px;color:var(--dim);margin:2px 0 2px;">忘却曲線ベース：記憶度が下がった順（正答率・復習回数も加味）</div>
       <div id="reviewChips"></div>
     </div>
 
@@ -3851,64 +3852,100 @@ function renderWeekPlan() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 間欠反復レビュー（忘却曲線ベースのスペースドリピティション）
+// 間欠反復レビュー（忘却曲線＝Ebbinghausの保持率モデル）
 // ──────────────────────────────────────────────────────────────
-// 章ごとに subject_status[id].srv = { stage, last, next } を持つ
-//   stage: 何回復習したか（0=初回待ち）
-//   last : 最後に復習した日 (YYYY-MM-DD)
-//   next : 次の復習予定日 (YYYY-MM-DD)
-// 復習するたびに間隔が伸びる（1→3→7→14→30→60日）
+// 章ごとに subject_status[id].srv = { stage, last } を持つ
+//   stage: 何回復習したか（0=初回）  last: 最後に学習/復習した日
+//
+// 保持率 R = exp(-t / S)   t=最後の学習からの経過日数, S=記憶の安定度(日)
+//   S は「復習回数(stage)」で大きくなり（復習するほど忘れにくい）、
+//   「正答率」でも変わる（よくできた章は忘れにくい、苦手は早く忘れる）。
+//   R が閾値(80%)を下回った章だけを「復習どき」として、忘れている順に提示する。
 // ══════════════════════════════════════════════════════════════
-const SRS_INTERVALS = [1, 3, 7, 14, 30, 60]; // stageごとの「次までの日数」
+const SRS_STRENGTH = [10, 22, 45, 90, 170, 300]; // stageごとの記憶の安定度(日)
+const SRS_DUE_R = 0.80;   // 保持率がこれを下回ったら復習推奨
+const LN_INV_DUE = Math.log(1 / SRS_DUE_R); // ≈0.223（安定度→復習間隔の換算）
 
-// YYYY-MM-DD に days 日足した文字列を返す
+// YYYY-MM-DD に days 日足した文字列
 function addDaysStr(dateStr, days) {
   const d = new Date(dateStr); d.setDate(d.getDate() + days);
   return toLocalDateStr(d);
 }
+// 最後の学習からの経過日数（小数）
+function daysSinceStr(dateStr) {
+  const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
+  return Math.max(0, (TODAY - d) / 86400000);
+}
+// 正答率による安定度の補正（50%→1.0, 100%→1.3, 0%→0.7, 未計測→1.0）
+function accStrengthFactor(id) {
+  const a = chapterAcc(id);
+  if (a == null) return 1.0;
+  return 0.7 + 0.006 * a;
+}
+// 章の記憶の安定度 S（日）
+function memoryStrength(id, stage) {
+  const base = SRS_STRENGTH[Math.min(stage, SRS_STRENGTH.length - 1)];
+  return base * accStrengthFactor(id);
+}
+
 // 1周目完了済みで未スケジュールの章に、復習スケジュールを種付け
 function ensureReviewSeed(id) {
   const st = state.subject_status[id];
   if (!st || st.srv) return;
   if (isRoundDone(id, 1) && st.r1_date) {
-    st.srv = { stage: 0, last: st.r1_date, next: addDaysStr(st.r1_date, SRS_INTERVALS[0]) };
+    st.srv = { stage: 0, last: st.r1_date };
   }
 }
-// 章の復習ステータス。null=未スケジュール。overdueDays>0=超過, 0=今日, <0=まだ先
+// 章の復習ステータス（忘却曲線）。null=未スケジュール
+//   retention: 今の推定保持率(0〜1)  due: 復習どきか  daysSince: 経過日数
+//   dueInDays: あと何日で復習どきか（due前）  overdueDays: 何日超過したか（due後）
 function reviewStatus(id) {
   const st = state.subject_status[id] || {};
-  if (!st.srv || !st.srv.next) return null;
-  const next = new Date(st.srv.next); next.setHours(0, 0, 0, 0);
-  const overdueDays = Math.round((TODAY - next) / 86400000);
-  return { stage: st.srv.stage || 0, last: st.srv.last, next: st.srv.next, overdueDays };
+  if (!st.srv || !st.srv.last) return null;
+  const stage = st.srv.stage || 0;
+  const S = memoryStrength(id, stage);
+  const t = daysSinceStr(st.srv.last);
+  const retention = Math.exp(-t / S);
+  const dueT = S * LN_INV_DUE;             // 保持率がSRS_DUE_Rに落ちる経過日数
+  return {
+    stage, last: st.srv.last,
+    daysSince: Math.round(t),
+    retention,
+    due: retention < SRS_DUE_R,
+    dueInDays: Math.max(0, Math.ceil(dueT - t)),
+    overdueDays: Math.max(0, Math.round(t - dueT)),
+    nextInterval: Math.round(dueT),
+  };
 }
-// 章を「復習した」→ 次のステージへ進めて再スケジュール
+// 復習/再演習を反映（stageを1つ上げてlastを今日に）
+function bumpReview(id) {
+  const st = state.subject_status[id];
+  if (!st) return 0;
+  if (!st.srv) st.srv = { stage: 0, last: st.r1_date || TODAY_STR };
+  st.srv.stage = Math.min((st.srv.stage || 0) + 1, SRS_STRENGTH.length - 1);
+  st.srv.last  = TODAY_STR;
+  delete st.srv.next; // 旧フィールドは使わない
+  return st.srv.stage;
+}
+// 章を「復習した」ボタン
 function markReviewed(id) {
   const st = state.subject_status[id];
   if (!st) return;
-  if (!st.srv) ensureReviewSeed(id);
-  if (!st.srv) { st.srv = { stage: 0, last: TODAY_STR, next: TODAY_STR }; }
-  const nextStage = Math.min((st.srv.stage || 0) + 1, SRS_INTERVALS.length - 1);
-  st.srv.stage = nextStage;
-  st.srv.last  = TODAY_STR;
-  st.srv.next  = addDaysStr(TODAY_STR, SRS_INTERVALS[nextStage]);
+  const stage = bumpReview(id);
   saveSubjectStatus();
   renderReviewReminder();
   if (document.getElementById('p-subj').classList.contains('active')) renderSubjects();
   const ch = CHAPTERS.find(c => c.id === id);
-  showToast(`🧠 ${id} ${ch ? ch.subj : ''} 復習完了！次は ${SRS_INTERVALS[nextStage]}日後`);
+  const nextDays = Math.round(memoryStrength(id, stage) * LN_INV_DUE);
+  showToast(`🧠 ${id} ${ch ? ch.subj : ''} 復習完了！次は約${nextDays}日後が目安`);
   confetti();
 }
-// 章を記録（周回）したときに、復習スケジュールも「触れた」ものとして更新
+// 章を記録（周回）したときにも復習として反映
 function touchReview(id) {
   const st = state.subject_status[id];
   if (!st) return;
-  if (!st.srv) { ensureReviewSeed(id); return; }
-  // 再演習は強い復習。ステージを1つ進めて次回を後ろ倒し
-  const nextStage = Math.min((st.srv.stage || 0) + 1, SRS_INTERVALS.length - 1);
-  st.srv.stage = nextStage;
-  st.srv.last  = TODAY_STR;
-  st.srv.next  = addDaysStr(TODAY_STR, SRS_INTERVALS[nextStage]);
+  if (!st.srv) { ensureReviewSeed(id); if (!st.srv) return; }
+  bumpReview(id);
 }
 
 // ── 復習リマインダー（エビングハウスの忘却曲線・間欠反復） ──
@@ -3920,18 +3957,18 @@ function renderReviewReminder() {
   // 1周目完了済みの章に復習スケジュールを種付け（未設定のもの）
   for (const ch of CHAPTERS) ensureReviewSeed(ch.id);
 
-  // 復習日が来ている章（今日 or 超過）を集める
+  // 保持率が閾値を下回った章（＝忘れ始めた章）だけを集める
   const due = [];
   for (const ch of CHAPTERS) {
     const rs = reviewStatus(ch.id);
-    if (!rs || rs.overdueDays < 0) continue; // まだ先の章は出さない
+    if (!rs || !rs.due) continue; // まだ十分覚えている章は出さない
     due.push({ ch, rs });
   }
 
   if (due.length === 0) { card.style.display = 'none'; return; }
 
-  // 超過日数が大きい（＝忘却リスク高）順、上位8件
-  due.sort((a, b) => b.rs.overdueDays - a.rs.overdueDays);
+  // 保持率が低い（＝一番忘れている）順に並べる。上位8件
+  due.sort((a, b) => a.rs.retention - b.rs.retention);
   const top = due.slice(0, 8);
 
   // ヘッダーの件数表示
@@ -3941,21 +3978,20 @@ function renderReviewReminder() {
   card.style.display = 'block';
   chips.innerHTML = '';
   for (const { ch, rs } of top) {
-    const overdue = rs.overdueDays > 0;
-    // 経過ラベル
-    const label = rs.overdueDays === 0 ? '今日が復習日'
-                : `${rs.overdueDays}日超過`;
+    const ret = Math.round(rs.retention * 100);
+    // 記憶度で色分け（低いほど赤）
+    const retColor = ret < 40 ? 'var(--red)' : ret < 65 ? 'var(--orange)' : 'var(--yellow)';
     const row = document.createElement('div');
     row.className = 'review-row';
     row.style.borderLeft = `3px solid ${BLOCK_COLORS[ch.block]}`;
-    // 章名・状態（左）＋「復習した」ボタン（右）
+    // 章名・記憶度（左）＋「復習した」ボタン（右）
     const info = document.createElement('div');
     info.className = 'review-info';
     info.innerHTML =
       `<span class="review-id" style="color:${BLOCK_COLORS[ch.block]};">${ch.id}</span>` +
       `<span class="review-subj">${ch.subj || ''}</span>` +
-      `<span class="review-when ${overdue ? 'overdue' : 'today'}">${overdue ? '🔴' : '🟡'}${label}</span>` +
-      `<span class="review-stage">Lv${rs.stage}</span>`;
+      `<span class="review-when" style="color:${retColor};">記憶度${ret}%</span>` +
+      `<span class="review-stage">${rs.daysSince}日前・Lv${rs.stage}</span>`;
     // 章タップ → その章を記録対象にセット（軽く見直したい導線）
     info.style.cursor = 'pointer';
     info.addEventListener('click', () => {
@@ -4642,13 +4678,14 @@ function makeChapterRow(ch) {
     badge.textContent = '⚠️要強化';
   } else { badge.style.display = 'none'; }
 
-  // 復習日バッジ（SRSで今日 or 超過の章）
+  // 復習バッジ（忘却曲線で保持率が下がった章）。記憶度%を表示
   const rs = reviewStatus(ch.id);
   let rvBadge = null;
-  if (rs && rs.overdueDays >= 0) {
+  if (rs && rs.due) {
+    const ret = Math.round(rs.retention * 100);
     rvBadge = document.createElement('span');
     rvBadge.style.cssText = 'font-size:8.5px;font-weight:800;padding:1px 5px;border-radius:6px;flex-shrink:0;background:rgba(255,138,60,0.15);color:var(--orange);cursor:pointer;';
-    rvBadge.textContent = rs.overdueDays === 0 ? '🧠今日' : `🧠${rs.overdueDays}日超`;
+    rvBadge.textContent = `🧠記憶${ret}%`;
     rvBadge.title = 'タップで復習完了';
     rvBadge.addEventListener('click', (e) => { e.stopPropagation(); markReviewed(ch.id); });
   }
