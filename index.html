@@ -1826,6 +1826,7 @@ function showSkeleton(v) {
 
 // ── 同期状態インジケーター ──
 let _syncState = 'ok';
+let _lastSaveError = '';   // 直近の保存失敗の詳細（UIに表示して原因特定用）
 function setSyncState(s) {
   // s: 'ok' | 'saving' | 'error' | 'offline'
   _syncState = s;
@@ -1842,7 +1843,7 @@ function renderSyncLabel() {
   const el = document.getElementById('syncLabel');
   if (!el) return;
   if (_syncState === 'saving') { el.textContent = '保存中…'; el.style.color = 'var(--yellow)'; return; }
-  if (_syncState === 'error')  { el.textContent = '⚠ 保存失敗'; el.style.color = 'var(--red)'; return; }
+  if (_syncState === 'error')  { el.textContent = '⚠ 保存失敗'; el.style.color = 'var(--red)'; el.title = _lastSaveError ? ('原因: ' + _lastSaveError) : ''; el.style.cursor = _lastSaveError ? 'help' : ''; el.onclick = _lastSaveError ? (() => showToast('保存失敗の原因: ' + _lastSaveError)) : null; return; }
   if (_syncState === 'offline'){ el.textContent = '📴 オフライン'; el.style.color = 'var(--orange)'; return; }
   const last = localStorage.getItem('cbt_last_sync');
   if (!last) { el.textContent = ''; return; }
@@ -2040,8 +2041,12 @@ async function doSave() {
       _noSubjectCol = true; _noMiscCol = true; return doSave();
     }
     console.warn('[Supabase] save failed:', err);
+    _lastSaveError = (msg || String(err) || '不明なエラー').slice(0, 160);
     localStorage.setItem('cbt_cache', JSON.stringify(state));
+    const wasError = _syncState === 'error';
     setSyncState('error');
+    // 初回の失敗時のみトーストで原因を通知（連続失敗で鳴り続けないように）
+    if (!wasError) showToast('⚠ 保存失敗: ' + _lastSaveError);
   }
 }
 
