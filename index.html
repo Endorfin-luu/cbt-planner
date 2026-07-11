@@ -427,9 +427,26 @@ body::before{
   background:rgba(255,138,60,0.06);
   border:1px solid rgba(255,138,60,0.22);
   border-radius:14px;padding:13px 14px;margin-bottom:12px;
-  cursor:pointer;transition:transform 0.15s;
 }
-.review-card:active{transform:scale(0.98);}
+/* 復習リスト行 */
+.review-row{
+  display:flex;align-items:center;gap:8px;
+  background:var(--s2);border-radius:10px;padding:8px 10px;margin-top:8px;
+}
+.review-info{flex:1;min-width:0;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.review-id{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:14px;flex-shrink:0;}
+.review-subj{font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.review-when{font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;flex-shrink:0;}
+.review-when.overdue{color:var(--red);}
+.review-when.today{color:var(--yellow);}
+.review-stage{font-size:8.5px;font-weight:700;color:var(--dim);background:var(--s3);border-radius:5px;padding:1px 5px;flex-shrink:0;}
+.review-done-btn{
+  flex-shrink:0;background:linear-gradient(135deg,var(--orange),var(--yellow));
+  color:#231400;border:none;border-radius:9px;padding:7px 11px;
+  font-family:'Outfit',sans-serif;font-size:11px;font-weight:800;cursor:pointer;
+  transition:transform 0.15s,opacity 0.15s;white-space:nowrap;
+}
+.review-done-btn:active{transform:scale(0.94);opacity:0.9;}
 
 /* ── 苦手ヒートマップ ── */
 .weak-block{margin-bottom:8px;}
@@ -1078,13 +1095,13 @@ body.bank-orig .qb-only{display:none !important;}
       <div class="weekplan-chips" id="weekPlanChips"></div>
     </div>
 
-    <!-- 復習リマインダー（エビングハウス） -->
-    <div class="review-card" id="reviewCard" style="display:none;" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
+    <!-- 復習リマインダー（忘却曲線・間欠反復） -->
+    <div class="review-card" id="reviewCard" style="display:none;">
       <div class="weekplan-hdr">
-        <span class="weekplan-title" style="color:var(--orange);">🔁 そろそろ復習</span>
-        <span class="weekplan-note">忘れる前にもう一度</span>
+        <span class="weekplan-title" style="color:var(--orange);">🧠 そろそろ復習</span>
+        <span class="weekplan-note"><span id="reviewNote">—</span>が復習どき</span>
       </div>
-      <div class="weekplan-chips" id="reviewChips"></div>
+      <div id="reviewChips"></div>
     </div>
 
     <!-- 次の試験カウントダウン -->
@@ -2712,6 +2729,8 @@ function addToday() {
       if (round >= 2) st['r' + round] = true;    // 旧チェックUIとの互換フラグ
       setTimeout(() => { confetti(); showToast(`🎉 ${ch.id} ${ch.subj} ${meta.label}完了！`); }, 600);
     }
+    // 2周目以降の再演習は「復習」とみなして忘却曲線スケジュールを前進
+    if (round >= 2) touchReview(ch.id);
     saveSubjectStatus();
   }
 
@@ -3669,45 +3688,128 @@ function renderWeekPlan() {
   }
 }
 
-// ── 復習リマインダー（エビングハウスの忘却曲線） ──
-// 1周目完了から 3,7,16日 経過した章を「復習推奨」として提示
+// ══════════════════════════════════════════════════════════════
+// 間欠反復レビュー（忘却曲線ベースのスペースドリピティション）
+// ──────────────────────────────────────────────────────────────
+// 章ごとに subject_status[id].srv = { stage, last, next } を持つ
+//   stage: 何回復習したか（0=初回待ち）
+//   last : 最後に復習した日 (YYYY-MM-DD)
+//   next : 次の復習予定日 (YYYY-MM-DD)
+// 復習するたびに間隔が伸びる（1→3→7→14→30→60日）
+// ══════════════════════════════════════════════════════════════
+const SRS_INTERVALS = [1, 3, 7, 14, 30, 60]; // stageごとの「次までの日数」
+
+// YYYY-MM-DD に days 日足した文字列を返す
+function addDaysStr(dateStr, days) {
+  const d = new Date(dateStr); d.setDate(d.getDate() + days);
+  return toLocalDateStr(d);
+}
+// 1周目完了済みで未スケジュールの章に、復習スケジュールを種付け
+function ensureReviewSeed(id) {
+  const st = state.subject_status[id];
+  if (!st || st.srv) return;
+  if (isRoundDone(id, 1) && st.r1_date) {
+    st.srv = { stage: 0, last: st.r1_date, next: addDaysStr(st.r1_date, SRS_INTERVALS[0]) };
+  }
+}
+// 章の復習ステータス。null=未スケジュール。overdueDays>0=超過, 0=今日, <0=まだ先
+function reviewStatus(id) {
+  const st = state.subject_status[id] || {};
+  if (!st.srv || !st.srv.next) return null;
+  const next = new Date(st.srv.next); next.setHours(0, 0, 0, 0);
+  const overdueDays = Math.round((TODAY - next) / 86400000);
+  return { stage: st.srv.stage || 0, last: st.srv.last, next: st.srv.next, overdueDays };
+}
+// 章を「復習した」→ 次のステージへ進めて再スケジュール
+function markReviewed(id) {
+  const st = state.subject_status[id];
+  if (!st) return;
+  if (!st.srv) ensureReviewSeed(id);
+  if (!st.srv) { st.srv = { stage: 0, last: TODAY_STR, next: TODAY_STR }; }
+  const nextStage = Math.min((st.srv.stage || 0) + 1, SRS_INTERVALS.length - 1);
+  st.srv.stage = nextStage;
+  st.srv.last  = TODAY_STR;
+  st.srv.next  = addDaysStr(TODAY_STR, SRS_INTERVALS[nextStage]);
+  saveSubjectStatus();
+  renderReviewReminder();
+  if (document.getElementById('p-subj').classList.contains('active')) renderSubjects();
+  const ch = CHAPTERS.find(c => c.id === id);
+  showToast(`🧠 ${id} ${ch ? ch.subj : ''} 復習完了！次は ${SRS_INTERVALS[nextStage]}日後`);
+  confetti();
+}
+// 章を記録（周回）したときに、復習スケジュールも「触れた」ものとして更新
+function touchReview(id) {
+  const st = state.subject_status[id];
+  if (!st) return;
+  if (!st.srv) { ensureReviewSeed(id); return; }
+  // 再演習は強い復習。ステージを1つ進めて次回を後ろ倒し
+  const nextStage = Math.min((st.srv.stage || 0) + 1, SRS_INTERVALS.length - 1);
+  st.srv.stage = nextStage;
+  st.srv.last  = TODAY_STR;
+  st.srv.next  = addDaysStr(TODAY_STR, SRS_INTERVALS[nextStage]);
+}
+
+// ── 復習リマインダー（エビングハウスの忘却曲線・間欠反復） ──
 function renderReviewReminder() {
   const card  = document.getElementById('reviewCard');
   const chips = document.getElementById('reviewChips');
   if (!card || !chips) return;
 
-  const REVIEW_STAGES = [3, 7, 16, 35]; // 経過日数の目安
+  // 1周目完了済みの章に復習スケジュールを種付け（未設定のもの）
+  for (const ch of CHAPTERS) ensureReviewSeed(ch.id);
+
+  // 復習日が来ている章（今日 or 超過）を集める
   const due = [];
-
   for (const ch of CHAPTERS) {
-    const st = state.subject_status[ch.id] || {};
-    // 1周目完了済み・完了日あり・2周目未完了 が対象
-    if (!isChapterDone(ch.id) || !st.r1_date || st.r2) continue;
-    const completed = new Date(st.r1_date);
-    completed.setHours(0, 0, 0, 0);
-    const daysSince = Math.round((TODAY - completed) / 86400000);
-    if (daysSince < 3) continue; // まだ復習タイミングでない
-
-    // 最も近い経過ステージ
-    const stage = REVIEW_STAGES.filter(s => daysSince >= s).pop() || 3;
-    due.push({ ch, daysSince, stage });
+    const rs = reviewStatus(ch.id);
+    if (!rs || rs.overdueDays < 0) continue; // まだ先の章は出さない
+    due.push({ ch, rs });
   }
 
   if (due.length === 0) { card.style.display = 'none'; return; }
 
-  // 経過が長い（＝忘却リスク高）順に並べ、上位6件
-  due.sort((a, b) => b.daysSince - a.daysSince);
-  const top = due.slice(0, 6);
+  // 超過日数が大きい（＝忘却リスク高）順、上位8件
+  due.sort((a, b) => b.rs.overdueDays - a.rs.overdueDays);
+  const top = due.slice(0, 8);
+
+  // ヘッダーの件数表示
+  const note = document.getElementById('reviewNote');
+  if (note) note.textContent = `${due.length}章`;
 
   card.style.display = 'block';
   chips.innerHTML = '';
-  for (const { ch, daysSince } of top) {
-    const urgent = daysSince >= 7;
-    const chip = document.createElement('div');
-    chip.className = 'weekplan-chip';
-    chip.style.borderLeft = `3px solid ${BLOCK_COLORS[ch.block]}`;
-    chip.innerHTML = `<span class="cid" style="color:${BLOCK_COLORS[ch.block]};">${ch.id}</span><span class="cn">${urgent ? '🔴' : ''}${daysSince}日経過</span>`;
-    chips.appendChild(chip);
+  for (const { ch, rs } of top) {
+    const overdue = rs.overdueDays > 0;
+    // 経過ラベル
+    const label = rs.overdueDays === 0 ? '今日が復習日'
+                : `${rs.overdueDays}日超過`;
+    const row = document.createElement('div');
+    row.className = 'review-row';
+    row.style.borderLeft = `3px solid ${BLOCK_COLORS[ch.block]}`;
+    // 章名・状態（左）＋「復習した」ボタン（右）
+    const info = document.createElement('div');
+    info.className = 'review-info';
+    info.innerHTML =
+      `<span class="review-id" style="color:${BLOCK_COLORS[ch.block]};">${ch.id}</span>` +
+      `<span class="review-subj">${ch.subj || ''}</span>` +
+      `<span class="review-when ${overdue ? 'overdue' : 'today'}">${overdue ? '🔴' : '🟡'}${label}</span>` +
+      `<span class="review-stage">Lv${rs.stage}</span>`;
+    // 章タップ → その章を記録対象にセット（軽く見直したい導線）
+    info.style.cursor = 'pointer';
+    info.addEventListener('click', () => {
+      selectedChapter = ch.id;
+      localStorage.setItem('cbt_cur_chapter', ch.id);
+      const sel = document.getElementById('chapterSelect');
+      if (sel) sel.value = ch.id;
+      showToast(`${ch.id} を記録対象にセット`);
+    });
+    const btn = document.createElement('button');
+    btn.className = 'review-done-btn';
+    btn.textContent = '✓ 復習した';
+    btn.addEventListener('click', (e) => { e.stopPropagation(); markReviewed(ch.id); });
+    row.appendChild(info);
+    row.appendChild(btn);
+    chips.appendChild(row);
   }
 }
 
