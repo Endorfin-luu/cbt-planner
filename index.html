@@ -783,6 +783,27 @@ body::before{
 .round-seg-btn.active[data-round="2"]{background:linear-gradient(135deg,rgba(176,127,255,0.28),rgba(176,127,255,0.06));color:var(--purple);box-shadow:0 0 18px rgba(176,127,255,0.4),inset 0 0 0 1px rgba(176,127,255,0.45);}
 .round-seg-btn.active[data-round="3"]{background:linear-gradient(135deg,rgba(255,138,60,0.28),rgba(255,138,60,0.06));color:var(--orange);box-shadow:0 0 18px rgba(255,138,60,0.4),inset 0 0 0 1px rgba(255,138,60,0.45);}
 .round-sub{text-align:center;font-size:10px;color:var(--dim);margin:-2px 0 11px;font-weight:600;letter-spacing:0.04em;}
+
+/* ── 問題集バンク切り替え（ヘッダー） ── */
+.bank-seg{display:flex;gap:6px;margin-top:11px;background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:4px;}
+.bank-seg-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;
+  padding:7px 4px;border:none;border-radius:9px;cursor:pointer;background:transparent;
+  color:var(--dim);font-family:'Outfit',sans-serif;font-size:13px;font-weight:800;letter-spacing:-0.01em;
+  transition:all 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+.bank-seg-btn .bank-sub{font-size:8.5px;font-weight:600;font-family:'JetBrains Mono',monospace;opacity:0.8;}
+.bank-seg-btn:active{transform:scale(0.97);}
+.bank-seg-btn.active[data-bank="qb"]{background:linear-gradient(135deg,rgba(255,64,96,0.22),rgba(255,138,60,0.1));color:var(--red);box-shadow:0 0 14px rgba(255,64,96,0.3),inset 0 0 0 1px rgba(255,64,96,0.4);}
+.bank-seg-btn.active[data-bank="orig"]{background:linear-gradient(135deg,rgba(46,232,200,0.22),rgba(91,143,255,0.1));color:var(--teal);box-shadow:0 0 14px rgba(46,232,200,0.3),inset 0 0 0 1px rgba(46,232,200,0.4);}
+/* Originalバンク表示中はQB専用UIを隠す */
+body.bank-orig .qb-only{display:none !important;}
+/* 記録カードの「記録先」バッジ */
+.record-bank-badge{
+  display:inline-block;font-size:9px;font-weight:800;font-family:'JetBrains Mono',monospace;
+  color:var(--teal);background:rgba(46,232,200,0.12);border:1px solid rgba(46,232,200,0.3);
+  border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;
+}
 .round-target-hint{font-size:11.5px;color:var(--text);margin:9px 2px 0;text-align:center;min-height:14px;}
 
 /* ── 科目リスト ── */
@@ -965,6 +986,11 @@ body::before{
       </div>
     </div>
   </div>
+  <!-- 問題集バンク切り替え（QB ⇄ Original） -->
+  <div class="bank-seg" role="tablist" aria-label="問題集の切り替え">
+    <button class="bank-seg-btn active" data-bank="qb"   onclick="switchBank('qb')">QB<span class="bank-sub">3,359問</span></button>
+    <button class="bank-seg-btn"        data-bank="orig" onclick="switchBank('orig')">Original<span class="bank-sub">6,622問</span></button>
+  </div>
 </div>
 
 <!-- SCROLL -->
@@ -1002,7 +1028,7 @@ body::before{
   <div class="panel active" id="p-home">
 
     <!-- レベルカード -->
-    <div class="level-card" id="levelCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
+    <div class="level-card qb-only" id="levelCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
       <div class="level-badge" id="levelBadge">1</div>
       <div style="flex:1;min-width:0;">
         <div class="level-title-row">
@@ -1015,7 +1041,7 @@ body::before{
     </div>
 
     <!-- ゴーストペースメーカー -->
-    <div class="ghost-card" id="ghostCard">
+    <div class="ghost-card qb-only" id="ghostCard">
       <div class="ghost-icon" id="ghostIcon">👻</div>
       <div style="flex:1;">
         <div class="ghost-label">理想ペースのゴースト</div>
@@ -1025,9 +1051,9 @@ body::before{
     </div>
 
     <!-- 励ましメッセージ -->
-    <div class="cheer-banner" id="cheerBanner"></div>
+    <div class="cheer-banner qb-only" id="cheerBanner"></div>
 
-    <div class="today-card" id="todayCard">
+    <div class="today-card qb-only" id="todayCard">
       <div class="today-label">TODAY'S TARGET</div>
       <div class="today-q" id="todayTarget">— <span>問/日</span></div>
       <div class="today-note" id="todayPhase">計算中...</div>
@@ -1044,7 +1070,7 @@ body::before{
     </div>
 
     <!-- 今週やる章サジェスト -->
-    <div class="weekplan-card" id="weekPlanCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
+    <div class="weekplan-card qb-only" id="weekPlanCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
       <div class="weekplan-hdr">
         <span class="weekplan-title">📖 今週やる章</span>
         <span class="weekplan-note" id="weekPlanNote"></span>
@@ -1062,7 +1088,7 @@ body::before{
     </div>
 
     <!-- 次の試験カウントダウン -->
-    <div class="exam-card normal" id="examCard">
+    <div class="exam-card normal qb-only" id="examCard">
       <div>
         <div class="exam-label" id="examLabel" style="color:var(--blue);">NEXT EXAM</div>
         <div class="exam-name" id="examName">—</div>
@@ -1074,7 +1100,7 @@ body::before{
     </div>
 
     <!-- 借金カード (debt > 0 のとき表示) -->
-    <div class="debt-card" id="debt-card" style="display:none;">
+    <div class="debt-card qb-only" id="debt-card" style="display:none;">
       <div style="font-size:24px;">💸</div>
       <div style="flex:1;">
         <div class="debt-label">現在の借金</div>
@@ -1084,7 +1110,7 @@ body::before{
     </div>
 
     <!-- 次の一手レコメンド -->
-    <div class="reco-card" id="recoCard" style="display:none;">
+    <div class="reco-card qb-only" id="recoCard" style="display:none;">
       <div style="flex:1;min-width:0;">
         <div class="reco-label">🎯 今おすすめの章</div>
         <div class="reco-name" id="recoName">—</div>
@@ -1095,7 +1121,7 @@ body::before{
 
     <!-- Stepper -->
     <div class="card" id="recordCard">
-      <div class="ct">今日解いた問題数を記録</div>
+      <div class="ct">今日解いた問題数を記録<span class="record-bank-badge" id="recordBankBadge">QB</span></div>
 
       <!-- 周回モード（1周目 / 2周目 / 3周目） -->
       <div class="round-seg" role="tablist" aria-label="周回モード">
@@ -1173,13 +1199,13 @@ body::before{
     </div>
 
     <!-- 自動インサイト（コーチ） -->
-    <div class="card" id="insightCard" style="display:none;">
+    <div class="card qb-only" id="insightCard" style="display:none;">
       <div class="ct" style="margin-bottom:8px;">💡 今日の気づき（自動コーチ）</div>
       <div id="insightList"></div>
     </div>
 
     <!-- デイリークエスト -->
-    <div class="card" id="questCard">
+    <div class="card qb-only" id="questCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div class="ct" style="margin-bottom:0;">⚔️ 今日のクエスト</div>
         <span id="questProgress" style="font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--purple);">0/3</span>
@@ -1208,7 +1234,7 @@ body::before{
     </div>
 
     <!-- 週次コミットメント -->
-    <div class="card" id="weekGoalCard">
+    <div class="card qb-only" id="weekGoalCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div class="ct" style="margin-bottom:0;">🎯 今週の目標</div>
         <button onclick="setWeekGoal()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;color:var(--dim);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;">設定</button>
@@ -1627,7 +1653,7 @@ body::before{
         <div class="sl">3周目完了</div>
       </div>
     </div>
-    <div style="text-align:center;font-size:10px;color:var(--dim);margin-bottom:12px;">/ 41チャプター（3,359問）</div>
+    <div style="text-align:center;font-size:10px;color:var(--dim);margin-bottom:12px;" id="subjTotalLabel">/ 41単元（3,359問）</div>
 
     <!-- 周回パターン分析（2周目以降のある章の成績内訳） -->
     <div class="card collapsible" id="roundAnalysisCard" style="display:none;">
@@ -1652,11 +1678,11 @@ body::before{
 <!-- NAV -->
 <nav class="nav">
   <button class="nb active" onclick="showPanel('home',this)"><span class="ic">🏠</span>ホーム</button>
-  <button class="nb" onclick="showPanel('plan',this)"><span class="ic">📊</span>計画</button>
-  <button class="nb" onclick="showPanel('sim',this)"><span class="ic">🔢</span>シミュ</button>
-  <button class="nb" onclick="showPanel('log',this)"><span class="ic">📝</span>進捗</button>
+  <button class="nb qb-only" onclick="showPanel('plan',this)"><span class="ic">📊</span>計画</button>
+  <button class="nb qb-only" onclick="showPanel('sim',this)"><span class="ic">🔢</span>シミュ</button>
+  <button class="nb qb-only" onclick="showPanel('log',this)"><span class="ic">📝</span>進捗</button>
   <button class="nb" onclick="showPanel('subj',this)"><span class="ic">📚</span>科目</button>
-  <button class="nb" onclick="showPanel('meta',this)"><span class="ic">🧠</span>対策</button>
+  <button class="nb qb-only" onclick="showPanel('meta',this)"><span class="ic">🧠</span>対策</button>
 </nav>
 
 <script>
@@ -1664,7 +1690,7 @@ body::before{
 const QB = 3359, MONTE = 3573;
 
 // ── チャプターリスト（QB online 2027年版 実データ、計3359問） ──
-const CHAPTERS = [
+const CHAPTERS_QB = [
   // vol.1 基礎医学（631問）※QB online 2027年版の実章名
   { id:'1A', n:35,  block:1, subj:'細胞生物学' },
   { id:'1B', n:52,  block:1, subj:'組織・解剖' },
@@ -1712,6 +1738,74 @@ const CHAPTERS = [
   // vol.5 追加問題（160問）
   { id:'5A', n:160, block:5, subj:'追加問題' },
 ];
+
+// ── 友達アプリの問題集「Original」（41単元・計6622問） ──
+// 分野=block（1〜5）、単元=章として1周目/2周目/3周目を記録する
+const CHAPTERS_ORIG = [
+  // 01 基礎医学（1055問・11単元）
+  { id:'1A', n:41,  block:1, subj:'細胞生物学' },
+  { id:'1B', n:38,  block:1, subj:'組織・解剖' },
+  { id:'1C', n:53,  block:1, subj:'生理学' },
+  { id:'1D', n:96,  block:1, subj:'生化学' },
+  { id:'1E', n:79,  block:1, subj:'分子生物学' },
+  { id:'1F', n:36,  block:1, subj:'発生' },
+  { id:'1G', n:155, block:1, subj:'微生物' },
+  { id:'1H', n:161, block:1, subj:'免疫' },
+  { id:'1I', n:109, block:1, subj:'薬理学' },
+  { id:'1J', n:199, block:1, subj:'病理学総論' },
+  { id:'1K', n:88,  block:1, subj:'行動科学・心理' },
+  // 02 臨床医学（3412問・22単元）
+  { id:'2A', n:256, block:2, subj:'消化器' },
+  { id:'2B', n:234, block:2, subj:'循環器' },
+  { id:'2C', n:263, block:2, subj:'代謝・内分泌' },
+  { id:'2D', n:276, block:2, subj:'呼吸器' },
+  { id:'2E', n:136, block:2, subj:'血液' },
+  { id:'2F', n:123, block:2, subj:'免疫' },
+  { id:'2G', n:117, block:2, subj:'感染症' },
+  { id:'2H', n:400, block:2, subj:'神経' },
+  { id:'2I', n:348, block:2, subj:'腎・泌尿器' },
+  { id:'2J', n:183, block:2, subj:'婦人科・乳腺外科' },
+  { id:'2K', n:109, block:2, subj:'産科' },
+  { id:'2L', n:92,  block:2, subj:'整形外科' },
+  { id:'2M', n:145, block:2, subj:'眼科' },
+  { id:'2N', n:110, block:2, subj:'耳鼻咽喉科' },
+  { id:'2O', n:210, block:2, subj:'皮膚科' },
+  { id:'2P', n:123, block:2, subj:'小児科' },
+  { id:'2Q', n:70,  block:2, subj:'精神科' },
+  { id:'2R', n:57,  block:2, subj:'中毒' },
+  { id:'2S', n:30,  block:2, subj:'救急' },
+  { id:'2T', n:18,  block:2, subj:'麻酔科' },
+  { id:'2U', n:64,  block:2, subj:'老年医学' },
+  { id:'2V', n:48,  block:2, subj:'放射線科' },
+  // 03 プロフェッショナリズムと公衆衛生（309問・4単元）
+  { id:'3A', n:26,  block:3, subj:'症候・病態・診察' },
+  { id:'3B', n:164, block:3, subj:'公衆衛生' },
+  { id:'3C', n:82,  block:3, subj:'医療倫理・プロフェッショナリズム' },
+  { id:'3D', n:37,  block:3, subj:'医学研究・科学的探究' },
+  // 04 多選択肢型（390問・3単元）
+  { id:'4A', n:50,  block:4, subj:'病態' },
+  { id:'4B', n:50,  block:4, subj:'基盤' },
+  { id:'4C', n:290, block:4, subj:'診断' },
+  // 05 4連問（1456問・1単元）
+  { id:'5A', n:1456, block:5, subj:'臨床医学' },
+];
+
+// ── 問題集バンク定義（QB / Original を切り替え） ──
+const BANKS = {
+  qb:   { name:'QB',       total:3359, chapters:CHAPTERS_QB,   subjKey:'cbt_subj',      planning:true,
+          blockNames:{1:'vol.1　基礎医学',2:'vol.2　臨床医学',3:'vol.3　医学総論・公衆衛生',4:'vol.4　多選択肢・4連問',5:'vol.5　追加問題'} },
+  orig: { name:'Original', total:6622, chapters:CHAPTERS_ORIG, subjKey:'cbt_subj_orig', planning:false,
+          blockNames:{1:'01　基礎医学',2:'02　臨床医学',3:'03　公衆衛生・プロ',4:'04　多選択肢型',5:'05　4連問'} },
+};
+// 現在バンクの分野名（科目タブ・記録セレクタの見出しに使う）
+function bankBlockName(block) { return (BANKS[currentBank].blockNames || {})[block] || ''; }
+let currentBank = 'qb';                     // 現在表示中のバンク
+const BANK_SUBJ    = { qb:{}, orig:{} };    // バンクごとの subject_status
+const BANK_TOTALS  = { qb:{r1:0,ok:0,r2:0,r3:0}, orig:{r1:0,ok:0,r2:0,r3:0} }; // バンクごとの集計
+// 現在バンクの章配列（let にして切り替え時に差し替える）
+let CHAPTERS = CHAPTERS_QB;
+// 現在バンクの総問題数（ヘッダー/リング/分析の分母に使う）
+function bankTotal() { return BANKS[currentBank].total; }
 
 // ── 現在の進捗インポート（スクショ実データ・一度だけ自動反映） ──
 // done: 1周目でやった問題数, correct: そのうち正解数（×以外。○+△）
@@ -1940,6 +2034,7 @@ async function init() {
   checkBadges(true);
   _lastMiscJson = JSON.stringify(buildMisc()); // 初回saveの空振り防止
   showSkeleton(false);
+  updateBankUI();              // バンク状態（トグル/body class/記録先バッジ）を反映
   updateAll();
   initChapterSelect();
   // 周回モードを復元（保存された周回 → なければ1周目）
@@ -1961,7 +2056,8 @@ let _noMiscCol = false;      // miscカラムが無い場合true（フォール�
 // クラウド同期するlocalStorageキー（端末固有のUI設定は除外）
 const MISC_KEYS = [
   'cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak',
-  'cbt_mocks','cbt_irt_target','cbt_home_prefs','cbt_week_seen','streak_milestones','cbt_level'
+  'cbt_mocks','cbt_irt_target','cbt_home_prefs','cbt_week_seen','streak_milestones','cbt_level',
+  'cbt_subj_orig'   // Originalバンクの進捗（misc経由でクラウド同期）
 ];
 // localStorageからmiscオブジェクトを構築
 function buildMisc() {
@@ -2014,7 +2110,8 @@ async function doSave() {
     updated_at: nowIso
   };
   // 各カラムがある場合のみ含める（無ければフォールバック）
-  if (!_noSubjectCol) payload.subject_status = state.subject_status;
+  // subject_statusカラムは常にQBバンクを保存（Original表示中でもQBを壊さない）
+  if (!_noSubjectCol) payload.subject_status = BANK_SUBJ.qb;
   if (!_noMiscCol)    payload.misc = buildMisc();
 
   try {
@@ -2064,14 +2161,17 @@ async function refreshFromCloud() {
       state.streak = data.streak ?? []; state.daily_log = data.daily_log ?? [];
       state.debt = data.debt ?? 0; state.last_date = data.last_date ?? '';
       if (data.subject_status) {
-        state.subject_status = data.subject_status;
-        localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
+        BANK_SUBJ.qb = data.subject_status;                       // QBバンクへ
+        localStorage.setItem('cbt_subj', JSON.stringify(BANK_SUBJ.qb));
+        if (currentBank === 'qb') state.subject_status = BANK_SUBJ.qb;
       }
-      if (data.misc) applyMisc(data.misc);
+      if (data.misc) applyMisc(data.misc);                        // Original等もlocalStorageへ反映
+      try { BANK_SUBJ.orig = JSON.parse(localStorage.getItem('cbt_subj_orig') || '{}'); } catch(e) {}
+      if (currentBank === 'orig') state.subject_status = BANK_SUBJ.orig;
       _loadedUpdatedAt = data.updated_at || '';
       localStorage.setItem('cbt_cache', JSON.stringify(state));
       localStorage.setItem('cbt_last_sync', data.updated_at || new Date().toISOString());
-      recomputeTotalsFromChapters();
+      recomputeBank('qb'); recomputeBank('orig');
       updateAll();
       initChapterSelect();
       applyHomePrefs();
@@ -2302,7 +2402,7 @@ function initChapterSelect() {
     if (ch.block !== currentBlock) {
       currentBlock = ch.block;
       optgroup = document.createElement('optgroup');
-      optgroup.label = BLOCK_NAMES[ch.block];
+      optgroup.label = bankBlockName(ch.block);
       sel.appendChild(optgroup);
     }
     const target = roundTarget(ch, selectedRound);
@@ -2327,6 +2427,11 @@ function initChapterSelect() {
 
 // おすすめのデフォルト章（今週の計画の未完了 → 全体の最初の未完了）
 function pickDefaultChapter() {
+  // Originalバンクは週次計画（QB専用）を使わず、最初の未完了単元を返す
+  if (!BANKS[currentBank].planning) {
+    for (const ch of CHAPTERS) if (!isChapterDone(ch.id)) return ch.id;
+    return CHAPTERS[0].id;
+  }
   // 今週の計画から未完了を探す
   for (let i = 0; i < WEEKLY_PLAN.length; i++) {
     const start = new Date(WEEKLY_PLAN[i].start);
@@ -2347,6 +2452,33 @@ function onChapterSelect() {
   selectedChapter = sel.value;
   localStorage.setItem('cbt_cur_chapter', selectedChapter);
   updateRoundTargetHint();
+}
+
+// ── 問題集バンクの切り替え（QB ⇄ Original） ──
+function switchBank(bank) {
+  if (!BANKS[bank] || bank === currentBank) return;
+  currentBank = bank;
+  localStorage.setItem('cbt_cur_bank', bank);
+  CHAPTERS = BANKS[bank].chapters;
+  state.subject_status = BANK_SUBJ[bank];
+  selectedChapter = '';                 // 記録対象をこのバンクの既定へ
+  recomputeTotalsFromChapters();
+  updateBankUI();
+  updateAll();
+  initChapterSelect();
+  setRound(selectedRound || 1);
+  renderSubjects();
+  showToast(`📚 ${BANKS[bank].name} に切り替え`);
+}
+// バンクUIの反映（トグルのactive表示＋QB専用要素の表示切替）
+function updateBankUI() {
+  document.querySelectorAll('.bank-seg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.bank === currentBank));
+  // Originalバンクでは計画系（QB専用）を隠す
+  document.body.classList.toggle('bank-orig', !BANKS[currentBank].planning);
+  // 記録カードの「記録先」表示
+  const badge = document.getElementById('recordBankBadge');
+  if (badge) badge.textContent = BANKS[currentBank].name;
 }
 
 // ── 周回モードの切り替え（記録カードのセグメント） ──
@@ -2645,6 +2777,7 @@ function addToday() {
 function undoLastRecord() {
   if (!_undoSnapshot) { showToast('取り消せる記録がありません'); return; }
   state.subject_status = _undoSnapshot.subject_status;
+  BANK_SUBJ[currentBank] = state.subject_status;   // バンク側の参照も戻す
   state.daily_log      = _undoSnapshot.daily_log;
   state.streak         = _undoSnapshot.streak;
   state.debt           = _undoSnapshot.debt;
@@ -3081,20 +3214,25 @@ function renderHeatmap() {
 
 // ── 全UI更新 ──
 function updateAll() {
-  const { r1, ok, r2, r3, m, m_ok } = state;
+  const planning = BANKS[currentBank].planning;   // QB専用機能を出すか
+  const bankName = BANKS[currentBank].name;
+  const total    = bankTotal();                    // 現在バンクの総問題数
+  const T  = BANK_TOTALS[currentBank];             // 現在バンクの集計
+  const r1 = T.r1, ok = T.ok, r2 = T.r2, r3 = T.r3;
+  const m = state.m, m_ok = state.m_ok;            // モントレはQB専用（stateのまま）
   const acc   = r1 > 0 ? (ok / r1 * 100) : 0;
   const wrong = r1 - ok;
-  const rem   = QB - r1;
+  const rem   = total - r1;
 
-  const r3target = totalRound3Target();          // 3周目の総対象数（2周目の誤答合計）
-  const p1 = Math.min(r1  / QB    * 100, 100);
-  const p2 = Math.min(r2  / QB    * 100, 100);   // 2周目＝全問周回なので分母はQB
+  const r3target = totalRound3Target();          // 現在バンクの3周目対象合計
+  const p1 = Math.min(r1  / total * 100, 100);
+  const p2 = Math.min(r2  / total * 100, 100);   // 2周目＝全問周回なので分母は総問題数
   const p3 = r3target > 0 ? Math.min(r3 / r3target * 100, 100) : 0; // 3周目＝2周目の誤答
   const pm = Math.min(m   / MONTE * 100, 100);
 
-  // ヘッダー
+  // ヘッダー（バンク名つき）
   document.getElementById('hdr-sub').textContent =
-    `${r1.toLocaleString()}/${QB.toLocaleString()}問 · 正答率${r1>0 ? acc.toFixed(0)+'%' : '—'}`;
+    `${bankName} · ${r1.toLocaleString()}/${total.toLocaleString()}問 · 正答率${r1>0 ? acc.toFixed(0)+'%' : '—'}`;
 
   // ホームの数値
   setEl('hs-done', r1.toLocaleString());
@@ -3190,19 +3328,22 @@ function updateAll() {
   renderHeatmap();
   renderBarChart();
   renderTimerSummary();
-  renderWeekGoal();
-  renderLevel();
-  renderGhost();
-  renderCheer();
-  renderWeekPlan();
-  renderRecommendation();
-  renderReviewReminder();
-  renderQuests();
-  renderInsights();
-  checkStreakMilestone();
-  updatePaceAndExam();
-  checkBadges();
-  renderBadges();
+  renderReviewReminder();       // バンク対応（現在バンクの復習リマインダー）
+  // ── ここからQB専用（Originalバンクでは非表示のため実行しない） ──
+  if (planning) {
+    renderWeekGoal();
+    renderLevel();
+    renderGhost();
+    renderCheer();
+    renderWeekPlan();
+    renderRecommendation();
+    renderQuests();
+    renderInsights();
+    checkStreakMilestone();
+    updatePaceAndExam();
+    checkBadges();
+    renderBadges();
+  }
   if (document.getElementById('p-log').classList.contains('active')) renderAnalytics();
   if (typeof syncMiscIfChanged === 'function') syncMiscIfChanged();
 }
@@ -3872,62 +4013,69 @@ function roundStats(id) {
 }
 
 function loadSubjectStatus() {
+  // QBバンク（既存キー 'cbt_subj'）。state.subject_status が既にクラウドから来ていればそれを尊重
   try {
-    const s = localStorage.getItem('cbt_subj');
-    state.subject_status = s ? JSON.parse(s) : {};
-  } catch(e) { state.subject_status = {}; }
+    if (state.subject_status && Object.keys(state.subject_status).length) {
+      BANK_SUBJ.qb = state.subject_status;
+    } else {
+      const s = localStorage.getItem('cbt_subj');
+      BANK_SUBJ.qb = s ? JSON.parse(s) : {};
+    }
+  } catch(e) { BANK_SUBJ.qb = {}; }
+  // Originalバンク（新キー 'cbt_subj_orig'）
+  try {
+    const so = localStorage.getItem('cbt_subj_orig');
+    BANK_SUBJ.orig = so ? JSON.parse(so) : {};
+  } catch(e) { BANK_SUBJ.orig = {}; }
 
-  // 現在進捗(章別done/correct)を一度だけ反映（v2: 章ベース）
+  // 現在進捗(章別done/correct)を一度だけQBに反映（v2: 章ベース）
   if (localStorage.getItem('cbt_import_v2') !== 'done') {
     for (const id in INITIAL_PROGRESS) {
-      const cur = state.subject_status[id] || {};
-      // done未設定の章のみシード（既存編集は尊重）
-      if (cur.done == null) {
-        state.subject_status[id] = { ...cur, ...INITIAL_PROGRESS[id] };
-      }
+      const cur = BANK_SUBJ.qb[id] || {};
+      if (cur.done == null) BANK_SUBJ.qb[id] = { ...cur, ...INITIAL_PROGRESS[id] };
     }
     localStorage.setItem('cbt_import_v2', 'done');
-    saveSubjectStatus();
+    localStorage.setItem('cbt_subj', JSON.stringify(BANK_SUBJ.qb));
   }
 
-  // 章別データから全体r1/okを再集計（章を真実の源とする）
+  // 現在バンクをグローバルに反映（既定はQB）
+  currentBank = localStorage.getItem('cbt_cur_bank') === 'orig' ? 'orig' : 'qb';
+  CHAPTERS = BANKS[currentBank].chapters;
+  state.subject_status = BANK_SUBJ[currentBank];
+
+  // QBの集計は常に state.r1..r3 に反映（同期・計画系で使用）。両バンクの合計も算出
+  recomputeBank('qb');
+  recomputeBank('orig');
   recomputeTotalsFromChapters();
 }
+// 現在バンクの subject_status を保存（バンクごとのキーに）＋クラウド同期
 function saveSubjectStatus() {
-  localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
-  scheduleSave(); // クラウドにも同期（subject_status含む）
+  localStorage.setItem(BANKS[currentBank].subjKey, JSON.stringify(state.subject_status));
+  scheduleSave();
 }
 
-// 章別done/correctの合計を state.r1/ok/r2/r3 に反映（章 = 真実の源）
-function recomputeTotalsFromChapters() {
-  let totalDone = 0, totalCorrect = 0, hasChapterData = false;
-  let total2 = 0, total3 = 0, hasRound2 = false, hasRound3 = false;
-  for (const ch of CHAPTERS) {
-    const st = state.subject_status[ch.id];
+// 指定バンクの章別合計を BANK_TOTALS[bank] に集計（バンク横断で安全に呼べる）
+function recomputeBank(bank) {
+  const chapters = BANKS[bank].chapters, ss = BANK_SUBJ[bank];
+  let d1 = 0, ok = 0, d2 = 0, d3 = 0;
+  for (const ch of chapters) {
+    const st = ss[ch.id];
     if (!st) continue;
-    if (st.done != null) {
-      hasChapterData = true;
-      totalDone    += Math.min(st.done, ch.n);
-      totalCorrect += Math.min(st.correct || 0, st.done);
-    }
-    // 2周目（全問周回なので上限は n）
-    if (st.done2 != null) {
-      hasRound2 = true;
-      total2 += Math.min(st.done2, ch.n);
-    }
-    // 3周目（上限は2周目の誤答数）
+    if (st.done != null)  { d1 += Math.min(st.done, ch.n); ok += Math.min(st.correct || 0, st.done); }
+    if (st.done2 != null) { d2 += Math.min(st.done2, ch.n); }
     if (st.done3 != null) {
-      hasRound3 = true;
-      total3 += Math.min(st.done3, roundTarget(ch, 3));
+      const w2 = Math.max(0, (st.done2 || 0) - (st.correct2 || 0));
+      d3 += Math.min(st.done3, w2);
     }
   }
-  // 章データがあれば全体を上書き（なければ既存値を維持＝後方互換）
-  if (hasChapterData) {
-    state.r1 = totalDone;
-    state.ok = totalCorrect;
-  }
-  if (hasRound2) state.r2 = total2;
-  if (hasRound3) state.r3 = total3;
+  BANK_TOTALS[bank] = { r1: d1, ok, r2: d2, r3: d3 };
+  // QBは同期カラム/計画系のため state にもミラー
+  if (bank === 'qb') { state.r1 = d1; state.ok = ok; state.r2 = d2; state.r3 = d3; }
+}
+
+// 現在バンクを再集計（記録直後などに呼ぶ）
+function recomputeTotalsFromChapters() {
+  recomputeBank(currentBank);
 }
 
 // 全章の3周目目標数の合計（＝2周目誤答の総数）。ホームの3周目バーの分母に使う
@@ -3997,7 +4145,7 @@ function renderWeakHeatmap() {
     const hdr = document.createElement('div');
     hdr.className = 'weak-block-hdr';
     hdr.innerHTML = `
-      <span class="weak-block-name" style="color:${BLOCK_COLORS[block]};">${BLOCK_NAMES[block]}</span>
+      <span class="weak-block-name" style="color:${BLOCK_COLORS[block]};">${bankBlockName(block)}</span>
       <span class="weak-block-stat">${weakCount > 0 ? '🔴苦手 '+weakCount+'章' : ''}</span>`;
     wb.appendChild(hdr);
 
@@ -4137,7 +4285,7 @@ function renderSubjects() {
       const hdr = document.createElement('div');
       hdr.className = 'subj-group-hdr';
       hdr.innerHTML = `
-        <span style="color:${BLOCK_COLORS[ch.block]};font-weight:800;">${BLOCK_NAMES[ch.block]}</span>
+        <span style="color:${BLOCK_COLORS[ch.block]};font-weight:800;">${bankBlockName(ch.block)}</span>
         <span class="subj-badge" style="background:rgba(107,115,148,0.15);color:var(--dim);">${blockQ}問</span>`;
       container.appendChild(hdr);
     }
@@ -4151,6 +4299,10 @@ function renderSubjects() {
   setEl('subj-cnt-exam', cnt1);
   setEl('subj-cnt-qb1',  cnt2);
   setEl('subj-cnt-shuf', cnt3);
+
+  // 合計ラベル（バンク対応）
+  const totalLabel = document.getElementById('subjTotalLabel');
+  if (totalLabel) totalLabel.textContent = `/ ${CHAPTERS.length}単元（${bankTotal().toLocaleString()}問）・${BANKS[currentBank].name}`;
 }
 
 // 苦手レベル（0未設定/1苦手/2普通/3得意）：手動acc優先、なければ正答率から自動
@@ -4360,7 +4512,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ── データのバックアップ（エクスポート/インポート） ──
-const BACKUP_KEYS = ['cbt_subj','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter','cbt_week_seen','cbt_mocks','cbt_irt_target','cbt_home_prefs'];
+const BACKUP_KEYS = ['cbt_subj','cbt_subj_orig','cbt_cur_bank','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter','cbt_week_seen','cbt_mocks','cbt_irt_target','cbt_home_prefs'];
 
 function exportData() {
   const ls = {};
