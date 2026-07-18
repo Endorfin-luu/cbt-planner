@@ -1990,6 +1990,12 @@ const SUPA_URL = 'https://iexslocdhaqyxybbzcye.supabase.co';
 const SUPA_KEY = 'sb_publishable_oOZVyyHyggxujT6eYvfmoQ_uMhrUo97';
 const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
+// ── 本番データ保護 ──
+// 本番(github.io)以外（localhost等での開発・検証）では別の行IDを使い、
+// 本番の 'user1' データには絶対に読み書きしない。
+const IS_PROD_ORIGIN = /github\.io$/.test(location.hostname);
+const DB_ID = IS_PROD_ORIGIN ? 'user1' : 'user1_localtest';
+
 // ── State (Supabaseのカラム構造に対応) ──
 let state = {
   r1: 0,
@@ -2062,7 +2068,7 @@ async function init() {
     const { data, error } = await sb
       .from('progress')
       .select('*')
-      .eq('id', 'user1')
+      .eq('id', DB_ID)
       .single();
 
     if (error && error.code !== 'PGRST116') throw error; // PGRST116 = 行なし
@@ -2090,7 +2096,7 @@ async function init() {
     } else {
       // 初回アクセス：行を作成
       await sb.from('progress').insert({
-        id: 'user1',
+        id: DB_ID,
         r1: 0, ok: 0, r2: 0, r3: 0, m: 0,
         streak: [], daily_log: [], debt: 0,
         last_date: '',
@@ -2200,7 +2206,7 @@ function scheduleSave() {
 async function doSave() {
   const nowIso = new Date().toISOString();
   const payload = {
-    id: 'user1',
+    id: DB_ID,
     r1: state.r1,
     ok: state.ok,
     r2: state.r2,
@@ -2255,7 +2261,7 @@ async function doSave() {
 async function refreshFromCloud() {
   if (_saveTimer) return;        // 自分の未保存編集があるときは触らない
   try {
-    const { data, error } = await sb.from('progress').select('*').eq('id', 'user1').single();
+    const { data, error } = await sb.from('progress').select('*').eq('id', DB_ID).single();
     if (error || !data) return;
     // リモートが自分の最終保存より新しいときだけ採用
     if (!_loadedUpdatedAt || (data.updated_at && data.updated_at > _loadedUpdatedAt)) {
