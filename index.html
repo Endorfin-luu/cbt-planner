@@ -4876,11 +4876,20 @@ function importData(event) {
       if (backup.localStorage) {
         for (const k in backup.localStorage) localStorage.setItem(k, backup.localStorage[k]);
       }
-      localStorage.setItem('cbt_cache', JSON.stringify(state));
-      // subject_status も反映
+      // subject_status（QBバンク）を反映
       if (state.subject_status) localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
+      // ── バンク参照を再構築（重要：これをしないとクラウドに古いデータが同期される） ──
+      BANK_SUBJ.qb = state.subject_status || {};
+      try { BANK_SUBJ.orig  = JSON.parse(localStorage.getItem('cbt_subj_orig')  || '{}'); } catch(e){ BANK_SUBJ.orig  = {}; }
+      try { BANK_SUBJ.monte = JSON.parse(localStorage.getItem('cbt_subj_monte') || '{}'); } catch(e){ BANK_SUBJ.monte = {}; }
+      currentBank = 'qb'; localStorage.setItem('cbt_cur_bank', 'qb');
+      CHAPTERS = BANKS.qb.chapters;
+      state.subject_status = BANK_SUBJ.qb;
+      recomputeBank('qb'); recomputeBank('orig'); recomputeBank('monte');
       recomputeTotalsFromChapters();
-      scheduleSave();
+      localStorage.setItem('cbt_cache', JSON.stringify(state));
+      scheduleSave();  // 復元後のQBデータをクラウドへ同期
+      updateBankUI();
       updateAll();
       initChapterSelect();
       renderSubjects();
