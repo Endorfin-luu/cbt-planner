@@ -3406,8 +3406,11 @@ function updateAll() {
   const T  = BANK_TOTALS[currentBank];             // 現在バンクの集計
   const r1 = T.r1, ok = T.ok, r2 = T.r2, r3 = T.r3;
   const m = state.m, m_ok = state.m_ok;            // モントレはQB専用（stateのまま）
-  const acc   = r1 > 0 ? (ok / r1 * 100) : 0;
-  const wrong = r1 - ok;
+  // 正答率は「今の実力」＝2周目に着手した章は2周目(+3周目回収)基準で評価
+  const curDone = T.curDone != null ? T.curDone : r1;
+  const curOk   = T.curOk   != null ? T.curOk   : ok;
+  const acc   = curDone > 0 ? (curOk / curDone * 100) : 0;
+  const wrong = Math.max(0, curDone - curOk);
   const rem   = total - r1;
 
   const r3target = totalRound3Target();          // 現在バンクの3周目対象合計
@@ -4371,6 +4374,8 @@ function saveSubjectStatus() {
 function recomputeBank(bank) {
   const chapters = BANKS[bank].chapters, ss = BANK_SUBJ[bank];
   let d1 = 0, ok = 0, d2 = 0, d3 = 0;
+  // curDone/curOk = 「今の実力」の集計（2周目に着手した章は2周目＋3周目回収分で評価）
+  let curDone = 0, curOk = 0;
   for (const ch of chapters) {
     const st = ss[ch.id];
     if (!st) continue;
@@ -4380,8 +4385,17 @@ function recomputeBank(bank) {
       const w2 = Math.max(0, (st.done2 || 0) - (st.correct2 || 0));
       d3 += Math.min(st.done3, w2);
     }
+    // 現在の実力：2周目があれば2周目基準、なければ1周目基準
+    const cd2 = Math.min(st.done2 || 0, ch.n);
+    if (cd2 > 0) {
+      curDone += cd2;
+      curOk   += Math.min((st.correct2 || 0) + (st.correct3 || 0), cd2);
+    } else if (st.done != null) {
+      curDone += Math.min(st.done, ch.n);
+      curOk   += Math.min(st.correct || 0, st.done);
+    }
   }
-  BANK_TOTALS[bank] = { r1: d1, ok, r2: d2, r3: d3 };
+  BANK_TOTALS[bank] = { r1: d1, ok, r2: d2, r3: d3, curDone, curOk };
   // QBは同期カラム/計画系のため state にもミラー
   if (bank === 'qb') { state.r1 = d1; state.ok = ok; state.r2 = d2; state.r3 = d3; }
   // モントレは章別データがあれば既存の montre 集計(state.m/m_ok)にミラー（QBの計画バーに反映）
@@ -4406,11 +4420,33 @@ function isChapterDone(id) {
   const st = state.subject_status[id] || {};
   return ch && st.done != null && st.done >= ch.n;
 }
-// 章の正答率（done>0のとき）
+// 章の「今の正答率（実力）」。null=未着手
+// 2周目に着手していれば2周目ベース（＋3周目で回収した分を加算）＝最新の実力を反映。
+// 2周目が未着手なら1周目の正答率。
 function chapterAcc(id) {
+  const st = state.subject_status[id] || {};
+  const d2 = st.done2 || 0;
+  if (d2 > 0) {
+    // 3周目は「2周目の誤答」を解き直したもの。正解できた分は定着とみなして加算
+    const c = Math.min((st.correct2 || 0) + (st.correct3 || 0), d2);
+    return c / d2 * 100;
+  }
+  if (!st.done || st.done <= 0) return null;
+  return (st.correct || 0) / st.done * 100;
+}
+// 1周目だけの正答率（周回比較・分析用に元の定義も残す）
+function chapterAccR1(id) {
   const st = state.subject_status[id] || {};
   if (!st.done || st.done <= 0) return null;
   return (st.correct || 0) / st.done * 100;
+}
+// 章の「今の誤答数」。2周目に着手していれば2周目基準（3周目で回収した分を差し引く）
+function chapterWrongNow(id) {
+  const st = state.subject_status[id] || {};
+  const d2 = st.done2 || 0;
+  if (d2 > 0) return Math.max(0, d2 - Math.min((st.correct2 || 0) + (st.correct3 || 0), d2));
+  if (!st.done || st.done <= 0) return 0;
+  return Math.max(0, st.done - (st.correct || 0));
 }
 function toggleSubjectCheck(id, key) {
   if (!state.subject_status[id]) state.subject_status[id] = {};
@@ -4487,12 +4523,12 @@ function renderReviewPriority() {
   const list = document.getElementById('reviewPriorityList');
   if (!card || !list) return;
 
-  // 間違い数 = done - correct（done>0の章）
+  // 間違い数 = 「今の誤答数」（2周目に着手していれば2周目基準・3周目回収分を差し引く）
   const items = [];
   for (const ch of CHAPTERS) {
     const st = state.subject_status[ch.id] || {};
     if (!st.done || st.done <= 0) continue;
-    const wrong = Math.max(0, (st.done) - (st.correct || 0));
+    const wrong = chapterWrongNow(ch.id);
     if (wrong > 0) items.push({ ch, wrong, done: st.done });
   }
   if (items.length === 0) { card.style.display = 'none'; return; }
@@ -4667,7 +4703,14 @@ function makeChapterRow(ch) {
   if (acc != null) {
     const c = acc < 50 ? 'var(--red)' : acc < 70 ? 'var(--yellow)' : 'var(--green)';
     accEl.style.color = c;
-    accEl.textContent = `正答${acc.toFixed(0)}%`;
+    // 2周目に着手していれば「今の実力（2周目基準）」なので②を添えて明示
+    const st2 = state.subject_status[ch.id] || {};
+    const basedOn2 = (st2.done2 || 0) > 0;
+    accEl.textContent = `正答${acc.toFixed(0)}%${basedOn2 ? '②' : ''}`;
+    const a1 = chapterAccR1(ch.id);
+    accEl.title = basedOn2 && a1 != null
+      ? `今の実力（2周目基準・3周目回収込み）: ${acc.toFixed(0)}%／1周目: ${a1.toFixed(0)}%`
+      : '1周目の正答率';
   } else {
     accEl.style.color = 'var(--dim)';
     accEl.textContent = '未着手';
