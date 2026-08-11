@@ -2043,7 +2043,7 @@ function renderSyncLabel() {
   if (!el) return;
   if (_syncState === 'saving') { el.textContent = '保存中…'; el.style.color = 'var(--yellow)'; return; }
   if (_syncState === 'error')  { el.textContent = '⚠ 保存失敗'; el.style.color = 'var(--red)'; el.title = _lastSaveError ? ('原因: ' + _lastSaveError) : ''; el.style.cursor = _lastSaveError ? 'help' : ''; el.onclick = _lastSaveError ? (() => showToast('保存失敗の原因: ' + _lastSaveError)) : null; return; }
-  if (_syncState === 'offline'){ el.textContent = '📴 オフライン'; el.style.color = 'var(--orange)'; return; }
+  if (_syncState === 'offline'){ el.textContent = '📴 未同期（ローカル保存済み）'; el.style.color = 'var(--orange)'; el.title = '端末には保存済み。接続が戻ると自動で同期します'; el.style.cursor = 'help'; el.onclick = null; return; }
   const last = localStorage.getItem('cbt_last_sync');
   if (!last) { el.textContent = ''; return; }
   const mins = Math.floor((Date.now() - new Date(last).getTime()) / 60000);
@@ -2197,11 +2197,22 @@ function syncMiscIfChanged() {
 setInterval(syncMiscIfChanged, 4000);
 
 let _saveTimer = null;
+let _pendingSave = false;   // 未同期の変更があるか（接続復帰時に自動リトライ）
 function scheduleSave() {
+  _pendingSave = true;
   setSyncState('saving');
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(doSave, 500);
 }
+
+// 接続が戻ったら自動で再同期
+function retrySaveIfPending() {
+  if (_pendingSave && _syncState !== 'saving') doSave();
+}
+setInterval(retrySaveIfPending, 30000);           // 30秒ごとに未同期を再送
+window.addEventListener('online', retrySaveIfPending);
+window.addEventListener('focus', retrySaveIfPending);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) retrySaveIfPending(); });
 
 async function doSave() {
   const nowIso = new Date().toISOString();
@@ -2230,8 +2241,18 @@ async function doSave() {
     localStorage.setItem('cbt_cache', JSON.stringify(state));
     localStorage.setItem('cbt_last_sync', nowIso);
     _loadedUpdatedAt = nowIso;
+    _pendingSave = false;
     setSyncState('ok');
   } catch (err) {
+    // ネットワーク到達失敗（Supabase停止・オフライン等）は「保存失敗」ではなく
+    // 「未同期（ローカル保存済み）」として扱い、接続復帰で自動リトライする
+    const emsg = (err && (err.message || String(err))) || '';
+    if (/failed to fetch|load failed|networkerror|network request failed/i.test(emsg)) {
+      localStorage.setItem('cbt_cache', JSON.stringify(state));
+      _pendingSave = true;                 // 後で自動再送
+      setSyncState('offline');
+      return;
+    }
     // 未作成カラムのエラーなら、そのカラム抜きで再保存
     const msg = (err && (err.message || err.hint || '')) + (err && err.code ? ' '+err.code : '');
     if (!_noSubjectCol && /subject_status/i.test(msg)) {
