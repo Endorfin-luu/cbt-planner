@@ -859,6 +859,51 @@ body.bank-orig .qb-only{display:none !important;}
 }
 .round-target-hint{font-size:11.5px;color:var(--text);margin:9px 2px 0;text-align:center;min-height:14px;}
 
+/* ── 記録日の選択 ── */
+.recdate-row{display:flex;align-items:center;gap:6px;margin:10px 0 0;flex-wrap:wrap;}
+.recdate-label{font-size:11px;color:var(--dim);font-weight:600;flex-shrink:0;}
+.recdate-btn{
+  padding:5px 11px;border-radius:9px;border:1px solid var(--border);background:var(--s3);
+  color:var(--dim);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;
+  transition:all 0.15s;
+}
+.recdate-btn:active{transform:scale(0.94);}
+.recdate-btn.active{background:rgba(91,143,255,0.16);border-color:var(--blue);color:var(--blue);}
+.recdate-picker{
+  flex:1;min-width:110px;background:var(--s3);border:1px solid var(--border);border-radius:9px;
+  color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px 7px;
+}
+.recdate-warn{
+  margin-top:7px;padding:6px 9px;border-radius:9px;font-size:10.5px;font-weight:700;
+  background:rgba(255,138,60,0.12);border:1px solid rgba(255,138,60,0.35);color:var(--orange);text-align:center;
+}
+
+/* ── 「前回と同じ」ボタン ── */
+.repeat-btn{
+  width:100%;margin-top:9px;padding:9px;border-radius:11px;
+  background:var(--s2);border:1px dashed var(--border);color:var(--text);
+  font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;
+}
+.repeat-btn:active{transform:scale(0.97);background:var(--s3);}
+
+/* 「残り全部」プリセット */
+.quick-btn.remain{
+  background:rgba(46,232,200,0.12);border-color:rgba(46,232,200,0.4);color:var(--teal);
+  font-size:11px;letter-spacing:-0.02em;
+}
+
+/* ── その日の記録一覧 ── */
+.today-entries{margin-top:12px;padding-top:11px;border-top:1px solid var(--border);}
+.te-hdr{font-size:10px;color:var(--dim);font-weight:700;letter-spacing:0.05em;margin-bottom:7px;display:flex;justify-content:space-between;}
+.te-hdr strong{color:var(--text);font-family:'JetBrains Mono',monospace;}
+.te-row{display:flex;align-items:center;gap:7px;padding:5px 0;font-size:11px;border-bottom:1px solid var(--border);}
+.te-row:last-child{border-bottom:none;}
+.te-id{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:12px;flex-shrink:0;}
+.te-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim);}
+.te-round{flex-shrink:0;font-size:11px;}
+.te-n{flex-shrink:0;font-family:'JetBrains Mono',monospace;font-weight:800;}
+.te-acc{flex-shrink:0;font-size:10px;color:var(--dim);font-family:'JetBrains Mono',monospace;width:34px;text-align:right;}
+
 /* ── 科目リスト ── */
 .subj-group-hdr{
   display:flex;align-items:center;gap:6px;
@@ -1216,13 +1261,20 @@ body.bank-orig .qb-only{display:none !important;}
       </div>
       <div class="round-target-hint" id="roundTargetHint"></div>
 
-      <!-- クイック入力プリセット -->
-      <div class="quick-presets">
-        <button class="quick-btn" onclick="setStep(10)">10</button>
-        <button class="quick-btn" onclick="setStep(20)">20</button>
-        <button class="quick-btn" onclick="setStep(30)">30</button>
-        <button class="quick-btn" onclick="setStep(50)">50</button>
+      <!-- 記録日（未入力の日に後から記録できる） -->
+      <div class="recdate-row">
+        <span class="recdate-label">いつの分？</span>
+        <button class="recdate-btn active" data-d="" onclick="setRecordDate('')">今日</button>
+        <button class="recdate-btn" onclick="setRecDateYesterday()">昨日</button>
+        <input type="date" id="recDatePicker" class="recdate-picker" onchange="onRecDatePick()">
       </div>
+      <div class="recdate-warn" id="recDateWarn" style="display:none;"></div>
+
+      <!-- 「前回と同じ」ワンタップ再入力 -->
+      <button class="repeat-btn" id="repeatBtn" onclick="repeatLastRecord()" style="display:none;"></button>
+
+      <!-- クイック入力プリセット（よく使う数を自動学習＋残り全部） -->
+      <div class="quick-presets" id="quickPresets"></div>
 
       <div class="stepper">
         <button class="step-btn small" onclick="step(-1)" title="-1">−1</button>
@@ -1266,8 +1318,11 @@ body.bank-orig .qb-only{display:none !important;}
         <div class="wrong-hint" id="recHint">入力すると「回収率」「連続正解（両方○）」が正確に集計されます</div>
       </div>
 
-      <button class="add-btn" onclick="addToday()">✓ 今日の分を追加する</button>
+      <button class="add-btn" onclick="addToday()">✓ 記録を追加する</button>
       <button class="undo-btn" id="undoBtn" onclick="undoLastRecord()" style="display:none;">↩︎ 直前の記録を取り消す</button>
+
+      <!-- その日の記録一覧（続けて別の章を記録した内容を確認できる） -->
+      <div class="today-entries" id="todayEntries" style="display:none;"></div>
     </div>
 
     <!-- 自動インサイト（コーチ） -->
@@ -2070,13 +2125,20 @@ let state = {
   streak: [],
   daily_log: [],
   debt: 0,
-  last_date: ''
+  last_date: '',
+  // 章別の記録履歴（科目ごとの推移グラフ・直近の記録表示に使う）
+  // { d:日付, b:バンク, c:章ID, r:周回, n:解いた数, w:間違えた数 }
+  chapter_log: []
 };
 
 // UI専用（Supabaseには保存しない）
 let todayStep = 0;
 let todayWrong = 0;
 let todayRec = 0;     // 周回内訳：今回「前回間違えたうち正解できた数（回収）」（任意・2周目）
+let recordDate = '';  // 記録先の日付（空=今日）。過去日にも記録できるようにするため
+let _lastRecord = null; // 直前の記録内容（「前回と同じ」で再利用する）
+// 実際に記録する日付（未設定なら今日）
+function getRecordDate() { return recordDate || TODAY_STR; }
 let selectedChapter = '';  // 記録対象の章ID
 let selectedRound = 1;     // 記録対象の周回（1/2/3）— 「周回モード」
 
@@ -2143,6 +2205,7 @@ async function init() {
       state.m_ok      = data.m_ok       ?? 0;
       state.streak    = data.streak     ?? [];
       state.daily_log = data.daily_log  ?? [];
+      state.chapter_log = data.chapter_log ?? [];
       state.debt      = data.debt       ?? 0;
       state.last_date = data.last_date  ?? '';
       // 科目進捗（カラムがあれば採用）
@@ -2190,6 +2253,7 @@ async function init() {
         state.m         = parsed.m         ?? 0;
         state.streak    = parsed.streak    ?? [];
         state.daily_log = parsed.daily_log ?? [];
+        state.chapter_log = parsed.chapter_log ?? [];
         state.debt      = parsed.debt      ?? 0;
         state.last_date = parsed.last_date ?? parsed.lastDate ?? '';
       }
@@ -2204,6 +2268,9 @@ async function init() {
   _lastMiscJson = JSON.stringify(buildMisc()); // 初回saveの空振り防止
   showSkeleton(false);
   updateBankUI();              // バンク状態（トグル/body class/記録先バッジ）を反映
+  setRecordDate('');           // 記録日は既定で今日
+  renderQuickPresets();        // よく使う数を学習したプリセット
+  renderRepeatBtn();
   // ペース判定の入力を復元
   const _wd = localStorage.getItem('cbt_avail_wd'); if (_wd != null) document.getElementById('availWd').value = _wd;
   const _we = localStorage.getItem('cbt_avail_we'); if (_we != null) document.getElementById('availWe').value = _we;
@@ -2308,6 +2375,7 @@ async function tryCloudRecover() {
       state.r2 = data.r2 ?? 0; state.r3 = data.r3 ?? 0;
       state.m  = data.m  ?? 0; state.m_ok = data.m_ok ?? 0;
       state.streak = data.streak ?? []; state.daily_log = data.daily_log ?? [];
+      state.chapter_log = data.chapter_log ?? [];
       state.debt = data.debt ?? 0; state.last_date = data.last_date ?? '';
       if (data.subject_status) {
         BANK_SUBJ.qb = data.subject_status;
@@ -2365,6 +2433,7 @@ async function doSave() {
     m_ok: state.m_ok,
     streak: state.streak,
     daily_log: state.daily_log,
+    chapter_log: state.chapter_log,
     debt: state.debt,
     last_date: state.last_date,
     updated_at: nowIso
@@ -2430,6 +2499,7 @@ async function refreshFromCloud() {
       state.r2 = data.r2 ?? 0; state.r3 = data.r3 ?? 0;
       state.m = data.m ?? 0; state.m_ok = data.m_ok ?? 0;
       state.streak = data.streak ?? []; state.daily_log = data.daily_log ?? [];
+      state.chapter_log = data.chapter_log ?? [];
       state.debt = data.debt ?? 0; state.last_date = data.last_date ?? '';
       if (data.subject_status) {
         BANK_SUBJ.qb = data.subject_status;                       // QBバンクへ
@@ -2741,6 +2811,8 @@ function switchBank(bank) {
   initChapterSelect();
   setRound(selectedRound || 1);
   renderSubjects();
+  renderTodayEntries();
+  renderRepeatBtn();
   showToast(`📚 ${BANKS[bank].name} に切り替え`);
 }
 // バンクUIの反映（トグルのactive表示＋QB専用要素の表示切替）
@@ -2923,6 +2995,135 @@ function clampRec() {
 }
 
 let _undoSnapshot = null;  // アンドゥ用の直前スナップショット
+let _overflow = 0;         // 直近の記録で「章の残り」を超えて切り捨てた数
+
+// ══════════════════════════════════════════════════════════════
+// 記録カードの入力補助
+// ══════════════════════════════════════════════════════════════
+
+// ── 記録日の切り替え（今日 / 昨日 / 日付指定） ──
+function setRecordDate(v) {
+  recordDate = v || '';
+  const picker = document.getElementById('recDatePicker');
+  if (picker) picker.value = getRecordDate();
+  document.querySelectorAll('.recdate-btn').forEach(b => {
+    b.classList.toggle('active', (b.dataset.d || '') === recordDate);
+  });
+  const warn = document.getElementById('recDateWarn');
+  if (warn) {
+    const isToday = getRecordDate() === TODAY_STR;
+    warn.style.display = isToday ? 'none' : 'block';
+    if (!isToday) warn.textContent = `📅 ${getRecordDate()} の記録として保存します`;
+  }
+  renderTodayEntries();
+}
+function onRecDatePick() {
+  const picker = document.getElementById('recDatePicker');
+  if (!picker || !picker.value) return;
+  setRecordDate(picker.value === TODAY_STR ? '' : picker.value);
+}
+function setRecDateYesterday() {
+  const d = new Date(TODAY); d.setDate(d.getDate() - 1);
+  setRecordDate(toLocalDateStr(d));
+}
+
+// ── 「残り全部」：選択中の章・周回の残り問題数を一発で入力 ──
+function fillRemaining() {
+  const ch = CHAPTERS.find(c => c.id === selectedChapter);
+  if (!ch) { showToast('章を選んでね'); return; }
+  const rem = Math.max(0, roundTarget(ch, selectedRound) - roundDone(ch.id, selectedRound));
+  if (rem <= 0) { showToast('この章・周回はもう終わっています🎉'); return; }
+  setStep(rem);
+  showToast(`残り${rem}問をセット`);
+}
+
+// ── 「前回と同じ」：直前の記録内容を再利用 ──
+function repeatLastRecord() {
+  if (!_lastRecord) { showToast('まだ記録がありません'); return; }
+  if (_lastRecord.bank !== currentBank) switchBank(_lastRecord.bank);
+  selectedChapter = _lastRecord.chapter;
+  localStorage.setItem(curChapterKey(), selectedChapter);
+  const sel = document.getElementById('chapterSelect');
+  if (sel) sel.value = selectedChapter;
+  setRound(_lastRecord.round);
+  setStep(_lastRecord.n);
+  todayWrong = Math.min(_lastRecord.wrong, _lastRecord.n);
+  document.getElementById('wrongVal').textContent = todayWrong;
+  clampWrong();
+  showToast(`前回と同じ（${_lastRecord.chapter}・${_lastRecord.n}問）をセット`);
+}
+// 「前回と同じ」ボタンの表示更新
+function renderRepeatBtn() {
+  const btn = document.getElementById('repeatBtn');
+  if (!btn) return;
+  if (!_lastRecord) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  btn.textContent = `↻ 前回と同じ（${_lastRecord.chapter} ${_lastRecord.n}問）`;
+}
+
+// ── クイックプリセット：よく使う数を履歴から学習してボタン化 ──
+function getPresetCounts() {
+  try { return JSON.parse(localStorage.getItem('cbt_preset_counts') || '{}'); } catch(e) { return {}; }
+}
+function rememberPreset(n) {
+  if (!n || n <= 0) return;
+  const c = getPresetCounts();
+  c[n] = (c[n] || 0) + 1;
+  localStorage.setItem('cbt_preset_counts', JSON.stringify(c));
+}
+function renderQuickPresets() {
+  const box = document.getElementById('quickPresets');
+  if (!box) return;
+  const counts = getPresetCounts();
+  // 使用回数が多い順に最大4つ。足りない分は既定値で埋める
+  const learned = Object.entries(counts)
+    .map(([n, c]) => ({ n: +n, c }))
+    .filter(x => x.n > 0)
+    .sort((a, b) => b.c - a.c || b.n - a.n)
+    .slice(0, 4).map(x => x.n);
+  const defaults = [10, 20, 30, 50];
+  const list = [...new Set([...learned, ...defaults])].slice(0, 4).sort((a, b) => a - b);
+  box.innerHTML = '';
+  for (const n of list) {
+    const b = document.createElement('button');
+    b.className = 'quick-btn';
+    b.textContent = n;
+    if (counts[n]) b.title = `よく使う数（${counts[n]}回）`;
+    b.addEventListener('click', () => setStep(n));
+    box.appendChild(b);
+  }
+  // 「残り全部」ボタン
+  const rb = document.createElement('button');
+  rb.className = 'quick-btn remain';
+  rb.textContent = '残り全部';
+  rb.addEventListener('click', fillRemaining);
+  box.appendChild(rb);
+}
+
+// ── その日の記録一覧（連続記録した内容をその場で確認・取り消し） ──
+function renderTodayEntries() {
+  const box = document.getElementById('todayEntries');
+  if (!box) return;
+  const d = getRecordDate();
+  const list = (state.chapter_log || []).filter(e => e.d === d && e.b === currentBank);
+  if (list.length === 0) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  const total = list.reduce((a, e) => a + e.n, 0);
+  const chapters = BANKS[currentBank].chapters;
+  const rows = list.slice().reverse().slice(0, 8).map(e => {
+    const ch = chapters.find(c => c.id === e.c);
+    const acc = e.n > 0 ? Math.round((e.n - e.w) / e.n * 100) : 0;
+    return `<div class="te-row">
+      <span class="te-id" style="color:${BLOCK_COLORS[ch ? ch.block : 1]};">${e.c}</span>
+      <span class="te-name">${ch ? (ch.subj || '') : ''}</span>
+      <span class="te-round">${ROUND_META[e.r] ? ROUND_META[e.r].icon : ''}</span>
+      <span class="te-n">${e.n}問</span>
+      <span class="te-acc">${acc}%</span>
+    </div>`;
+  }).join('');
+  box.innerHTML = `<div class="te-hdr">${d === TODAY_STR ? '今日' : d.slice(5).replace('-','/')}の記録
+      <strong>合計${total}問</strong></div>${rows}`;
+}
 
 function addToday() {
   if (todayStep === 0) { showToast('問題数を入力してね'); return; }
@@ -2939,12 +3140,17 @@ function addToday() {
     return;
   }
 
+  _overflow = 0;
+  const RDATE = getRecordDate();     // 記録先の日付（過去日にも記録できる）
+  const isToday = RDATE === TODAY_STR;
+
   // アンドゥ用に記録前の状態を保存
   _undoSnapshot = {
     chapter: selectedChapter,
     subject_status: JSON.parse(JSON.stringify(state.subject_status)),
     daily_log: JSON.parse(JSON.stringify(state.daily_log)),
     streak: JSON.parse(JSON.stringify(state.streak)),
+    chapter_log: JSON.parse(JSON.stringify(state.chapter_log || [])),
     debt: state.debt,
     last_date: state.last_date,
     r1: state.r1, ok: state.ok
@@ -2967,6 +3173,7 @@ function addToday() {
     const wasDone = isRoundDone(ch.id, round);
     const remaining = Math.max(0, target - (st[doneKey] || 0));
     const chapterAdd = Math.min(added, remaining);
+    _overflow = added - chapterAdd;      // 残りを超えて切り捨てられた数（後で警告する）
     const chapterCorrect = added > 0 ? Math.round(chapterAdd * (correctToday / added)) : 0;
     st[doneKey] = (st[doneKey] || 0) + chapterAdd;
     st[corrKey] = (st[corrKey] || 0) + chapterCorrect;
@@ -2981,7 +3188,7 @@ function addToday() {
     }
     // その周回の完了に到達 → 完了日記録＋祝福
     if (!wasDone && target > 0 && st[doneKey] >= target) {
-      st[dateKey] = TODAY_STR;
+      st[dateKey] = RDATE;
       if (round >= 2) st['r' + round] = true;    // 旧チェックUIとの互換フラグ
       setTimeout(() => { confetti(); showToast(`🎉 ${ch.id} ${ch.subj} ${meta.label}完了！`); }, 600);
     }
@@ -2993,28 +3200,36 @@ function addToday() {
   // 章別合計から全体r1/okを再集計（真実の源）
   recomputeTotalsFromChapters();
 
-  // daily_log に記録（当日分は加算、なければ追加）
-  const logIdx = state.daily_log.findIndex(l => l.date === TODAY_STR);
+  // daily_log に記録（同じ日の分は加算、なければ追加）
+  const logIdx = state.daily_log.findIndex(l => l.date === RDATE);
   if (logIdx >= 0) {
     state.daily_log[logIdx].n  += added;
     state.daily_log[logIdx].ok += correctToday;
   } else {
-    state.daily_log.push({ date: TODAY_STR, n: added, ok: correctToday });
+    state.daily_log.push({ date: RDATE, n: added, ok: correctToday });
+    state.daily_log.sort((a, b) => a.date < b.date ? -1 : 1);   // 過去日を入れても順序を保つ
   }
 
-  // streak（後方互換 — 最大30件保持）
-  const sIdx = state.streak.findIndex(s => s.date === TODAY_STR);
+  // streak（後方互換 — 最大60件保持）
+  const sIdx = state.streak.findIndex(s => s.date === RDATE);
   if (sIdx >= 0) {
     state.streak[sIdx].n += added;
   } else {
-    state.streak.push({ date: TODAY_STR, n: added });
-    if (state.streak.length > 30) state.streak.shift();
+    state.streak.push({ date: RDATE, n: added });
+    state.streak.sort((a, b) => a.date < b.date ? -1 : 1);
+    if (state.streak.length > 60) state.streak.shift();
   }
 
-  state.last_date = TODAY_STR;
+  // 章別の記録履歴（科目ごとの推移グラフ・直近の記録一覧に使う）
+  if (!state.chapter_log) state.chapter_log = [];
+  state.chapter_log.push({ d: RDATE, b: currentBank, c: selectedChapter,
+                           r: round, n: added, w: wrongToday });
+  if (state.chapter_log.length > 2000) state.chapter_log.shift();  // 保存サイズの上限
+
+  if (RDATE > (state.last_date || '')) state.last_date = RDATE;
 
   // 借金の返済チェック（今日の合計が基本ノルマを超えた分を借金から差し引く）
-  if (state.debt > 0) {
+  if (state.debt > 0 && isToday) {
     const todayEntry = state.daily_log.find(l => l.date === TODAY_STR);
     const todaySolved = todayEntry ? todayEntry.n : 0;
     const baseTarget = getDayTarget(TODAY);
@@ -3037,11 +3252,26 @@ function addToday() {
   if (recValEl) recValEl.textContent = 0;
   clampWrong();
 
+  // 「前回と同じ」で再利用するため直前の内容を記憶
+  // 実際に記録された数を保持（上限超過の生入力をそのまま再現しないため）
+  const effN = Math.max(0, added - _overflow);
+  _lastRecord = { chapter: selectedChapter, round, n: effN,
+                  wrong: Math.min(wrongToday, effN), bank: currentBank };
+  // よく使う数をプリセットに学習（上限超過で切り捨てられた分は除いた「実際に記録された数」）
+  rememberPreset(added - _overflow);
+  renderTodayEntries();           // その日の記録一覧を更新
+  renderQuickPresets();
+
   scheduleSave();
   updateAll();
   initChapterSelect();  // done数の表示更新＋完了したら次の章へ
   const accMsg = added > 0 ? `（正答率${(correctToday/added*100).toFixed(0)}%）` : '';
-  showToast(`+${added}問 追加！${accMsg} 🎉`);
+  const dayMsg = isToday ? '' : `【${RDATE.slice(5).replace('-','/')}】`;
+  showToast(`${dayMsg}+${added}問 追加！${accMsg} 🎉`);
+  // 章の残りを超えて入力された分は切り捨てられるので、黙って消さずに知らせる
+  if (_overflow > 0) {
+    setTimeout(() => showToast(`⚠️ ${_overflow}問は章の残りを超えたため記録されていません`), 1400);
+  }
   // アンドゥボタンを表示
   const undoBtn = document.getElementById('undoBtn');
   if (undoBtn) undoBtn.style.display = 'block';
@@ -3055,6 +3285,7 @@ function undoLastRecord() {
   state.subject_status = _undoSnapshot.subject_status;
   BANK_SUBJ[currentBank] = state.subject_status;   // バンク側の参照も戻す
   state.daily_log      = _undoSnapshot.daily_log;
+  state.chapter_log    = _undoSnapshot.chapter_log || [];
   state.streak         = _undoSnapshot.streak;
   state.debt           = _undoSnapshot.debt;
   state.last_date      = _undoSnapshot.last_date;
