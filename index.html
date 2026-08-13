@@ -826,8 +826,10 @@ body::before{
 .subj-filters{display:flex;gap:5px;flex-wrap:wrap;}
 .subj-filter{
   padding:5px 10px;border-radius:9px;border:1px solid var(--border);background:var(--s2);
-  color:var(--dim);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.15s;
+  color:var(--text);opacity:0.72;
+  font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.15s;
 }
+.subj-filter.active{opacity:1;}
 .subj-filter:active{transform:scale(0.94);}
 .subj-filter.active{background:rgba(91,143,255,0.16);border-color:var(--blue);color:var(--blue);}
 
@@ -891,6 +893,14 @@ body::before{
 .cd-memo{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:10px;
   color:var(--text);font-family:'Outfit',sans-serif;font-size:12px;padding:9px;resize:vertical;}
 .cd-memo:focus{outline:none;border-color:var(--blue);}
+.cd-weak{display:flex;gap:6px;flex-wrap:wrap;}
+.cd-weak-btn{
+  flex:1;min-width:66px;padding:8px 6px;border-radius:9px;border:1px solid var(--border);
+  background:var(--s2);color:var(--text);opacity:0.72;
+  font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.15s;
+}
+.cd-weak-btn:active{transform:scale(0.95);}
+.cd-weak-btn.active{opacity:1;background:rgba(91,143,255,0.16);border-color:var(--blue);color:var(--blue);}
 .cd-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;}
 .cd-btn{flex:1;min-width:120px;padding:10px;border-radius:11px;border:1px solid var(--border);
   background:var(--s2);color:var(--text);font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;cursor:pointer;}
@@ -972,9 +982,11 @@ body.bank-orig .qb-only{display:none !important;}
   color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px 7px;
 }
 .recdate-warn{
-  margin-top:7px;padding:6px 9px;border-radius:9px;font-size:10.5px;font-weight:700;
+  margin-top:7px;padding:7px 9px;border-radius:9px;font-size:10.5px;font-weight:700;
   background:rgba(255,138,60,0.12);border:1px solid rgba(255,138,60,0.35);color:var(--orange);text-align:center;
+  cursor:pointer;
 }
+.recdate-warn:active{transform:scale(0.98);}
 
 /* ── 「前回と同じ」ボタン ── */
 .repeat-btn{
@@ -1374,7 +1386,7 @@ body.bank-orig .qb-only{display:none !important;}
         <button class="recdate-btn" onclick="setRecDateYesterday()">昨日</button>
         <input type="date" id="recDatePicker" class="recdate-picker" onchange="onRecDatePick()">
       </div>
-      <div class="recdate-warn" id="recDateWarn" style="display:none;"></div>
+      <div class="recdate-warn" id="recDateWarn" style="display:none;" onclick="setRecordDate('')"></div>
 
       <!-- 「前回と同じ」ワンタップ再入力 -->
       <button class="repeat-btn" id="repeatBtn" onclick="repeatLastRecord()" style="display:none;"></button>
@@ -3178,7 +3190,9 @@ function setRecordDate(v) {
   if (warn) {
     const isToday = getRecordDate() === TODAY_STR;
     warn.style.display = isToday ? 'none' : 'block';
-    if (!isToday) warn.textContent = `📅 ${getRecordDate()} の記録として保存します`;
+    // 過去日のまま記録し続ける事故を防ぐため、タップで今日に戻せるようにする
+    if (!isToday) warn.innerHTML =
+      `📅 <strong>${getRecordDate()}</strong> の記録として保存中　<u>タップで今日に戻す</u>`;
   }
   renderTodayEntries();
 }
@@ -5027,6 +5041,22 @@ function toggleSubjectCheck(id, key) {
   if (typeof updateAll === 'function') renderReviewReminder();
 }
 
+// 苦手レベルを直接指定（0=自動 / 1=苦手 / 2=普通 / 3=得意）
+function setWeakness(id, lv) {
+  if (!state.subject_status[id]) state.subject_status[id] = {};
+  if (lv === 0) delete state.subject_status[id].acc;   // 自動判定に戻す
+  else state.subject_status[id].acc = lv;
+  saveSubjectStatus();
+  renderSubjects();
+  // 詳細画面を開いたまま押せるので、その場でボタンの選択状態を更新
+  document.querySelectorAll('.cd-weak-btn').forEach((b, i) => {
+    const order = [1, 2, 3, 0];
+    b.classList.toggle('active', order[i] === lv);
+  });
+  const labels = { 0:'自動判定', 1:'苦手🔴', 2:'普通🟡', 3:'得意🟢' };
+  showToast(`${id}: ${labels[lv]}`);
+}
+
 // 苦手レベルをサイクル（0未設定→1苦手→2普通→3得意→0）
 function cycleWeakness(id) {
   if (!state.subject_status[id]) state.subject_status[id] = {};
@@ -5341,6 +5371,13 @@ function openChapterDetail(id) {
     <div class="cd-sec">メモ（任意）</div>
     <textarea id="cdMemo" class="cd-memo" rows="3"
       placeholder="例: PT/APTTの使い分けが毎回あやふや">${(st.memo || '').replace(/</g,'&lt;')}</textarea>
+    <div class="cd-sec">苦手レベル（手動で上書き）</div>
+    <div class="cd-weak">
+      ${[[1,'🔴 苦手'],[2,'🟡 普通'],[3,'🟢 得意'],[0,'自動']].map(([lv,label]) =>
+        `<button class="cd-weak-btn${(st.acc||0)===lv?' active':''}" onclick="setWeakness('${id}',${lv})">${label}</button>`
+      ).join('')}
+    </div>
+    <div class="cd-trend-note">未設定（自動）のときは正答率から判定します</div>
     <div class="cd-actions">
       <button class="cd-btn primary" onclick="detailRecordHere()">✏️ この章を記録する</button>
       <button class="cd-btn" onclick="editRoundProgress('${id}', ${nextRoundFor(id)}); closeChapterDetail();">数値を直接編集</button>
