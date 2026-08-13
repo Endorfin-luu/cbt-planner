@@ -2007,12 +2007,12 @@ const DB_ID = IS_PROD_ORIGIN ? 'user1' : 'user1_localtest';
 //   空のままなら従来どおり Supabase を使うので、貼るまで動作は変わりません。
 // ══════════════════════════════════════════════════════════════
 const FIREBASE_CONFIG = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: ''
+  apiKey: 'AIzaSyDQOWt70WRoxJQbVx5XDMz0KI_dnaGnv7A',
+  authDomain: 'cbt-planner.firebaseapp.com',
+  projectId: 'cbt-planner',
+  storageBucket: 'cbt-planner.firebasestorage.app',
+  messagingSenderId: '135218232504',
+  appId: '1:135218232504:web:d05c048e4f750e92c2884d'
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -2043,7 +2043,9 @@ const CLOUD = {
   },
   async write(payload) {
     if (USE_FIREBASE) {
-      await _fsDoc.set(payload);   // ドキュメント全体を置き換え（upsert相当）
+      // Firestoreは undefined を含むとエラーになるためJSON経由で除去してから保存
+      const clean = JSON.parse(JSON.stringify(payload));
+      await _fsDoc.set(clean);     // ドキュメント全体を置き換え（upsert相当）
       return { error: null };
     }
     return await sb.from('progress').upsert(payload);
