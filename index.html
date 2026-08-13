@@ -12,6 +12,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#080a0f">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Firebase (compat版：グローバル firebase を使うので既存コードと相性が良い) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root {
   --bg: #080a0f;
@@ -1988,13 +1991,64 @@ let TODAY_STR = toLocalDateStr(TODAY);
 // ── Supabase ──
 const SUPA_URL = 'https://iexslocdhaqyxybbzcye.supabase.co';
 const SUPA_KEY = 'sb_publishable_oOZVyyHyggxujT6eYvfmoQ_uMhrUo97';
-const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+// Supabase SDKが無い場合でも落ちないようにする（Firebase移行後にタグを外せるように）
+const sb = window.supabase ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
 
 // ── 本番データ保護 ──
 // 本番(github.io)以外（localhost等での開発・検証）では別の行IDを使い、
 // 本番の 'user1' データには絶対に読み書きしない。
 const IS_PROD_ORIGIN = /github\.io$/.test(location.hostname);
 const DB_ID = IS_PROD_ORIGIN ? 'user1' : 'user1_localtest';
+
+// ══════════════════════════════════════════════════════════════
+// Firebase（Firestore）設定
+// ──────────────────────────────────────────────────────────────
+// ★ここに Firebase コンソールの設定を貼るとFirestoreに切り替わります。
+//   空のままなら従来どおり Supabase を使うので、貼るまで動作は変わりません。
+// ══════════════════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey: '',
+  authDomain: '',
+  projectId: '',
+  storageBucket: '',
+  messagingSenderId: '',
+  appId: ''
+};
+
+// ══════════════════════════════════════════════════════════════
+// クラウド保存の抽象化レイヤ（Firestore / Supabase を同じ形で扱う）
+//   CLOUD.read()          → { data, error }  error.code==='PGRST116' は「データ無し」
+//   CLOUD.write(payload)  → { error }
+// ══════════════════════════════════════════════════════════════
+const USE_FIREBASE = !!(FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.apiKey && window.firebase);
+let _fsDoc = null;
+
+if (USE_FIREBASE) {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const fs = firebase.firestore();
+  // オフライン対応（圏外でも読み書きでき、復帰時に自動同期される）
+  fs.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+  _fsDoc = fs.collection('progress').doc(DB_ID);
+}
+
+const CLOUD = {
+  name: USE_FIREBASE ? 'Firestore' : 'Supabase',
+  async read() {
+    if (USE_FIREBASE) {
+      const snap = await _fsDoc.get();
+      if (!snap.exists) return { data: null, error: { code: 'PGRST116' } };
+      return { data: snap.data(), error: null };
+    }
+    return await sb.from('progress').select('*').eq('id', DB_ID).single();
+  },
+  async write(payload) {
+    if (USE_FIREBASE) {
+      await _fsDoc.set(payload);   // ドキュメント全体を置き換え（upsert相当）
+      return { error: null };
+    }
+    return await sb.from('progress').upsert(payload);
+  }
+};
 
 // ── State (Supabaseのカラム構造に対応) ──
 let state = {
@@ -2066,13 +2120,9 @@ async function init() {
   _cloudLoadOk = false;   // クラウドを正しく読めるまでは保存を許可しない（データ破壊防止）
 
   try {
-    const { data, error } = await sb
-      .from('progress')
-      .select('*')
-      .eq('id', DB_ID)
-      .single();
+    const { data, error } = await CLOUD.read();
 
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = 行なし
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = データ無し
 
     if (data) {
       // Supabase のデータをstateに反映
@@ -2097,10 +2147,10 @@ async function init() {
       // クラウド上の進捗量を基準値として記録（激減する保存をブロックするため）
       _cloudBaselineDone = sumSubjectDone(data.subject_status);
     } else {
-      // 初回アクセス：行を作成
-      await sb.from('progress').insert({
+      // 初回アクセス：レコードを作成
+      await CLOUD.write({
         id: DB_ID,
-        r1: 0, ok: 0, r2: 0, r3: 0, m: 0,
+        r1: 0, ok: 0, r2: 0, r3: 0, m: 0, m_ok: 0,
         streak: [], daily_log: [], debt: 0,
         last_date: '',
         updated_at: new Date().toISOString()
@@ -2239,7 +2289,7 @@ async function retrySaveIfPending() {
 // ローカルが空/少ない場合はクラウド側を採用（安全方向）。
 async function tryCloudRecover() {
   try {
-    const { data, error } = await sb.from('progress').select('*').eq('id', DB_ID).single();
+    const { data, error } = await CLOUD.read();
     if (error && error.code !== 'PGRST116') return;   // まだ届かない
     const cloudDone = data ? sumSubjectDone(data.subject_status) : 0;
     const localDone = sumSubjectDone(BANK_SUBJ.qb);
@@ -2316,7 +2366,7 @@ async function doSave() {
   if (!_noMiscCol)    payload.misc = buildMisc();
 
   try {
-    const { error } = await sb.from('progress').upsert(payload);
+    const { error } = await CLOUD.write(payload);
     if (error) throw error;
     localStorage.setItem('cbt_cache', JSON.stringify(state));
     localStorage.setItem('cbt_last_sync', nowIso);
@@ -2363,7 +2413,7 @@ async function doSave() {
 async function refreshFromCloud() {
   if (_saveTimer) return;        // 自分の未保存編集があるときは触らない
   try {
-    const { data, error } = await sb.from('progress').select('*').eq('id', DB_ID).single();
+    const { data, error } = await CLOUD.read();
     if (error || !data) return;
     // リモートが自分の最終保存より新しいときだけ採用
     if (!_loadedUpdatedAt || (data.updated_at && data.updated_at > _loadedUpdatedAt)) {
