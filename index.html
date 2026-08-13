@@ -2063,6 +2063,7 @@ async function init() {
   setSyncState('saving');
 
   let loadedFromSupabase = false;
+  _cloudLoadOk = false;   // クラウドを正しく読めるまでは保存を許可しない（データ破壊防止）
 
   try {
     const { data, error } = await sb
@@ -2093,6 +2094,8 @@ async function init() {
       if (data.misc) applyMisc(data.misc);  // 各種設定もクラウドから反映
       localStorage.setItem('cbt_last_sync', data.updated_at || new Date().toISOString());
       _loadedUpdatedAt = data.updated_at || '';
+      // クラウド上の進捗量を基準値として記録（激減する保存をブロックするため）
+      _cloudBaselineDone = sumSubjectDone(data.subject_status);
     } else {
       // 初回アクセス：行を作成
       await sb.from('progress').insert({
@@ -2102,11 +2105,13 @@ async function init() {
         last_date: '',
         updated_at: new Date().toISOString()
       });
+      _cloudBaselineDone = 0;   // 本当の新規ユーザー
     }
 
     // localStorageにキャッシュ保存
     localStorage.setItem('cbt_cache', JSON.stringify(state));
     loadedFromSupabase = true;
+    _cloudLoadOk = true;        // ここまで来たら保存OK
     setSyncState('ok');
 
   } catch (err) {
@@ -2157,6 +2162,23 @@ async function init() {
   setTimeout(maybeShowWeekReview, 1200);
 }
 
+// ══════════════════════════════════════════════════════════════
+// データ破壊防止ガード
+//   _cloudLoadOk        : クラウドを正しく読めたか。falseの間は保存禁止
+//                         （読めていないのに書くと本物のデータを消してしまうため）
+//   _cloudBaselineDone  : クラウド上の総演習数。保存時に激減チェックの基準にする
+// ══════════════════════════════════════════════════════════════
+let _cloudLoadOk = false;
+let _cloudBaselineDone = 0;
+
+// subject_status の done 合計を数える（章データの「量」を測る指標）
+function sumSubjectDone(ss) {
+  if (!ss || typeof ss !== 'object') return 0;
+  let t = 0;
+  for (const k in ss) { const v = ss[k]; if (v && typeof v.done === 'number') t += v.done; }
+  return t;
+}
+
 // ── Supabase にデバウンス保存（500ms） ──
 let _loadedUpdatedAt = '';   // 最後にロード/保存した時刻（競合検知用）
 let _noSubjectCol = false;   // subject_statusカラムが無い場合true（フォールバック）
@@ -2205,9 +2227,45 @@ function scheduleSave() {
   _saveTimer = setTimeout(doSave, 500);
 }
 
-// 接続が戻ったら自動で再同期
-function retrySaveIfPending() {
-  if (_pendingSave && _syncState !== 'saving') doSave();
+// 接続が戻ったら自動で回復（まず読み込み → その後に未同期分を送信）
+async function retrySaveIfPending() {
+  if (_syncState === 'saving') return;
+  // クラウドをまだ一度も読めていない場合は、保存より先に読み込みを回復させる
+  if (!_cloudLoadOk) { await tryCloudRecover(); return; }
+  if (_pendingSave) doSave();
+}
+
+// クラウド読み込みのリトライ。成功したら保存を解禁する。
+// ローカルが空/少ない場合はクラウド側を採用（安全方向）。
+async function tryCloudRecover() {
+  try {
+    const { data, error } = await sb.from('progress').select('*').eq('id', DB_ID).single();
+    if (error && error.code !== 'PGRST116') return;   // まだ届かない
+    const cloudDone = data ? sumSubjectDone(data.subject_status) : 0;
+    const localDone = sumSubjectDone(BANK_SUBJ.qb);
+    if (data && cloudDone > localDone) {
+      // クラウドの方が進んでいる → クラウドを採用（ローカルの初期データ等で上書きしない）
+      state.r1 = data.r1 ?? 0; state.ok = data.ok ?? 0;
+      state.r2 = data.r2 ?? 0; state.r3 = data.r3 ?? 0;
+      state.m  = data.m  ?? 0; state.m_ok = data.m_ok ?? 0;
+      state.streak = data.streak ?? []; state.daily_log = data.daily_log ?? [];
+      state.debt = data.debt ?? 0; state.last_date = data.last_date ?? '';
+      if (data.subject_status) {
+        BANK_SUBJ.qb = data.subject_status;
+        localStorage.setItem('cbt_subj', JSON.stringify(BANK_SUBJ.qb));
+        if (currentBank === 'qb') state.subject_status = BANK_SUBJ.qb;
+      }
+      if (data.misc) applyMisc(data.misc);
+      recomputeBank('qb'); recomputeBank('orig'); recomputeBank('monte');
+      updateAll(); initChapterSelect(); renderSubjects();
+      showToast('☁️ クラウドから最新データを復元しました');
+    }
+    _cloudBaselineDone = Math.max(cloudDone, 0);
+    _cloudLoadOk = true;                 // 読めたので保存を解禁
+    _loadedUpdatedAt = (data && data.updated_at) || _loadedUpdatedAt;
+    setSyncState('ok');
+    if (_pendingSave) doSave();          // 溜まっていた変更を送信
+  } catch (e) { /* まだ復旧していない。次の機会に再試行 */ }
 }
 setInterval(retrySaveIfPending, 30000);           // 30秒ごとに未同期を再送
 window.addEventListener('online', retrySaveIfPending);
@@ -2215,6 +2273,28 @@ window.addEventListener('focus', retrySaveIfPending);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) retrySaveIfPending(); });
 
 async function doSave() {
+  // ── ガード1：クラウドを読めていないなら絶対に書かない ──
+  // （Supabase停止中などに初期データや空データで本物を上書きする事故を防ぐ）
+  if (!_cloudLoadOk) {
+    localStorage.setItem('cbt_cache', JSON.stringify(state));
+    _pendingSave = true;              // 読み込みが成功したら自動で再送
+    setSyncState('offline');
+    return;
+  }
+
+  // ── ガード2：進捗が大きく減る保存をブロック ──
+  // クラウド上の量より著しく少ないデータを書こうとしたら異常とみなす
+  const nextDone = sumSubjectDone(BANK_SUBJ.qb);
+  if (_cloudBaselineDone > 0 && nextDone < _cloudBaselineDone * 0.7) {
+    console.warn('[Safety] 進捗が激減する保存をブロック', { nextDone, baseline: _cloudBaselineDone });
+    localStorage.setItem('cbt_cache', JSON.stringify(state));
+    _pendingSave = false;
+    setSyncState('error');
+    _lastSaveError = `安全のため保存を中止（クラウド${_cloudBaselineDone}問→${nextDone}問に激減）`;
+    showToast('🛡 データ保護のため保存を中止しました。リロードしてください');
+    return;
+  }
+
   const nowIso = new Date().toISOString();
   const payload = {
     id: DB_ID,
@@ -2242,6 +2322,7 @@ async function doSave() {
     localStorage.setItem('cbt_last_sync', nowIso);
     _loadedUpdatedAt = nowIso;
     _pendingSave = false;
+    _cloudBaselineDone = nextDone;   // 正常保存できた量を新しい基準に
     setSyncState('ok');
   } catch (err) {
     // ネットワーク到達失敗（Supabase停止・オフライン等）は「保存失敗」ではなく
@@ -2301,6 +2382,7 @@ async function refreshFromCloud() {
       try { BANK_SUBJ.monte = JSON.parse(localStorage.getItem('cbt_subj_monte') || '{}'); } catch(e) {}
       if (currentBank !== 'qb') state.subject_status = BANK_SUBJ[currentBank];
       _loadedUpdatedAt = data.updated_at || '';
+      _cloudBaselineDone = sumSubjectDone(data.subject_status);  // 基準値を更新
       localStorage.setItem('cbt_cache', JSON.stringify(state));
       localStorage.setItem('cbt_last_sync', data.updated_at || new Date().toISOString());
       recomputeBank('qb'); recomputeBank('orig'); recomputeBank('monte');
@@ -4364,7 +4446,11 @@ function loadSubjectStatus() {
   } catch(e) { BANK_SUBJ.monte = {}; }
 
   // 現在進捗(章別done/correct)を一度だけQBに反映（v2: 章ベース）
-  if (localStorage.getItem('cbt_import_v2') !== 'done') {
+  // ★安全条件★ クラウドを読めていない時は絶対にシードしない。
+  //   （読めていない＝本物のデータが不明。ここで初期データを入れると、
+  //     それがクラウドに保存されて本物の進捗を消してしまう）
+  const cloudEmpty = _cloudLoadOk && Object.keys(BANK_SUBJ.qb).length === 0;
+  if (localStorage.getItem('cbt_import_v2') !== 'done' && cloudEmpty) {
     for (const id in INITIAL_PROGRESS) {
       const cur = BANK_SUBJ.qb[id] || {};
       if (cur.done == null) BANK_SUBJ.qb[id] = { ...cur, ...INITIAL_PROGRESS[id] };
