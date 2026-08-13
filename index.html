@@ -31,22 +31,27 @@
   --teal: #2ee8c8;
   --text: #eef0f8;
   --dim: #6b7394;
+  --green-ink: var(--green);
+  --red-ink: var(--red);
   --sab: env(safe-area-inset-bottom, 0px);
 }
 /* ── ライトモード変数（system設定 OR data-theme='light'） ── */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
     --bg:#f0f2f8;--s1:#ffffff;--s2:#f4f6fc;--s3:#e8eaf4;
-    --border:#ced3e8;--text:#141828;--dim:#6b78a0;
+    --border:#ced3e8;--text:#141828;--dim:#5f6b8c;
     --blue:#3a6be0;--green:#12b86a;--orange:#d96a08;
     --red:#d02848;--yellow:#c09000;--purple:#6840c8;--teal:#0ab098;
+    /* 文字色として使う濃いめの色（白背景でも読めるコントラストを確保） */
+    --green-ink:#0a7a45;--red-ink:#b01e3a;
   }
 }
 [data-theme='light'] {
   --bg:#f0f2f8;--s1:#ffffff;--s2:#f4f6fc;--s3:#e8eaf4;
-  --border:#ced3e8;--text:#141828;--dim:#6b78a0;
+  --border:#ced3e8;--text:#141828;--dim:#5f6b8c;
   --blue:#3a6be0;--green:#12b86a;--orange:#d96a08;
   --red:#d02848;--yellow:#c09000;--purple:#6840c8;--teal:#0ab098;
+  --green-ink:#0a7a45;--red-ink:#b01e3a;
 }
 
 /* ライトモード個別調整 */
@@ -1530,8 +1535,8 @@ body.bank-orig .qb-only{display:none !important;}
       <div class="log-item"><label>QB 1周目 正解数<span style="font-size:9px;color:var(--dim);display:block;">章別から自動計算</span></label><input class="log-ni" type="number" id="l_ok" value="0" readonly style="opacity:0.6;"></div>
       <div class="log-item"><label>QB 2周目（解いた数）<span style="font-size:9px;color:var(--dim);display:block;">📚科目タブで章別に自動集計</span></label><input class="log-ni" type="number" id="l_r2" value="0" readonly style="opacity:0.6;"></div>
       <div class="log-item"><label>QB 3周目（解いた数）<span style="font-size:9px;color:var(--dim);display:block;">📚科目タブで章別に自動集計</span></label><input class="log-ni" type="number" id="l_r3" value="0" readonly style="opacity:0.6;"></div>
-      <div class="log-item"><label>モントレ（解いた数）</label><input class="log-ni" type="number" id="l_m" value="0" min="0" max="3573" oninput="updateLog()"></div>
-      <div class="log-item"><label>モントレ 正解数</label><input class="log-ni" type="number" id="l_m_ok" value="0" min="0" max="3573" oninput="updateLog()"></div>
+      <div class="log-item"><label>モントレ（解いた数）<span style="font-size:9px;color:var(--dim);display:block;">📚モントレタブで科目別に自動集計</span></label><input class="log-ni" type="number" id="l_m" value="0" readonly style="opacity:0.6;"></div>
+      <div class="log-item"><label>モントレ 正解数<span style="font-size:9px;color:var(--dim);display:block;">科目別から自動計算</span></label><input class="log-ni" type="number" id="l_m_ok" value="0" readonly style="opacity:0.6;"></div>
       <button class="save-btn" onclick="saveAll()">💾 保存する</button>
     </div>
 
@@ -1908,6 +1913,8 @@ const BANK_TOTALS  = { qb:{r1:0,ok:0,r2:0,r3:0}, orig:{r1:0,ok:0,r2:0,r3:0}, mon
 let CHAPTERS = CHAPTERS_QB;
 // 現在バンクの総問題数（ヘッダー/リング/分析の分母に使う）
 function bankTotal() { return BANKS[currentBank].total; }
+// 「最後に選んだ章」の記憶キー。バンクごとに分ける（章IDが重複するため混ざらないように）
+function curChapterKey() { return 'cbt_cur_chapter_' + currentBank; }
 
 // ── 現在の進捗インポート（スクショ実データ・一度だけ自動反映） ──
 // done: 1周目でやった問題数, correct: そのうち正解数（×以外。○+△）
@@ -2685,7 +2692,7 @@ function initChapterSelect() {
   }
 
   // デフォルト章を決定：記憶 → 今週の計画の未完了 → 最初の未完了
-  let def = localStorage.getItem('cbt_cur_chapter');
+  let def = localStorage.getItem(curChapterKey());
   if (!def || !CHAPTERS.find(c => c.id === def)) def = pickDefaultChapter();
   selectedChapter = def;
   sel.value = def;
@@ -2716,7 +2723,7 @@ function pickDefaultChapter() {
 function onChapterSelect() {
   const sel = document.getElementById('chapterSelect');
   selectedChapter = sel.value;
-  localStorage.setItem('cbt_cur_chapter', selectedChapter);
+  localStorage.setItem(curChapterKey(), selectedChapter);
   updateRoundTargetHint();
 }
 
@@ -2849,7 +2856,7 @@ function renderRecommendation() {
 function applyReco() {
   if (!_recoChapterId) return;
   selectedChapter = _recoChapterId;
-  localStorage.setItem('cbt_cur_chapter', selectedChapter);
+  localStorage.setItem(curChapterKey(), selectedChapter);
   const sel = document.getElementById('chapterSelect');
   if (sel) sel.value = _recoChapterId;
   document.getElementById('chapterSelect').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3038,7 +3045,8 @@ function addToday() {
   // アンドゥボタンを表示
   const undoBtn = document.getElementById('undoBtn');
   if (undoBtn) undoBtn.style.display = 'block';
-  if (state.r1 >= QB) confetti();
+  // 現在のバンクを1周し終えたら祝う（他バンク記録中にQB完了で毎回鳴らないようバンク基準にする）
+  if (BANK_TOTALS[currentBank].r1 >= bankTotal()) confetti();
 }
 
 // 直前の記録を取り消す
@@ -3536,7 +3544,8 @@ function renderPacePlan() {
   const inTime = capacity >= remaining;
   const diff = Math.abs(capacity - remaining);
 
-  const verdictColor = inTime ? 'var(--green)' : 'var(--red)';
+  // 文字は ink 色（ライトモードでも白背景で読めるよう濃いめ）
+  const verdictColor = inTime ? 'var(--green-ink)' : 'var(--red-ink)';
   const verdictText = inTime
     ? `✅ 間に合う（余裕 約${diff.toLocaleString()}問）`
     : `⚠️ このペースだと約${diff.toLocaleString()}問 不足`;
@@ -4160,7 +4169,7 @@ function renderReviewReminder() {
     info.style.cursor = 'pointer';
     info.addEventListener('click', () => {
       selectedChapter = ch.id;
-      localStorage.setItem('cbt_cur_chapter', ch.id);
+      localStorage.setItem(curChapterKey(), ch.id);
       const sel = document.getElementById('chapterSelect');
       if (sel) sel.value = ch.id;
       showToast(`${ch.id} を記録対象にセット`);
@@ -4271,9 +4280,8 @@ function setPB(barId, pct, pctId, pctText) {
 
 // ── 進捗タブ：入力変更時にリアルタイム更新 ──
 function updateLog() {
-  // r1/ok/r2/r3 は章別から自動集計するため、ここでは更新しない（読み取り専用）
-  state.m    = +document.getElementById('l_m').value    || 0;
-  state.m_ok = +document.getElementById('l_m_ok').value || 0;
+  // r1/ok/r2/r3（QB）も m/m_ok（モントレ）も、すべて科目別データから自動集計する。
+  // ここで手入力値を読むと、バンク集計と二重管理になって値が食い違うため何も読まない。
   updateAll();
 }
 
@@ -5042,7 +5050,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ── データのバックアップ（エクスポート/インポート） ──
-const BACKUP_KEYS = ['cbt_subj','cbt_subj_orig','cbt_subj_monte','cbt_cur_bank','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter','cbt_week_seen','cbt_mocks','cbt_irt_target','cbt_home_prefs'];
+const BACKUP_KEYS = ['cbt_subj','cbt_subj_orig','cbt_subj_monte','cbt_cur_bank','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter_qb','cbt_cur_chapter_orig','cbt_cur_chapter_monte','cbt_week_seen','cbt_mocks','cbt_irt_target','cbt_home_prefs'];
 
 function exportData() {
   const ls = {};
