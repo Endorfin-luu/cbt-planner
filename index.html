@@ -474,6 +474,8 @@ body::before{
 .weak-cell.weak{background:var(--red);color:#fff;}
 .weak-cell.mid{background:var(--yellow);color:#000;}
 .weak-cell.strong{background:var(--green);color:#000;}
+/* 忘却が進んで復習どきの章（記憶度が下がっている）は点線リングで示す */
+.weak-cell.due{box-shadow:0 0 0 2px var(--orange);}
 
 /* ── 週間サマリー ── */
 .week-summary{
@@ -809,6 +811,102 @@ body::before{
 .round-seg-btn.active[data-round="3"]{background:linear-gradient(135deg,rgba(255,138,60,0.28),rgba(255,138,60,0.06));color:var(--orange);box-shadow:0 0 18px rgba(255,138,60,0.4),inset 0 0 0 1px rgba(255,138,60,0.45);}
 .round-sub{text-align:center;font-size:10px;color:var(--dim);margin:-2px 0 11px;font-weight:600;letter-spacing:0.04em;}
 
+/* ── 科目タブ：検索・並び替え・絞り込み ── */
+.subj-tools{margin-bottom:10px;}
+.subj-search{
+  width:100%;background:var(--s2);border:1px solid var(--border);border-radius:11px;
+  color:var(--text);font-family:'Outfit',sans-serif;font-size:13px;padding:9px 11px;margin-bottom:7px;
+}
+.subj-search:focus{outline:none;border-color:var(--blue);}
+.subj-sort{
+  width:100%;background:var(--s2);border:1px solid var(--border);border-radius:11px;
+  color:var(--text);font-family:'Outfit',sans-serif;font-size:12px;padding:8px 10px;margin-bottom:7px;
+}
+.subj-sort:focus{outline:none;border-color:var(--blue);}
+.subj-filters{display:flex;gap:5px;flex-wrap:wrap;}
+.subj-filter{
+  padding:5px 10px;border-radius:9px;border:1px solid var(--border);background:var(--s2);
+  color:var(--dim);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.15s;
+}
+.subj-filter:active{transform:scale(0.94);}
+.subj-filter.active{background:rgba(91,143,255,0.16);border-color:var(--blue);color:var(--blue);}
+
+/* ── 今日のミックス ── */
+.mix-row{display:flex;align-items:center;gap:8px;background:var(--s2);border-radius:0 10px 10px 0;padding:9px 11px;margin-bottom:6px;}
+.mix-id{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:14px;flex-shrink:0;}
+.mix-name{font-size:11.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mix-meta{font-size:9.5px;color:var(--dim);flex-shrink:0;}
+.mix-n{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:12px;flex-shrink:0;}
+.mix-total{text-align:center;font-size:10.5px;color:var(--dim);margin-top:8px;}
+
+/* ── 優先度・伸びランキング ── */
+.pri-row{background:var(--s2);border-radius:10px;padding:9px 11px;margin-bottom:6px;cursor:pointer;transition:transform .12s;}
+.pri-row:active{transform:scale(0.98);}
+.pri-top{display:flex;align-items:baseline;gap:7px;margin-bottom:6px;}
+.pri-id{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:13px;flex-shrink:0;}
+.pri-name{font-size:11.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pri-bar{height:5px;background:var(--s3);border-radius:3px;overflow:hidden;}
+.pri-bar>div{height:100%;border-radius:3px;transition:width .5s;}
+.pri-why{font-size:9.5px;color:var(--dim);margin-top:5px;}
+.growth-row{display:flex;align-items:center;gap:7px;background:var(--s2);border-radius:10px;padding:8px 11px;margin-bottom:6px;}
+.growth-val{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:12px;flex-shrink:0;}
+.growth-sub{font-size:9.5px;color:var(--dim);font-family:'JetBrains Mono',monospace;flex-shrink:0;}
+
+/* ── vol別サマリー ── */
+.vol-row{margin-bottom:11px;}
+.vol-row:last-child{margin-bottom:0;}
+.vol-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+.vol-name{font-size:12px;font-weight:800;}
+.vol-num{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:12px;}
+.vol-den{font-size:10px;color:var(--dim);}
+.vol-bar{height:6px;background:var(--s3);border-radius:3px;overflow:hidden;}
+.vol-bar>div{height:100%;border-radius:3px;transition:width .6s;}
+.vol-sub{font-size:9.5px;color:var(--dim);margin-top:4px;}
+
+/* ── 章の詳細モーダル ── */
+.chapter-box{text-align:left;max-height:88vh;overflow-y:auto;max-width:430px;width:92%;}
+.cd-head{display:flex;align-items:baseline;gap:8px;margin-bottom:10px;}
+.cd-id{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:20px;}
+.cd-subj{font-size:14px;font-weight:700;flex:1;min-width:0;}
+.cd-n{font-size:11px;color:var(--dim);font-family:'JetBrains Mono',monospace;}
+.cd-exam{background:rgba(255,64,96,0.1);border:1px solid rgba(255,64,96,0.3);border-radius:9px;
+  padding:7px 10px;font-size:11px;color:var(--red);margin-bottom:9px;}
+.cd-exam strong{color:var(--red);}
+.cd-mem{display:flex;flex-direction:column;gap:3px;background:var(--s2);border-radius:10px;
+  padding:9px 11px;font-size:11px;color:var(--dim);margin-bottom:12px;}
+.cd-mem strong{font-size:13px;font-family:'JetBrains Mono',monospace;}
+.cd-sec{font-size:10px;font-weight:700;color:var(--dim);letter-spacing:0.08em;margin:14px 0 7px;}
+.cd-round{margin-bottom:9px;}
+.cd-round-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;}
+.cd-round-name{font-size:12px;font-weight:800;}
+.cd-round-stat{font-size:10.5px;color:var(--dim);font-family:'JetBrains Mono',monospace;}
+.cd-lock{font-size:10px;color:var(--dim);}
+.cd-bar{height:6px;background:var(--s3);border-radius:3px;overflow:hidden;}
+.cd-bar>div{height:100%;border-radius:3px;transition:width .5s;}
+.cd-trend{width:100%;height:64px;display:block;}
+.cd-trend-note{font-size:9.5px;color:var(--dim);text-align:center;margin-top:3px;}
+.cd-log{display:flex;justify-content:space-between;font-size:10.5px;color:var(--dim);
+  font-family:'JetBrains Mono',monospace;padding:4px 0;border-bottom:1px solid var(--border);}
+.cd-log:last-of-type{border-bottom:none;}
+.cd-memo{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:10px;
+  color:var(--text);font-family:'Outfit',sans-serif;font-size:12px;padding:9px;resize:vertical;}
+.cd-memo:focus{outline:none;border-color:var(--blue);}
+.cd-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;}
+.cd-btn{flex:1;min-width:120px;padding:10px;border-radius:11px;border:1px solid var(--border);
+  background:var(--s2);color:var(--text);font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;cursor:pointer;}
+.cd-btn:active{transform:scale(0.97);}
+.cd-btn.primary{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;border:none;}
+
+/* ── 一括編集 ── */
+.bulk-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);}
+.bulk-row:last-child{border-bottom:none;}
+.bulk-id{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:11px;width:28px;flex-shrink:0;}
+.bulk-name{flex:1;min-width:0;font-size:10.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bulk-in{width:52px;background:var(--s3);border:1px solid var(--border);border-radius:7px;
+  color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:4px 5px;text-align:center;flex-shrink:0;}
+.bulk-in:focus{outline:none;border-color:var(--blue);}
+.bulk-sep{font-size:9.5px;color:var(--dim);flex-shrink:0;}
+
 /* ── バンク横断ダッシュボード ── */
 .bankdash-row{background:var(--s2);border:1px solid transparent;border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:transform 0.12s,border-color 0.2s;}
 .bankdash-row:last-child{margin-bottom:0;}
@@ -1047,6 +1145,14 @@ body.bank-orig .qb-only{display:none !important;}
 <div class="toast" id="toast"></div>
 
 <!-- ペナルティモーダル -->
+<!-- 章の詳細（周回別成績・記憶度・推移・メモ） -->
+<div id="chapter-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeChapterDetail()">
+  <div class="modal-box chapter-box">
+    <div id="chapterDetailBody"></div>
+    <button class="modal-btn-skip" onclick="closeChapterDetail()">閉じる</button>
+  </div>
+</div>
+
 <div id="penalty-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box">
     <div class="modal-icon">😰</div>
@@ -1788,14 +1894,73 @@ body.bank-orig .qb-only{display:none !important;}
       <div id="roundAnalysisBody"></div>
     </div>
 
+    <!-- 今日のミックス（インターリービング提案） -->
+    <div class="card" id="mixCard" style="display:none;">
+      <div class="ct" style="margin-bottom:6px;">🎲 今日のミックス</div>
+      <div style="font-size:9.5px;color:var(--dim);margin-bottom:9px;line-height:1.5;">
+        1科目ずつ潰すより、紛らわしい弱点を<strong>混ぜて</strong>解く方が定着します（インターリービング）
+      </div>
+      <div id="mixBody"></div>
+    </div>
+
+    <!-- 優先度ランキング（問題数×弱さ＝投資対効果） -->
+    <div class="card collapsible" id="priorityCard" style="display:none;">
+      <div class="ct">🎯 いま効く章ランキング</div>
+      <div id="priorityBody"></div>
+    </div>
+
     <!-- 復習優先（間違いが多い章 = 2周目フォーカス） -->
-    <div class="card" id="reviewPriorityCard" style="display:none;">
-      <div class="ct" style="margin-bottom:8px;">🔁 2周目の優先順位（間違いが多い章）</div>
+    <div class="card collapsible" id="reviewPriorityCard" style="display:none;">
+      <div class="ct">🔁 2周目の優先順位（間違いが多い章）</div>
       <div id="reviewPriorityList"></div>
       <div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5;">💡 間違えた問題が多い章ほど復習価値が高い。2周目はここから。</div>
     </div>
 
+    <!-- vol別サマリー -->
+    <div class="card collapsible" id="volSummaryCard">
+      <div class="ct">🧩 vol別サマリー</div>
+      <div id="volSummaryBody"></div>
+    </div>
+
+    <!-- 伸びランキング -->
+    <div class="card collapsible" id="growthCard" style="display:none;">
+      <div class="ct">📈 伸びた章ランキング</div>
+      <div id="growthBody"></div>
+    </div>
+
+    <!-- 章リストの検索・並び替え -->
+    <div class="subj-tools">
+      <input type="search" id="subjSearch" class="subj-search" placeholder="🔍 章名で検索（例: 循環器）" oninput="renderSubjects()">
+      <select id="subjSort" class="subj-sort" onchange="renderSubjects()">
+        <option value="default">並び：標準（vol順）</option>
+        <option value="acc">正答率が低い順</option>
+        <option value="wrong">誤答が多い順</option>
+        <option value="due">復習どき順</option>
+        <option value="exam">試験が近い順</option>
+        <option value="remain">残り問題数が多い順</option>
+        <option value="progress">進捗が低い順</option>
+      </select>
+      <div class="subj-filters" id="subjFilters">
+        <button class="subj-filter active" data-f="all" onclick="setSubjFilter('all')">すべて</button>
+        <button class="subj-filter" data-f="undone" onclick="setSubjFilter('undone')">未完了</button>
+        <button class="subj-filter" data-f="weak" onclick="setSubjFilter('weak')">苦手</button>
+        <button class="subj-filter" data-f="due" onclick="setSubjFilter('due')">復習どき</button>
+        <button class="subj-filter" data-f="exam" onclick="setSubjFilter('exam')">試験範囲</button>
+      </div>
+    </div>
+
     <div id="subjList"></div>
+
+    <!-- 一括編集（ズレ調整・復元用） -->
+    <div class="card collapsible collapsed" id="bulkEditCard">
+      <div class="ct">🛠 まとめて修正</div>
+      <div style="font-size:10px;color:var(--dim);line-height:1.6;margin-bottom:9px;">
+        QBアプリの数字とズレたときに、章ごとの「やった数／正解数」を一覧でまとめて直せます。
+        空欄の行は変更されません。
+      </div>
+      <div id="bulkEditBody"></div>
+      <button class="add-btn" style="margin-top:10px;" onclick="applyBulkEdit()">✓ 入力した行だけ反映する</button>
+    </div>
 
   </div>
 
@@ -4906,8 +5071,17 @@ function renderWeakHeatmap() {
       cell.className = 'weak-cell ' + ACC_CLASS[lvl];
       cell.textContent = ch.id;
       const acc = chapterAcc(ch.id);
-      cell.title = `${ch.id} ${ch.subj}` + (acc != null ? `（正答${acc.toFixed(0)}%）` : '（未着手）');
-      cell.addEventListener('click', () => cycleWeakness(ch.id));
+      // 忘却が進んで復習どきの章は点線リングで示す（記憶度も反映）
+      const rs = reviewStatus(ch.id);
+      if (rs && rs.due) {
+        cell.classList.add('due');
+        cell.title = `${ch.id} ${ch.subj}（記憶度${Math.round(rs.retention*100)}% ・復習どき）`;
+      } else {
+        cell.title = `${ch.id} ${ch.subj}` + (acc != null ? `（正答${acc.toFixed(0)}%）` : '（未着手）');
+      }
+      // 長押し（または右クリック）で苦手レベル切替、タップは詳細を開く
+      cell.addEventListener('click', () => openChapterDetail(ch.id));
+      cell.addEventListener('contextmenu', (e) => { e.preventDefault(); cycleWeakness(ch.id); });
       cells.appendChild(cell);
     }
     wb.appendChild(cells);
@@ -4937,7 +5111,7 @@ function renderReviewPriority() {
   for (const { ch, wrong } of items.slice(0, 6)) {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;';
-    row.addEventListener('click', () => editChapterProgress(ch.id));
+    row.addEventListener('click', () => openChapterDetail(ch.id));
     row.innerHTML = `
       <span style="font-family:'JetBrains Mono',monospace;font-weight:900;color:${BLOCK_COLORS[ch.block]};flex-shrink:0;">${ch.id}</span>
       <span style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ch.subj}</span>
@@ -5015,20 +5189,420 @@ function renderRoundAnalysis() {
   body.innerHTML = html;
 }
 
+// ══════════════════════════════════════════════════════════════
+// 科目タブの強化（検索・並び替え・絞り込み・各種ランキング）
+// ══════════════════════════════════════════════════════════════
+let subjFilter = 'all';
+function setSubjFilter(f) {
+  subjFilter = f;
+  document.querySelectorAll('.subj-filter').forEach(b =>
+    b.classList.toggle('active', b.dataset.f === f));
+  renderSubjects();
+}
+
+// 章の「残り問題数」（現在の周回基準）
+function chapterRemaining(id) {
+  const ch = CHAPTERS.find(c => c.id === id);
+  if (!ch) return 0;
+  const r = nextRoundFor(id);
+  return Math.max(0, roundTarget(ch, r) - roundDone(id, r));
+}
+// 章の進捗率（1周目基準）
+function chapterProgress(id) {
+  const ch = CHAPTERS.find(c => c.id === id);
+  if (!ch) return 0;
+  return Math.min(100, (roundDone(id, 1) / ch.n) * 100);
+}
+// 章が「次に来る大学試験」の範囲に入っているか → その試験までの日数（null=対象外）
+// WEEKLY_PLAN（週次計画）から、その章を扱う直近の週に対応する試験日を引く
+function chapterExamDays(id) {
+  if (!BANKS[currentBank].planning) return null;   // QB以外は大学試験と紐づかない
+  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
+    if (!WEEKLY_PLAN[i].chapters.includes(id)) continue;
+    const weekStart = new Date(WEEKLY_PLAN[i].start);
+    // その週以降で最初の試験を探す
+    for (const ex of EXAMS) {
+      const ed = new Date(ex.date);
+      if (ed >= weekStart && ed >= TODAY) {
+        return { days: Math.round((ed - TODAY) / 86400000), name: ex.name };
+      }
+    }
+  }
+  return null;
+}
+// 章の優先度スコア（残り問題数 × 弱さ × 試験の近さ）＝投資対効果
+function chapterPriority(id) {
+  const ch = CHAPTERS.find(c => c.id === id);
+  if (!ch) return 0;
+  const remain = chapterRemaining(id);
+  const acc = chapterAcc(id);
+  const weakness = acc == null ? 0.6 : Math.max(0, (100 - acc) / 100);  // 未着手は中程度
+  const rs = reviewStatus(id);
+  const forgetting = rs && rs.due ? (1 - rs.retention) : 0;
+  const ex = chapterExamDays(id);
+  const examBoost = ex ? Math.max(0, 1 - ex.days / 60) : 0;
+  // 残りが多い×弱い章ほど伸びしろが大きい。忘却と試験の近さも加点
+  return remain * (0.5 + weakness) + forgetting * 120 + examBoost * 150;
+}
+// 章の「伸び」（1周目→今の実力）
+function chapterGrowth(id) {
+  const a1 = chapterAccR1(id), now = chapterAcc(id);
+  if (a1 == null || now == null) return null;
+  return now - a1;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 章の詳細画面（周回別成績・記憶度・推移グラフ・メモ）
+// ══════════════════════════════════════════════════════════════
+let _detailChapter = '';
+function openChapterDetail(id) {
+  const ch = CHAPTERS.find(c => c.id === id);
+  if (!ch) return;
+  _detailChapter = id;
+  const st = state.subject_status[id] || {};
+  const body = document.getElementById('chapterDetailBody');
+  const color = BLOCK_COLORS[ch.block];
+
+  // 周回別の成績
+  const rounds = [1,2,3].map(r => {
+    const target = roundTarget(ch, r), done = roundDone(id, r), corr = roundCorrect(id, r);
+    return { r, target, done, corr, acc: done > 0 ? corr/done*100 : null, done_: isRoundDone(id, r) };
+  });
+  const roundHtml = rounds.map(x => {
+    const m = ROUND_META[x.r];
+    const locked = x.r >= 2 && !isRoundDone(id, x.r - 1);
+    const pct = x.target > 0 ? Math.min(100, x.done/x.target*100) : 0;
+    let status;
+    if (locked) status = '<span class="cd-lock">🔒 前の周回が未完了</span>';
+    else if (x.target === 0) status = '<span class="cd-lock">対象なし</span>';
+    else status = `${x.done}/${x.target}問${x.acc != null ? ` ・ 正答${x.acc.toFixed(0)}%` : ''}`;
+    return `<div class="cd-round">
+      <div class="cd-round-top">
+        <span class="cd-round-name" style="color:${m.color}">${m.icon} ${m.label}${x.done_ ? ' ✓' : ''}</span>
+        <span class="cd-round-stat">${status}</span>
+      </div>
+      <div class="cd-bar"><div style="width:${pct.toFixed(0)}%;background:${m.color}"></div></div>
+    </div>`;
+  }).join('');
+
+  // 記憶度（忘却曲線）
+  const rs = reviewStatus(id);
+  const memHtml = rs
+    ? `<div class="cd-mem">
+         <span>🧠 記憶度 <strong style="color:${rs.retention<0.5?'var(--red-ink)':rs.retention<0.8?'var(--orange)':'var(--green-ink)'}">${Math.round(rs.retention*100)}%</strong></span>
+         <span>${rs.daysSince}日前に学習 ・ Lv${rs.stage}</span>
+         <span>${rs.due ? '復習どき' : `次の目安まで約${rs.dueInDays}日`}</span>
+       </div>`
+    : '<div class="cd-mem"><span>🧠 1周目を終えると復習スケジュールが始まります</span></div>';
+
+  // 試験との紐付け
+  const ex = chapterExamDays(id);
+  const examHtml = ex ? `<div class="cd-exam">🎓 「${ex.name}」まで <strong>${ex.days}日</strong></div>` : '';
+
+  // 記録の推移（この章の chapter_log から正答率の折れ線）
+  const logs = (state.chapter_log || []).filter(e => e.b === currentBank && e.c === id);
+  let trendHtml = '';
+  if (logs.length >= 2) {
+    const pts = logs.slice(-12).map(e => ({ d: e.d, acc: e.n > 0 ? (e.n - e.w)/e.n*100 : 0, n: e.n }));
+    const W = 260, H = 60, pad = 4;
+    const step = pts.length > 1 ? (W - pad*2)/(pts.length-1) : 0;
+    const path = pts.map((p,i) => `${(pad+i*step).toFixed(1)},${(H-pad-(p.acc/100)*(H-pad*2)).toFixed(1)}`).join(' ');
+    const dots = pts.map((p,i) =>
+      `<circle cx="${(pad+i*step).toFixed(1)}" cy="${(H-pad-(p.acc/100)*(H-pad*2)).toFixed(1)}" r="2.5" fill="${color}"><title>${p.d} ${p.n}問 ${p.acc.toFixed(0)}%</title></circle>`).join('');
+    trendHtml = `<div class="cd-sec">📈 記録ごとの正答率（直近${pts.length}回）</div>
+      <svg class="cd-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <line x1="0" y1="${H-pad-(0.7)*(H-pad*2)}" x2="${W}" y2="${H-pad-(0.7)*(H-pad*2)}" stroke="var(--border)" stroke-dasharray="3 3"/>
+        <polyline points="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
+        ${dots}
+      </svg>
+      <div class="cd-trend-note">点線＝70%の目安。${pts[0].d.slice(5).replace('-','/')} → ${pts[pts.length-1].d.slice(5).replace('-','/')}</div>`;
+  } else if (logs.length === 1) {
+    trendHtml = `<div class="cd-trend-note">記録が2回以上たまると推移グラフが出ます</div>`;
+  }
+
+  // 最近の記録
+  const recent = logs.slice(-5).reverse().map(e =>
+    `<div class="cd-log"><span>${e.d.slice(5).replace('-','/')}</span>
+     <span>${ROUND_META[e.r] ? ROUND_META[e.r].icon : ''} ${e.n}問</span>
+     <span>${e.n>0 ? Math.round((e.n-e.w)/e.n*100) : 0}%</span></div>`).join('');
+
+  body.innerHTML = `
+    <div class="cd-head">
+      <span class="cd-id" style="color:${color}">${ch.id}</span>
+      <span class="cd-subj">${ch.subj || ''}</span>
+      <span class="cd-n">${ch.n}問</span>
+    </div>
+    ${examHtml}
+    ${memHtml}
+    <div class="cd-sec">周回の進み具合</div>
+    ${roundHtml}
+    ${trendHtml}
+    ${recent ? `<div class="cd-sec">最近の記録</div>${recent}` : ''}
+    <div class="cd-sec">メモ（任意）</div>
+    <textarea id="cdMemo" class="cd-memo" rows="3"
+      placeholder="例: PT/APTTの使い分けが毎回あやふや">${(st.memo || '').replace(/</g,'&lt;')}</textarea>
+    <div class="cd-actions">
+      <button class="cd-btn primary" onclick="detailRecordHere()">✏️ この章を記録する</button>
+      <button class="cd-btn" onclick="editRoundProgress('${id}', ${nextRoundFor(id)}); closeChapterDetail();">数値を直接編集</button>
+      ${rs && rs.due ? `<button class="cd-btn" onclick="markReviewed('${id}'); closeChapterDetail();">✓ 復習した</button>` : ''}
+    </div>`;
+  document.getElementById('chapter-modal').style.display = 'flex';
+}
+function closeChapterDetail() {
+  // メモを保存してから閉じる
+  const ta = document.getElementById('cdMemo');
+  if (ta && _detailChapter) {
+    const v = ta.value.trim();
+    if (!state.subject_status[_detailChapter]) state.subject_status[_detailChapter] = {};
+    const cur = state.subject_status[_detailChapter].memo || '';
+    if (v !== cur) {
+      if (v) state.subject_status[_detailChapter].memo = v;
+      else delete state.subject_status[_detailChapter].memo;
+      saveSubjectStatus();
+      renderSubjects();
+    }
+  }
+  document.getElementById('chapter-modal').style.display = 'none';
+  _detailChapter = '';
+}
+// 詳細画面から「この章を記録する」→ ホームの記録カードにセット
+function detailRecordHere() {
+  const id = _detailChapter;
+  closeChapterDetail();
+  showPanel('home', document.querySelectorAll('.nb')[0]);
+  setRound(nextRoundFor(id));
+  const sel = document.getElementById('chapterSelect');
+  if (sel) { sel.value = id; onChapterSelect(); }
+  setTimeout(() => {
+    const card = document.getElementById('recordCard');
+    const sc = document.querySelector('.scroll');
+    if (card && sc) sc.scrollTop = card.offsetTop - 60;
+  }, 60);
+  showToast(`${id} を記録対象にセット`);
+}
+
+// ── 一括編集（章ごとの done/correct をまとめて修正） ──
+function renderBulkEdit() {
+  const body = document.getElementById('bulkEditBody');
+  if (!body) return;
+  body.innerHTML = CHAPTERS.map(ch => {
+    const st = state.subject_status[ch.id] || {};
+    return `<div class="bulk-row">
+      <span class="bulk-id" style="color:${BLOCK_COLORS[ch.block]}">${ch.id}</span>
+      <span class="bulk-name">${ch.subj || ''}</span>
+      <input class="bulk-in" type="number" min="0" max="${ch.n}" inputmode="numeric"
+             id="bulk_d_${ch.id}" placeholder="${st.done || 0}">
+      <span class="bulk-sep">/${ch.n}</span>
+      <input class="bulk-in" type="number" min="0" inputmode="numeric"
+             id="bulk_c_${ch.id}" placeholder="正${st.correct || 0}">
+    </div>`;
+  }).join('');
+}
+function applyBulkEdit() {
+  let changed = 0;
+  for (const ch of CHAPTERS) {
+    const dEl = document.getElementById('bulk_d_' + ch.id);
+    const cEl = document.getElementById('bulk_c_' + ch.id);
+    if (!dEl || !cEl) continue;
+    const dRaw = dEl.value.trim(), cRaw = cEl.value.trim();
+    if (dRaw === '' && cRaw === '') continue;         // 空欄は触らない
+    if (!state.subject_status[ch.id]) state.subject_status[ch.id] = {};
+    const st = state.subject_status[ch.id];
+    const wasDone = isRoundDone(ch.id, 1);
+    if (dRaw !== '') st.done = Math.max(0, Math.min(ch.n, parseInt(dRaw, 10) || 0));
+    if (cRaw !== '') st.correct = Math.max(0, Math.min(st.done || 0, parseInt(cRaw, 10) || 0));
+    if (st.correct > (st.done || 0)) st.correct = st.done || 0;
+    if (!wasDone && (st.done || 0) >= ch.n && !st.r1_date) st.r1_date = TODAY_STR;
+    dEl.value = ''; cEl.value = '';
+    changed++;
+  }
+  if (changed === 0) { showToast('変更する行に数値を入れてね'); return; }
+  saveSubjectStatus();
+  recomputeTotalsFromChapters();
+  updateAll();
+  renderSubjects();
+  renderBulkEdit();
+  showToast(`✓ ${changed}章を更新しました`);
+}
+
+// ── 今日のミックス（インターリービング提案） ──
+function renderMix() {
+  const card = document.getElementById('mixCard');
+  const body = document.getElementById('mixBody');
+  if (!card || !body) return;
+  // 候補：着手済みで弱い章 or 復習どきの章
+  const cands = CHAPTERS.map(ch => {
+    const acc = chapterAcc(ch.id);
+    const rs = reviewStatus(ch.id);
+    const started = roundDone(ch.id, 1) > 0;
+    if (!started) return null;
+    const weak = acc != null && acc < 70;
+    const due = rs && rs.due;
+    if (!weak && !due) return null;
+    const score = (acc != null ? (100 - acc) : 40) + (due ? (1 - rs.retention) * 60 : 0);
+    return { ch, acc, rs, score };
+  }).filter(Boolean).sort((a, b) => b.score - a.score);
+
+  if (cands.length < 2) { card.style.display = 'none'; return; }
+  // 同じブロックに偏らないよう、なるべく別ブロックから3つ選ぶ（＝紛らわしさを混ぜる）
+  const picked = [];
+  const usedBlocks = new Set();
+  for (const c of cands) {
+    if (picked.length >= 3) break;
+    if (usedBlocks.has(c.ch.block) && picked.length < cands.length) continue;
+    picked.push(c); usedBlocks.add(c.ch.block);
+  }
+  for (const c of cands) { if (picked.length >= 3) break; if (!picked.includes(c)) picked.push(c); }
+
+  const per = Math.max(5, Math.round(getDayTarget(TODAY) / picked.length) || 10);
+  card.style.display = 'block';
+  body.innerHTML = picked.map(c => {
+    const accTxt = c.acc != null ? `正答${c.acc.toFixed(0)}%` : '未計測';
+    const dueTxt = c.rs && c.rs.due ? ` ・記憶${Math.round(c.rs.retention*100)}%` : '';
+    return `<div class="mix-row" style="border-left:3px solid ${BLOCK_COLORS[c.ch.block]}">
+      <span class="mix-id" style="color:${BLOCK_COLORS[c.ch.block]}">${c.ch.id}</span>
+      <span class="mix-name">${c.ch.subj || ''}</span>
+      <span class="mix-meta">${accTxt}${dueTxt}</span>
+      <span class="mix-n">${per}問</span>
+    </div>`;
+  }).join('') +
+  `<div class="mix-total">合計 ${per * picked.length}問 を交互に解くのがおすすめ</div>`;
+}
+
+// ── 優先度ランキング（いま効く章） ──
+function renderPriority() {
+  const card = document.getElementById('priorityCard');
+  const body = document.getElementById('priorityBody');
+  if (!card || !body) return;
+  const items = CHAPTERS.map(ch => ({ ch, p: chapterPriority(ch.id), remain: chapterRemaining(ch.id) }))
+    .filter(x => x.remain > 0).sort((a, b) => b.p - a.p).slice(0, 6);
+  if (items.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  const max = items[0].p || 1;
+  body.innerHTML = items.map(({ ch, p, remain }) => {
+    const acc = chapterAcc(ch.id);
+    const ex = chapterExamDays(ch.id);
+    const why = [];
+    if (remain > 0) why.push(`残り${remain}問`);
+    if (acc != null && acc < 60) why.push(`正答${acc.toFixed(0)}%`);
+    if (ex) why.push(`試験まで${ex.days}日`);
+    return `<div class="pri-row" onclick="openChapterDetail('${ch.id}')">
+      <div class="pri-top">
+        <span class="pri-id" style="color:${BLOCK_COLORS[ch.block]}">${ch.id}</span>
+        <span class="pri-name">${ch.subj || ''}</span>
+      </div>
+      <div class="pri-bar"><div style="width:${(p/max*100).toFixed(0)}%;background:${BLOCK_COLORS[ch.block]}"></div></div>
+      <div class="pri-why">${why.join(' ・ ')}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── 伸びランキング ──
+function renderGrowth() {
+  const card = document.getElementById('growthCard');
+  const body = document.getElementById('growthBody');
+  if (!card || !body) return;
+  const items = CHAPTERS.map(ch => ({ ch, g: chapterGrowth(ch.id) }))
+    .filter(x => x.g != null && Math.abs(x.g) >= 1)
+    .sort((a, b) => b.g - a.g).slice(0, 6);
+  if (items.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  body.innerHTML = items.map(({ ch, g }) => {
+    const up = g >= 0;
+    return `<div class="growth-row">
+      <span class="pri-id" style="color:${BLOCK_COLORS[ch.block]}">${ch.id}</span>
+      <span class="pri-name">${ch.subj || ''}</span>
+      <span class="growth-val" style="color:${up ? 'var(--green-ink)' : 'var(--red-ink)'}">
+        ${up ? '▲' : '▼'}${Math.abs(g).toFixed(0)}pt</span>
+      <span class="growth-sub">${chapterAccR1(ch.id).toFixed(0)}% → ${chapterAcc(ch.id).toFixed(0)}%</span>
+    </div>`;
+  }).join('');
+}
+
+// ── vol別サマリー ──
+function renderVolSummary() {
+  const body = document.getElementById('volSummaryBody');
+  if (!body) return;
+  const blocks = [...new Set(CHAPTERS.map(c => c.block))].sort();
+  body.innerHTML = blocks.map(b => {
+    const chs = CHAPTERS.filter(c => c.block === b);
+    const total = chs.reduce((s, c) => s + c.n, 0);
+    const done = chs.reduce((s, c) => s + Math.min(roundDone(c.id, 1), c.n), 0);
+    const okSum = chs.reduce((s, c) => s + roundCorrect(c.id, 1), 0);
+    const acc = done > 0 ? okSum / done * 100 : null;
+    const pct = total > 0 ? done / total * 100 : 0;
+    const doneCh = chs.filter(c => isRoundDone(c.id, 1)).length;
+    return `<div class="vol-row">
+      <div class="vol-top">
+        <span class="vol-name" style="color:${BLOCK_COLORS[b]}">${bankBlockName(b)}</span>
+        <span class="vol-num">${done.toLocaleString()}<span class="vol-den">/${total.toLocaleString()}</span></span>
+      </div>
+      <div class="vol-bar"><div style="width:${pct.toFixed(1)}%;background:${BLOCK_COLORS[b]}"></div></div>
+      <div class="vol-sub">${pct.toFixed(0)}% ・ ${doneCh}/${chs.length}章完了${acc != null ? ` ・ 正答${acc.toFixed(0)}%` : ''} ・ 残り${(total-done).toLocaleString()}問</div>
+    </div>`;
+  }).join('');
+}
+
 function renderSubjects() {
   renderWeakHeatmap();
   renderReviewPriority();
   renderRoundAnalysis();
+  renderMix();
+  renderPriority();
+  renderGrowth();
+  renderVolSummary();
+  renderBulkEdit();
   const container = document.getElementById('subjList');
   if (!container) return;
   container.innerHTML = '';
 
+  // 完了数は常に全章から数える（絞り込みの影響を受けないように）
   let cnt1 = 0, cnt2 = 0, cnt3 = 0;
-  let currentBlock = null;
-
   for (const ch of CHAPTERS) {
-    // ブロックヘッダー
-    if (ch.block !== currentBlock) {
+    if (isRoundDone(ch.id, 1)) cnt1++;
+    if (isRoundDone(ch.id, 2)) cnt2++;
+    if (isRoundDone(ch.id, 3)) cnt3++;
+  }
+  setEl('subj-cnt-exam', cnt1);
+  setEl('subj-cnt-qb1',  cnt2);
+  setEl('subj-cnt-shuf', cnt3);
+
+  // ── 検索 ──
+  const qEl = document.getElementById('subjSearch');
+  const q = (qEl ? qEl.value : '').trim().toLowerCase();
+  let list = CHAPTERS.filter(ch =>
+    !q || ch.id.toLowerCase().includes(q) || (ch.subj || '').toLowerCase().includes(q));
+
+  // ── 絞り込み ──
+  list = list.filter(ch => {
+    if (subjFilter === 'undone') return !isRoundDone(ch.id, 1);
+    if (subjFilter === 'weak')   { const a = chapterAcc(ch.id); return a != null && a < 60; }
+    if (subjFilter === 'due')    { const r = reviewStatus(ch.id); return !!(r && r.due); }
+    if (subjFilter === 'exam')   return chapterExamDays(ch.id) != null;
+    return true;
+  });
+
+  // ── 並び替え ──
+  const sortEl = document.getElementById('subjSort');
+  const sortBy = sortEl ? sortEl.value : 'default';
+  const cmpNum = (v) => (v == null ? Infinity : v);
+  if (sortBy === 'acc')      list.sort((a,b) => cmpNum(chapterAcc(a.id)) - cmpNum(chapterAcc(b.id)));
+  else if (sortBy === 'wrong')    list.sort((a,b) => chapterWrongNow(b.id) - chapterWrongNow(a.id));
+  else if (sortBy === 'due')      list.sort((a,b) => {
+      const ra = reviewStatus(a.id), rb = reviewStatus(b.id);
+      const va = ra ? ra.retention : 2, vb = rb ? rb.retention : 2;   // 未設定は後ろ
+      return va - vb; });
+  else if (sortBy === 'exam')     list.sort((a,b) => {
+      const ea = chapterExamDays(a.id), eb = chapterExamDays(b.id);
+      return (ea ? ea.days : 9999) - (eb ? eb.days : 9999); });
+  else if (sortBy === 'remain')   list.sort((a,b) => chapterRemaining(b.id) - chapterRemaining(a.id));
+  else if (sortBy === 'progress') list.sort((a,b) => chapterProgress(a.id) - chapterProgress(b.id));
+
+  // ── 描画（標準順のときだけvol見出しを出す） ──
+  const showHeaders = sortBy === 'default' && !q && subjFilter === 'all';
+  let currentBlock = null;
+  for (const ch of list) {
+    if (showHeaders && ch.block !== currentBlock) {
       currentBlock = ch.block;
       const blockQ = CHAPTERS.filter(c => c.block === ch.block).reduce((s,c)=>s+c.n, 0);
       const hdr = document.createElement('div');
@@ -5038,20 +5612,21 @@ function renderSubjects() {
         <span class="subj-badge" style="background:rgba(107,115,148,0.15);color:var(--dim);">${blockQ}問</span>`;
       container.appendChild(hdr);
     }
-
-    if (isRoundDone(ch.id, 1)) cnt1++;
-    if (isRoundDone(ch.id, 2)) cnt2++;
-    if (isRoundDone(ch.id, 3)) cnt3++;
     container.appendChild(makeChapterRow(ch));
   }
+  if (list.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;color:var(--dim);font-size:11px;padding:18px 0;';
+    empty.textContent = '該当する章がありません';
+    container.appendChild(empty);
+  }
 
-  setEl('subj-cnt-exam', cnt1);
-  setEl('subj-cnt-qb1',  cnt2);
-  setEl('subj-cnt-shuf', cnt3);
-
-  // 合計ラベル（バンク対応）
+  // 合計ラベル（バンク対応・絞り込み中は件数も表示）
   const totalLabel = document.getElementById('subjTotalLabel');
-  if (totalLabel) totalLabel.textContent = `/ ${CHAPTERS.length}単元（${bankTotal().toLocaleString()}問）・${BANKS[currentBank].name}`;
+  if (totalLabel) {
+    const filtered = list.length !== CHAPTERS.length ? `　表示中 ${list.length}章` : '';
+    totalLabel.textContent = `/ ${CHAPTERS.length}単元（${bankTotal().toLocaleString()}問）・${BANKS[currentBank].name}${filtered}`;
+  }
 }
 
 // 苦手レベル（0未設定/1苦手/2普通/3得意）：手動acc優先、なければ正答率から自動
@@ -5082,8 +5657,8 @@ function makeChapterRow(ch) {
   left.style.flex = '1';
   left.style.minWidth = '0';
   left.style.cursor = 'pointer';
-  left.title = 'タップで「やった数・正解数」を編集';
-  left.addEventListener('click', () => editChapterProgress(ch.id));
+  left.title = 'タップで詳細（周回・記憶度・推移・メモ）';
+  left.addEventListener('click', () => openChapterDetail(ch.id));
 
   const topLine = document.createElement('div');
   topLine.style.cssText = 'display:flex;align-items:baseline;gap:6px;margin-bottom:5px;';
@@ -5755,6 +6330,11 @@ function setupCollapsibles() {
     { id: 'streakCard', collapsed: true },
     { id: 'ringsCard',  collapsed: true },
     { id: 'roundAnalysisCard', collapsed: true },
+    { id: 'priorityCard',      collapsed: false },
+    { id: 'reviewPriorityCard',collapsed: true },
+    { id: 'volSummaryCard',    collapsed: true },
+    { id: 'growthCard',        collapsed: true },
+    { id: 'bulkEditCard',      collapsed: true },
   ];
   for (const { id, collapsed } of defs) {
     const card = document.getElementById(id);
