@@ -3425,8 +3425,11 @@ function addToday() {
     const todayEntry = state.daily_log.find(l => l.date === TODAY_STR);
     const todaySolved = todayEntry ? todayEntry.n : 0;
     const baseTarget = getDayTarget(TODAY);
-    if (todaySolved > baseTarget) {
-      const extra = todaySolved - baseTarget;
+    // Only the part of THIS record that exceeds the daily target repays debt.
+    // (Using the whole day's excess double-subtracted when recording several times a day.)
+    const solvedBefore = Math.max(0, todaySolved - added);
+    const extra = Math.max(0, todaySolved - baseTarget) - Math.max(0, solvedBefore - baseTarget);
+    if (extra > 0) {
       const prevDebt = state.debt;
       state.debt = Math.max(0, state.debt - extra);
       if (prevDebt > 0 && state.debt === 0) {
