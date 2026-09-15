@@ -2807,7 +2807,8 @@ function checkPenalty() {
   if (missedDates.length === 1 && freezeAvailable()) {
     useFreeze(missedDates[0]);
     localStorage.setItem('penalty_checked', TODAY_STR);
-    state.last_date = TODAY_STR;  // 連続記録を維持
+    // Mark through yesterday only; today is still open (setting TODAY hid a miss today from tomorrow's check)
+    { const y = new Date(TODAY); y.setDate(y.getDate() - 1); state.last_date = toLocalDateStr(y); }
     scheduleSave();
     updateAll();
     setTimeout(() => showToast('🛡 ストリークフリーズ発動！連続記録を守りました'), 700);
@@ -2829,17 +2830,23 @@ function acceptPenalty() {
   localStorage.setItem('penalty_checked', TODAY_STR);
   state.debt += _pendingDebt;
   _pendingDebt = 0;
+  // Mark the missed days (through yesterday) as already penalized.
+  // Without this, last_date stayed old and the SAME gap was re-added every day the app opened
+  // (and once per device, since penalty_checked is device-local).
+  const yesterday = new Date(TODAY); yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = toLocalDateStr(yesterday);
+  if (!state.last_date || yesterdayStr > state.last_date) state.last_date = yesterdayStr;
   scheduleSave();
   updateAll();
-  showToast(`💸 借金 +${state.debt}問 追加... 頑張れ！`);
+  showToast(`💸 借金が発生（合計 ${state.debt}問）... 頑張れ！`);
 }
 
 function dismissPenalty() {
   document.getElementById('penalty-modal').style.display = 'none';
   localStorage.setItem('penalty_checked', TODAY_STR);
   _pendingDebt = 0;
-  // last_date を今日に更新して再チェックしない
-  state.last_date = TODAY_STR;
+  // Mark the gap through yesterday as handled so it is not re-checked (today stays open)
+  { const y = new Date(TODAY); y.setDate(y.getDate() - 1); const ys = toLocalDateStr(y); if (ys > (state.last_date || '')) state.last_date = ys; }
   scheduleSave();
 }
 
@@ -3182,7 +3189,7 @@ let _overflow = 0;         // 直近の記録で「章の残り」を超えて�
 function setRecordDate(v) {
   recordDate = v || '';
   const picker = document.getElementById('recDatePicker');
-  if (picker) picker.value = getRecordDate();
+  if (picker) { picker.max = TODAY_STR; picker.value = getRecordDate(); }
   document.querySelectorAll('.recdate-btn').forEach(b => {
     b.classList.toggle('active', (b.dataset.d || '') === recordDate);
   });
@@ -3199,6 +3206,12 @@ function setRecordDate(v) {
 function onRecDatePick() {
   const picker = document.getElementById('recDatePicker');
   if (!picker || !picker.value) return;
+  // Future dates would corrupt streak/penalty calculations
+  if (picker.value > TODAY_STR) {
+    showToast('未来の日付には記録できません');
+    setRecordDate(recordDate);
+    return;
+  }
   setRecordDate(picker.value === TODAY_STR ? '' : picker.value);
 }
 function setRecDateYesterday() {
@@ -3372,7 +3385,7 @@ function addToday() {
       setTimeout(() => { confetti(); showToast(`🎉 ${ch.id} ${ch.subj} ${meta.label}完了！`); }, 600);
     }
     // 2周目以降の再演習は「復習」とみなして忘却曲線スケジュールを前進
-    if (round >= 2) touchReview(ch.id);
+    if (round >= 2) touchReview(ch.id, RDATE);
     saveSubjectStatus();
   }
 
@@ -4234,7 +4247,7 @@ const BADGES = [
   { id:'b2',       icon:'📗', name:'臨床各論制覇',     desc:'Block2の全章を1周完了',   check:s => blockDone(2) },
   { id:'streak7',  icon:'📅', name:'1週間継続',       desc:'7日連続で記録',          check:s => getStreakCount() >= 7 },
   { id:'streak30', icon:'🗓️', name:'1ヶ月継続',       desc:'30日連続で記録',         check:s => getStreakCount() >= 30 },
-  { id:'acc70',    icon:'🎯', name:'正答率70%',       desc:'通算正答率70%達成',       check:s => s.r1 >= 100 && (s.ok/s.r1) >= 0.7 },
+  { id:'acc70',    icon:'🎯', name:'正答率70%',       desc:'通算正答率70%達成',       check:s => { const t = BANK_TOTALS.qb; return t.curDone >= 100 && (t.curOk / t.curDone) >= 0.7; } },
   { id:'lv10',     icon:'🥉', name:'レベル10',        desc:'レベル10に到達',         check:s => getLevelInfo().lv >= 10 },
   { id:'lv25',     icon:'🥈', name:'レベル25',        desc:'レベル25に到達',         check:s => getLevelInfo().lv >= 25 },
   { id:'lv40',     icon:'🥇', name:'レベル40',        desc:'レベル40に到達',         check:s => getLevelInfo().lv >= 40 },
@@ -4501,12 +4514,14 @@ function reviewStatus(id) {
   };
 }
 // 復習/再演習を反映（stageを1つ上げてlastを今日に）
-function bumpReview(id) {
+function bumpReview(id, dateStr) {
   const st = state.subject_status[id];
   if (!st) return 0;
-  if (!st.srv) st.srv = { stage: 0, last: st.r1_date || TODAY_STR };
+  const when = dateStr || TODAY_STR;
+  if (!st.srv) st.srv = { stage: 0, last: st.r1_date || when };
   st.srv.stage = Math.min((st.srv.stage || 0) + 1, SRS_STRENGTH.length - 1);
-  st.srv.last  = TODAY_STR;
+  // Never move the review anchor backwards (a back-filled old record must not reset it)
+  if (!st.srv.last || when > st.srv.last) st.srv.last = when;
   delete st.srv.next; // 旧フィールドは使わない
   return st.srv.stage;
 }
@@ -4524,11 +4539,11 @@ function markReviewed(id) {
   confetti();
 }
 // 章を記録（周回）したときにも復習として反映
-function touchReview(id) {
+function touchReview(id, dateStr) {
   const st = state.subject_status[id];
   if (!st) return;
   if (!st.srv) { ensureReviewSeed(id); if (!st.srv) return; }
-  bumpReview(id);
+  bumpReview(id, dateStr);
 }
 
 // ── 復習リマインダー（エビングハウスの忘却曲線・間欠反復） ──
@@ -4962,15 +4977,10 @@ function recomputeBank(bank) {
       const w2 = Math.max(0, (st.done2 || 0) - (st.correct2 || 0));
       d3 += Math.min(st.done3, w2);
     }
-    // 現在の実力：2周目があれば2周目基準、なければ1周目基準
-    const cd2 = Math.min(st.done2 || 0, ch.n);
-    if (cd2 > 0) {
-      curDone += cd2;
-      curOk   += Math.min((st.correct2 || 0) + (st.correct3 || 0), cd2);
-    } else if (st.done != null) {
-      curDone += Math.min(st.done, ch.n);
-      curOk   += Math.min(st.correct || 0, st.done);
-    }
+    // Current ability (same blending as chapterAcc)
+    const cur = chapterCurrent(st, ch.n);
+    curDone += cur.done;
+    curOk   += cur.ok;
   }
   BANK_TOTALS[bank] = { r1: d1, ok, r2: d2, r3: d3, curDone, curOk };
   // QBは同期カラム/計画系のため state にもミラー
@@ -5000,16 +5010,27 @@ function isChapterDone(id) {
 // 章の「今の正答率（実力）」。null=未着手
 // 2周目に着手していれば2周目ベース（＋3周目で回収した分を加算）＝最新の実力を反映。
 // 2周目が未着手なら1周目の正答率。
+// Current ability of a chapter as {done, ok}.
+// Questions already re-solved in round 2 use the round-2 result (+ round-3 recoveries);
+// questions not yet re-solved still count with the round-1 accuracy.
+// Without this blending, a chapter with only 13/99 re-solved would be judged on 13 questions.
+function chapterCurrent(st, n) {
+  st = st || {};
+  const d1 = Math.min(st.done || 0, n);
+  const c1 = Math.min(st.correct || 0, d1);
+  const d2 = Math.min(st.done2 || 0, n);
+  if (d2 <= 0) return { done: d1, ok: c1 };
+  const c2 = Math.min((st.correct2 || 0) + (st.correct3 || 0), d2);
+  const notRedone = Math.max(0, d1 - d2);
+  const notRedoneOk = d1 > 0 ? (c1 / d1) * notRedone : 0;
+  return { done: d2 + notRedone, ok: c2 + notRedoneOk };
+}
 function chapterAcc(id) {
+  const ch = CHAPTERS.find(c => c.id === id);
   const st = state.subject_status[id] || {};
-  const d2 = st.done2 || 0;
-  if (d2 > 0) {
-    // 3周目は「2周目の誤答」を解き直したもの。正解できた分は定着とみなして加算
-    const c = Math.min((st.correct2 || 0) + (st.correct3 || 0), d2);
-    return c / d2 * 100;
-  }
-  if (!st.done || st.done <= 0) return null;
-  return (st.correct || 0) / st.done * 100;
+  const cur = chapterCurrent(st, ch ? ch.n : Infinity);
+  if (cur.done <= 0) return null;
+  return cur.ok / cur.done * 100;
 }
 // 1周目だけの正答率（周回比較・分析用に元の定義も残す）
 function chapterAccR1(id) {
@@ -5019,11 +5040,9 @@ function chapterAccR1(id) {
 }
 // 章の「今の誤答数」。2周目に着手していれば2周目基準（3周目で回収した分を差し引く）
 function chapterWrongNow(id) {
-  const st = state.subject_status[id] || {};
-  const d2 = st.done2 || 0;
-  if (d2 > 0) return Math.max(0, d2 - Math.min((st.correct2 || 0) + (st.correct3 || 0), d2));
-  if (!st.done || st.done <= 0) return 0;
-  return Math.max(0, st.done - (st.correct || 0));
+  const ch = CHAPTERS.find(c => c.id === id);
+  const cur = chapterCurrent(state.subject_status[id], ch ? ch.n : Infinity);
+  return Math.max(0, Math.round(cur.done - cur.ok));
 }
 function toggleSubjectCheck(id, key) {
   if (!state.subject_status[id]) state.subject_status[id] = {};
@@ -5247,18 +5266,23 @@ function chapterProgress(id) {
 // WEEKLY_PLAN（週次計画）から、その章を扱う直近の週に対応する試験日を引く
 function chapterExamDays(id) {
   if (!BANKS[currentBank].planning) return null;   // QB以外は大学試験と紐づかない
+  let best = null;
   for (let i = 0; i < WEEKLY_PLAN.length; i++) {
     if (!WEEKLY_PLAN[i].chapters.includes(id)) continue;
     const weekStart = new Date(WEEKLY_PLAN[i].start);
-    // その週以降で最初の試験を探す
+    const windowEnd = new Date(weekStart); windowEnd.setDate(windowEnd.getDate() + 14);
+    // Only the exam belonging to that plan week (within 2 weeks of its start).
+    // Previously any later exam matched, so a June chapter showed an unrelated September exam.
     for (const ex of EXAMS) {
       const ed = new Date(ex.date);
-      if (ed >= weekStart && ed >= TODAY) {
-        return { days: Math.round((ed - TODAY) / 86400000), name: ex.name };
+      if (ed >= weekStart && ed < windowEnd && ed >= TODAY) {
+        const days = Math.round((ed - TODAY) / 86400000);
+        if (!best || days < best.days) best = { days, name: ex.name };
+        break;
       }
     }
   }
-  return null;
+  return best;
 }
 // 章の優先度スコア（残り問題数 × 弱さ × 試験の近さ）＝投資対効果
 function chapterPriority(id) {
@@ -6188,7 +6212,9 @@ function deleteMock(idx) {
 }
 
 function renderAnalytics() {
-  const acc = state.r1 > 0 ? (state.ok / state.r1 * 100) : 0;
+  // Use current ability (round 2/3 included), not round-1 only accuracy
+  const qbTotals = BANK_TOTALS.qb;
+  const acc = qbTotals.curDone > 0 ? (qbTotals.curOk / qbTotals.curDone * 100) : 0;
   const target = getIrtTarget();
   const mocks = getMocks();
 
@@ -6216,7 +6242,7 @@ function renderAnalytics() {
     const t = document.createElement('div'); t.className = 'irt-target'; t.style.left = `${toPct(target)}%`; gauge.appendChild(t);
     // メモ
     const latestMock = mocks.length ? mocks[mocks.length-1].score : null;
-    let note = '⚠️ QB正答率からの目安。本番はやや難しめ＆1周目は低めに出ます。';
+    let note = `⚠️ QBの「今の実力」正答率 ${acc.toFixed(1)}%（2周目以降の成績を反映）からの目安。本番はやや難しめです。`;
     if (latestMock != null) note += `<br>📝 最新の模試: <strong style="color:${STAGE_COLOR[irtStage(latestMock)]};">IRT ${latestMock}（段階${irtStage(latestMock)}）</strong>`;
     if (estIrt != null) {
       const gap = target - estIrt;
