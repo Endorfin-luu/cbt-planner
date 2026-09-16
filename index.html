@@ -4456,14 +4456,20 @@ function renderWeekPlan() {
 // 章ごとに subject_status[id].srv = { stage, last } を持つ
 //   stage: 何回復習したか（0=初回）  last: 最後に学習/復習した日
 //
-// 保持率 R = exp(-t / S)   t=最後の学習からの経過日数, S=記憶の安定度(日)
+// 保持率 R = (1 + F·t/S)^-0.5   (FSRS power forgetting curve, F=19/81)
+//   t=最後の学習からの経過日数, S=記憶の安定度(日) = 保持率が90%になる日数
+//   Exponential decay went to ~0% within 2 months, far below real data
+//   (Custers 2010: 2/3-3/4 of basic science knowledge retained after 1 year).
 //   S は「復習回数(stage)」で大きくなり（復習するほど忘れにくい）、
 //   「正答率」でも変わる（よくできた章は忘れにくい、苦手は早く忘れる）。
 //   R が閾値(80%)を下回った章だけを「復習どき」として、忘れている順に提示する。
 // ══════════════════════════════════════════════════════════════
 const SRS_STRENGTH = [10, 22, 45, 90, 170, 300]; // stageごとの記憶の安定度(日)
 const SRS_DUE_R = 0.80;   // 保持率がこれを下回ったら復習推奨
-const LN_INV_DUE = Math.log(1 / SRS_DUE_R); // ≈0.223（安定度→復習間隔の換算）
+const FSRS_FACTOR = 19 / 81, FSRS_DECAY = -0.5;
+// Days until R drops to SRS_DUE_R, as a multiple of S (≈2.40 for 80%)
+const DUE_PER_STRENGTH = (Math.pow(SRS_DUE_R, 1 / FSRS_DECAY) - 1) / FSRS_FACTOR;
+function retentionAt(t, S) { return Math.pow(1 + FSRS_FACTOR * t / S, FSRS_DECAY); }
 
 // YYYY-MM-DD に days 日足した文字列
 function addDaysStr(dateStr, days) {
@@ -4504,8 +4510,8 @@ function reviewStatus(id) {
   const stage = st.srv.stage || 0;
   const S = memoryStrength(id, stage);
   const t = daysSinceStr(st.srv.last);
-  const retention = Math.exp(-t / S);
-  const dueT = S * LN_INV_DUE;             // 保持率がSRS_DUE_Rに落ちる経過日数
+  const retention = retentionAt(t, S);
+  const dueT = S * DUE_PER_STRENGTH;       // 保持率がSRS_DUE_Rに落ちる経過日数
   return {
     stage, last: st.srv.last,
     daysSince: Math.round(t),
@@ -4522,7 +4528,12 @@ function bumpReview(id, dateStr) {
   if (!st) return 0;
   const when = dateStr || TODAY_STR;
   if (!st.srv) st.srv = { stage: 0, last: st.r1_date || when };
-  st.srv.stage = Math.min((st.srv.stage || 0) + 1, SRS_STRENGTH.length - 1);
+  // Level up only for a spaced review (at least half the current interval has passed).
+  // A round split into several sessions a few days apart must not jump straight to stage 5.
+  const curStage = st.srv.stage || 0;
+  const gap = st.srv.last ? (new Date(when) - new Date(st.srv.last)) / 86400000 : Infinity;
+  const interval = memoryStrength(id, curStage) * DUE_PER_STRENGTH;
+  if (gap >= interval / 2) st.srv.stage = Math.min(curStage + 1, SRS_STRENGTH.length - 1);
   // Never move the review anchor backwards (a back-filled old record must not reset it)
   if (!st.srv.last || when > st.srv.last) st.srv.last = when;
   delete st.srv.next; // 旧フィールドは使わない
@@ -4537,7 +4548,7 @@ function markReviewed(id) {
   renderReviewReminder();
   if (document.getElementById('p-subj').classList.contains('active')) renderSubjects();
   const ch = CHAPTERS.find(c => c.id === id);
-  const nextDays = Math.round(memoryStrength(id, stage) * LN_INV_DUE);
+  const nextDays = Math.round(memoryStrength(id, stage) * DUE_PER_STRENGTH);
   showToast(`🧠 ${id} ${ch ? ch.subj : ''} 復習完了！次は約${nextDays}日後が目安`);
   confetti();
 }
@@ -4545,7 +4556,8 @@ function markReviewed(id) {
 function touchReview(id, dateStr) {
   const st = state.subject_status[id];
   if (!st) return;
-  if (!st.srv) { ensureReviewSeed(id); if (!st.srv) return; }
+  if (!st.srv) ensureReviewSeed(id);
+  if (!st.srv) st.srv = { stage: 0, last: dateStr || TODAY_STR };  // no round-1 date: start from this record
   bumpReview(id, dateStr);
 }
 
@@ -6161,6 +6173,7 @@ function checkStreakMilestone() {
 
 // ════════ 分析（IRT・模試・予測・ランキング） ════════
 // QB正答率 → IRTスコア推定（アンカー間を線形補間。本番はQBより難しいため目安）
+const IRT_PASS_LINE = 396;   // nationwide CBT pass standard since public administration in 2023
 const IRT_ANCHORS = [[40,280],[50,340],[60,410],[65,440],[70,490],[75,550],[80,610],[85,670],[90,730],[95,790],[100,840]];
 function estimateIRT(accPct) {
   if (accPct <= IRT_ANCHORS[0][0]) return IRT_ANCHORS[0][1];
@@ -6243,9 +6256,20 @@ function renderAnalytics() {
       const m = document.createElement('div'); m.className = 'irt-marker'; m.style.left = `calc(${toPct(estIrt)}% - 1.5px)`; gauge.appendChild(m);
     }
     const t = document.createElement('div'); t.className = 'irt-target'; t.style.left = `${toPct(target)}%`; gauge.appendChild(t);
+    // Pass line marker (dashed) so the estimate can be compared with the pass standard
+    const pl = document.createElement('div'); pl.title = `合格基準 ${IRT_PASS_LINE}`;
+    pl.style.cssText = `position:absolute;top:-3px;bottom:-3px;left:${toPct(IRT_PASS_LINE)}%;border-left:2px dotted rgba(0,0,0,.8);`;
+    gauge.appendChild(pl);
     // メモ
     const latestMock = mocks.length ? mocks[mocks.length-1].score : null;
-    let note = `⚠️ QBの「今の実力」正答率 ${acc.toFixed(1)}%（2周目以降の成績を反映）からの目安。本番はやや難しめです。`;
+    // IRT_ANCHORS is a rule-of-thumb mapping, not an official conversion (real IRT weights item difficulty/discrimination)
+    let note = `⚠️ QBの「今の実力」正答率 ${acc.toFixed(1)}%（2周目以降を反映）を経験則の換算表に当てはめた<strong>ざっくり目安</strong>です。公式の換算はなく、本番IRTは問題の難しさ・識別力で決まります。模試の結果の方が信頼できます。`;
+    if (estIrt != null) {
+      const passGap = estIrt - IRT_PASS_LINE;
+      note += `<br>🎯 合格基準 IRT ${IRT_PASS_LINE}：` + (passGap >= 0
+        ? `<strong style="color:var(--green-ink);">+${passGap}</strong> 上回っています`
+        : `<strong style="color:var(--red-ink);">あと${-passGap}</strong>`);
+    }
     if (latestMock != null) note += `<br>📝 最新の模試: <strong style="color:${STAGE_COLOR[irtStage(latestMock)]};">IRT ${latestMock}（段階${irtStage(latestMock)}）</strong>`;
     if (estIrt != null) {
       const gap = target - estIrt;
