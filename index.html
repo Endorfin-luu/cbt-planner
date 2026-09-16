@@ -1319,7 +1319,7 @@ body.bank-orig .qb-only{display:none !important;}
         <span class="weekplan-note"><span id="reviewNote">—</span>が復習どき</span>
       </div>
       <div id="reviewAlert" style="display:none;font-size:11px;font-weight:700;margin:4px 0 2px;"></div>
-      <div style="font-size:9px;color:var(--dim);margin:2px 0 2px;">忘却曲線ベース：記憶度90%を切った章を、低い順に（正答率・復習回数も加味）</div>
+      <div style="font-size:9px;color:var(--dim);margin:2px 0 2px;">忘却曲線ベース：記憶度85%を切った章を、低い順に（正答率・復習回数も加味）</div>
       <div id="reviewChips"></div>
     </div>
 
@@ -4471,17 +4471,17 @@ function renderWeekPlan() {
 //   R が閾値(80%)を下回った章だけを「復習どき」として、忘れている順に提示する。
 // ══════════════════════════════════════════════════════════════
 const SRS_STRENGTH = [10, 22, 45, 90, 170, 300]; // stageごとの記憶の安定度(日)
-const SRS_DUE_R = 0.90;   // 保持率がこれを下回ったら復習推奨（FSRSの標準的な目標保持率）
+const SRS_DUE_R = 0.85;   // 保持率がこれを下回ったら復習推奨
 // Retention bands shown in the UI (stricter labels to create a sense of urgency)
 function memoryLevel(retention) {
   if (retention >= 0.95) return { label: '万全',   icon: '🟢', color: 'var(--green-ink)' };
-  if (retention >= 0.90) return { label: '安定',   icon: '🟢', color: 'var(--green-ink)' };
+  if (retention >= SRS_DUE_R) return { label: '安定', icon: '🟢', color: 'var(--green-ink)' };
   if (retention >= 0.80) return { label: '注意',   icon: '⚠️', color: 'var(--yellow)' };
   if (retention >= 0.70) return { label: '危険',   icon: '🔥', color: 'var(--orange)' };
   return                        { label: 'ヤバい', icon: '🚨', color: 'var(--red-ink)' };
 }
 const FSRS_FACTOR = 19 / 81, FSRS_DECAY = -0.5;
-// Days until R drops to SRS_DUE_R, as a multiple of S (=1.0 for 90%, since S is defined as the 90% point)
+// Days until R drops to SRS_DUE_R, as a multiple of S (≈1.64 for 85%; S itself is the 90% point)
 const DUE_PER_STRENGTH = (Math.pow(SRS_DUE_R, 1 / FSRS_DECAY) - 1) / FSRS_FACTOR;
 function retentionAt(t, S) { return Math.pow(1 + FSRS_FACTOR * t / S, FSRS_DECAY); }
 
@@ -4608,7 +4608,7 @@ function renderReviewReminder() {
     alertEl.style.display = 'block';
     alertEl.innerHTML = danger > 0
       ? `🚨 <strong>${danger}章</strong>が記憶70%未満。このままだと本番で取りこぼします`
-      : `⚠️ 記憶が90%を切った章が <strong>${due.length}章</strong>。崩れる前に回収しよう`;
+      : `⚠️ 記憶が${Math.round(SRS_DUE_R * 100)}%を切った章が <strong>${due.length}章</strong>。崩れる前に回収しよう`;
     alertEl.style.color = danger > 0 ? 'var(--red-ink)' : 'var(--orange)';
   }
 
