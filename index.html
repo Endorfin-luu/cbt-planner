@@ -1318,7 +1318,8 @@ body.bank-orig .qb-only{display:none !important;}
         <span class="weekplan-title" style="color:var(--orange);">🧠 そろそろ復習</span>
         <span class="weekplan-note"><span id="reviewNote">—</span>が復習どき</span>
       </div>
-      <div style="font-size:9px;color:var(--dim);margin:2px 0 2px;">忘却曲線ベース：記憶度が下がった順（正答率・復習回数も加味）</div>
+      <div id="reviewAlert" style="display:none;font-size:11px;font-weight:700;margin:4px 0 2px;"></div>
+      <div style="font-size:9px;color:var(--dim);margin:2px 0 2px;">忘却曲線ベース：記憶度90%を切った章を、低い順に（正答率・復習回数も加味）</div>
       <div id="reviewChips"></div>
     </div>
 
@@ -3386,6 +3387,11 @@ function addToday() {
     }
     // 2周目以降の再演習は「復習」とみなして忘却曲線スケジュールを前進
     if (round >= 2) touchReview(ch.id, RDATE);
+    else {
+      ensureReviewSeed(ch.id);
+      const srv = state.subject_status[ch.id].srv;
+      if (srv && RDATE > (srv.last || '')) srv.last = RDATE;
+    }
     saveSubjectStatus();
   }
 
@@ -4465,9 +4471,17 @@ function renderWeekPlan() {
 //   R が閾値(80%)を下回った章だけを「復習どき」として、忘れている順に提示する。
 // ══════════════════════════════════════════════════════════════
 const SRS_STRENGTH = [10, 22, 45, 90, 170, 300]; // stageごとの記憶の安定度(日)
-const SRS_DUE_R = 0.80;   // 保持率がこれを下回ったら復習推奨
+const SRS_DUE_R = 0.90;   // 保持率がこれを下回ったら復習推奨（FSRSの標準的な目標保持率）
+// Retention bands shown in the UI (stricter labels to create a sense of urgency)
+function memoryLevel(retention) {
+  if (retention >= 0.95) return { label: '万全',   icon: '🟢', color: 'var(--green-ink)' };
+  if (retention >= 0.90) return { label: '安定',   icon: '🟢', color: 'var(--green-ink)' };
+  if (retention >= 0.80) return { label: '注意',   icon: '⚠️', color: 'var(--yellow)' };
+  if (retention >= 0.70) return { label: '危険',   icon: '🔥', color: 'var(--orange)' };
+  return                        { label: 'ヤバい', icon: '🚨', color: 'var(--red-ink)' };
+}
 const FSRS_FACTOR = 19 / 81, FSRS_DECAY = -0.5;
-// Days until R drops to SRS_DUE_R, as a multiple of S (≈2.40 for 80%)
+// Days until R drops to SRS_DUE_R, as a multiple of S (=1.0 for 90%, since S is defined as the 90% point)
 const DUE_PER_STRENGTH = (Math.pow(SRS_DUE_R, 1 / FSRS_DECAY) - 1) / FSRS_FACTOR;
 function retentionAt(t, S) { return Math.pow(1 + FSRS_FACTOR * t / S, FSRS_DECAY); }
 
@@ -4497,7 +4511,7 @@ function memoryStrength(id, stage) {
 function ensureReviewSeed(id) {
   const st = state.subject_status[id];
   if (!st || st.srv) return;
-  if (isRoundDone(id, 1) && st.r1_date) {
+  if ((st.done || 0) > 0 && st.r1_date) {
     st.srv = { stage: 0, last: st.r1_date };
   }
 }
@@ -4587,13 +4601,24 @@ function renderReviewReminder() {
   // ヘッダーの件数表示
   const note = document.getElementById('reviewNote');
   if (note) note.textContent = `${due.length}章`;
+  // Urgency banner: how many chapters are already in the danger zone (<70%)
+  const danger = due.filter(x => x.rs.retention < 0.70).length;
+  const alertEl = document.getElementById('reviewAlert');
+  if (alertEl) {
+    alertEl.style.display = 'block';
+    alertEl.innerHTML = danger > 0
+      ? `🚨 <strong>${danger}章</strong>が記憶70%未満。このままだと本番で取りこぼします`
+      : `⚠️ 記憶が90%を切った章が <strong>${due.length}章</strong>。崩れる前に回収しよう`;
+    alertEl.style.color = danger > 0 ? 'var(--red-ink)' : 'var(--orange)';
+  }
 
   card.style.display = 'block';
   chips.innerHTML = '';
   for (const { ch, rs } of top) {
     const ret = Math.round(rs.retention * 100);
     // 記憶度で色分け（低いほど赤）
-    const retColor = ret < 40 ? 'var(--red)' : ret < 65 ? 'var(--orange)' : 'var(--yellow)';
+    const lv = memoryLevel(rs.retention);
+    const retColor = lv.color;
     const row = document.createElement('div');
     row.className = 'review-row';
     row.style.borderLeft = `3px solid ${BLOCK_COLORS[ch.block]}`;
@@ -4603,7 +4628,7 @@ function renderReviewReminder() {
     info.innerHTML =
       `<span class="review-id" style="color:${BLOCK_COLORS[ch.block]};">${ch.id}</span>` +
       `<span class="review-subj">${ch.subj || ''}</span>` +
-      `<span class="review-when" style="color:${retColor};">記憶度${ret}%</span>` +
+      `<span class="review-when" style="color:${retColor};">${lv.icon}記憶度${ret}% ${lv.label}</span>` +
       `<span class="review-stage">${rs.daysSince}日前・Lv${rs.stage}</span>`;
     // 章タップ → その章を記録対象にセット（軽く見直したい導線）
     info.style.cursor = 'pointer';
@@ -5358,11 +5383,11 @@ function openChapterDetail(id) {
   const rs = reviewStatus(id);
   const memHtml = rs
     ? `<div class="cd-mem">
-         <span>🧠 記憶度 <strong style="color:${rs.retention<0.5?'var(--red-ink)':rs.retention<0.8?'var(--orange)':'var(--green-ink)'}">${Math.round(rs.retention*100)}%</strong></span>
+         <span>🧠 記憶度 <strong style="color:${memoryLevel(rs.retention).color}">${Math.round(rs.retention*100)}% ${memoryLevel(rs.retention).icon}${memoryLevel(rs.retention).label}</strong></span>
          <span>${rs.daysSince}日前に学習 ・ Lv${rs.stage}</span>
-         <span>${rs.due ? '復習どき' : `次の目安まで約${rs.dueInDays}日`}</span>
+         <span>${rs.due ? `復習どき（${rs.overdueDays}日超過）` : `次の目安まで約${rs.dueInDays}日`}</span>
        </div>`
-    : '<div class="cd-mem"><span>🧠 1周目を終えると復習スケジュールが始まります</span></div>';
+    : '<div class="cd-mem"><span>🧠 1問でも記録すると記憶度の計算が始まります</span></div>';
 
   // 試験との紐付け
   const ex = chapterExamDays(id);
@@ -5779,13 +5804,21 @@ function makeChapterRow(ch) {
   // 復習バッジ（忘却曲線で保持率が下がった章）。記憶度%を表示
   const rs = reviewStatus(ch.id);
   let rvBadge = null;
-  if (rs && rs.due) {
+  if (rs) {
     const ret = Math.round(rs.retention * 100);
+    const lv = memoryLevel(rs.retention);
     rvBadge = document.createElement('span');
-    rvBadge.style.cssText = 'font-size:8.5px;font-weight:800;padding:1px 5px;border-radius:6px;flex-shrink:0;background:rgba(255,138,60,0.15);color:var(--orange);cursor:pointer;';
-    rvBadge.textContent = `🧠記憶${ret}%`;
-    rvBadge.title = 'タップで復習完了';
-    rvBadge.addEventListener('click', (e) => { e.stopPropagation(); markReviewed(ch.id); });
+    rvBadge.style.cssText = `font-size:8.5px;font-weight:800;padding:1px 5px;border-radius:6px;flex-shrink:0;border:1px solid ${lv.color};color:${lv.color};`;
+    if (rs.due) {
+      rvBadge.textContent = `${lv.icon}記憶${ret}% ${lv.label}`;
+      rvBadge.style.cursor = 'pointer';
+      if (rs.retention < 0.70) rvBadge.style.animation = 'pulse-red 1.6s infinite';
+      rvBadge.title = 'タップで復習完了';
+      rvBadge.addEventListener('click', (e) => { e.stopPropagation(); markReviewed(ch.id); });
+    } else {
+      rvBadge.textContent = `🧠${ret}%`;
+      rvBadge.title = `記憶度${ret}%（あと約${rs.dueInDays}日で復習どき）`;
+    }
   }
 
   topLine.appendChild(idEl);
