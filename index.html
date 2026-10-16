@@ -709,6 +709,23 @@ body.sprint .sprint-hide{display:none !important;}
 .sp-day.exam span{color:var(--red-ink);font-weight:700;}
 .sp-hint{font-size:9.5px;color:var(--dim);margin-top:6px;line-height:1.5;}
 
+/* ── 周回プラン（あと何周） ── */
+.rp-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;}
+.rp-sum-b{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:7px 4px;text-align:center;}
+.rp-sum-v{font-size:17px;font-weight:900;font-family:'JetBrains Mono',monospace;}
+.rp-sum-l{font-size:9px;color:var(--dim);font-weight:700;margin-top:2px;}
+.rp-total{font-size:11px;color:var(--dim);margin:2px 0 10px;line-height:1.5;}
+.rp-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+.rp-row:last-child{border-bottom:none;}
+.rp-id{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:13px;width:26px;flex-shrink:0;}
+.rp-main{flex:1;min-width:0;}
+.rp-name{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rp-sub{font-size:9.5px;color:var(--dim);margin-top:2px;}
+.rp-laps{text-align:right;flex-shrink:0;}
+.rp-laps b{font-size:15px;font-family:'JetBrains Mono',monospace;}
+.rp-laps span{display:block;font-size:9px;color:var(--dim);}
+.rp-more{width:100%;margin-top:8px;background:var(--s2);border:1px solid var(--border);color:var(--dim);border-radius:10px;padding:8px;font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;}
+
 /* ── 自動インサイト ── */
 .insight-item{
   display:flex;align-items:flex-start;gap:8px;
@@ -1949,6 +1966,13 @@ body.bank-orig .qb-only{display:none !important;}
 
   <!-- ===== 科目（チャプター管理） ===== -->
   <div class="panel" id="p-subj">
+
+    <!-- 周回プラン：正答率から章ごとに「あと何周」 -->
+    <div class="card qb-only" id="roundPlanCard">
+      <div class="ct">🧭 あと何周？（正答率から自動判定・QB）</div>
+      <div id="roundPlanBody"></div>
+    </div>
+
 
     <!-- 苦手ヒートマップ -->
     <div class="card">
@@ -4766,8 +4790,8 @@ function renderReviewReminder() {
 // ══════════════════════════════════════════════════════════════
 // 直前期モード（ラストスパート）
 // ──────────────────────────────────────────────────────────────
-// QBを章ごとに「最低ライン／目標」の周回数まで回すのに、残り何問か → 勉強できる日に割り振る。
-//   vol1〜3: 最低3周・目標4周 / vol4・5: 最低2周・目標3周
+// QBを章ごとに「必須／推奨」の周回数まで回すのに、残り何問か → 勉強できる日に割り振る。
+//   基本は vol1〜3: 3〜4周 / vol4・5: 2〜3周。章の今の正答率で増減する（chapterRoundPlan）。
 // 勉強できる日 = 今日〜CBT前日（大学の試験日と、自分で休みにした日を除く）。
 // 各日の割り当ては勉強時間（平日/休日）に比例。遅れた分は毎日の再計算で自動的に上乗せされる。
 // ══════════════════════════════════════════════════════════════
@@ -4778,12 +4802,44 @@ function plannedRounds(ch) { return ch.block >= 4 ? { min: 2, goal: 3 } : { min:
 function qbSt(id) { return BANK_SUBJ.qb[id] || {}; }
 function qbRoundDone(st, r) { return st[ROUND_META[r].done] || 0; }
 
-// 指定ライン（'min' | 'goal'）まで回すのに残っている問題数
+// 正答率の段階（今の実力＝最新周回を優先した正答率）
+const ROUND_TIERS = {
+  weak: { order: 0, icon: '🔴', label: '要周回',   color: 'var(--red-ink)',   desc: '70%未満' },
+  mid:  { order: 1, icon: '🟡', label: '標準',     color: 'var(--yellow)',    desc: '70〜80%' },
+  good: { order: 2, icon: '🟢', label: 'ほぼOK',   color: 'var(--green-ink)', desc: '80〜90%' },
+  done: { order: 3, icon: '✅', label: '仕上がり', color: 'var(--teal)',      desc: '90%以上' },
+};
+// 章ごとの周回プラン：正答率から「必須（need）」「推奨（want）」の周回数を決める
+//   〜80%   : 基本どおり（vol1〜3: 必須3・推奨4 / vol4・5: 必須2・推奨3）。70%未満は最優先
+//   80〜90% : 終えた周回で必須は満たす。推奨はあと1周まで（vol1〜3は3周・vol4/5は2周が上限）で後回し
+//   90%以上 : 2周以上やっていれば終了
+function chapterRoundPlan(ch) {
+  const st = qbSt(ch.id), base = plannedRounds(ch);
+  let completed = 0;
+  for (const r of ROUNDS) { if (qbRoundDone(st, r) >= ch.n) completed = r; else break; }
+  const cur = chapterCurrent(st, ch.n);
+  const acc = cur.done > 0 ? cur.ok / cur.done * 100 : null;
+  let tier, need, want;
+  if (acc == null || acc < 70) { tier = 'weak'; need = base.min; want = base.goal; }
+  else if (acc < 80)           { tier = 'mid';  need = base.min; want = base.goal; }
+  else if (acc < 90)           { tier = 'good'; need = Math.max(2, completed); want = Math.max(need, Math.min(base.min, completed + 1)); }
+  else                         { tier = 'done'; need = Math.max(2, completed); want = need; }
+  const remTo = R => { let t = 0; for (let k = 1; k <= R; k++) t += Math.max(0, ch.n - Math.min(qbRoundDone(st, k), ch.n)); return t; };
+  const remNeed = remTo(need), remWant = remTo(want);
+  let next = 0;                       // 次にやる周回（推奨まで）
+  for (let k = 1; k <= want; k++) if (qbRoundDone(st, k) < ch.n) { next = k; break; }
+  return { ch, acc, tier, completed, need, want, remNeed, remWant, next,
+           lapsNeed: remNeed / ch.n, lapsWant: remWant / ch.n };
+}
+// 「あと1.4周」のような表示
+function fmtLaps(x) { return x <= 0 ? '0' : x >= 0.95 && Math.abs(x - Math.round(x)) < 0.05 ? String(Math.round(x)) : x.toFixed(1); }
+
+// 指定ライン（'min'=必須 | 'goal'=推奨）まで回すのに残っている問題数
 function sprintRemaining(level) {
   let t = 0;
   for (const ch of CHAPTERS_QB) {
-    const st = qbSt(ch.id), R = plannedRounds(ch)[level];
-    for (let r = 1; r <= R; r++) t += Math.max(0, ch.n - Math.min(qbRoundDone(st, r), ch.n));
+    const pl = chapterRoundPlan(ch);
+    t += level === 'goal' ? pl.remWant : pl.remNeed;
   }
   return t;
 }
@@ -4843,27 +4899,24 @@ function sprintPlan() {
   };
 }
 
-// 今日やる章：最低ラインに届いていない章 → 周回が遅れている章 → やりかけ → 苦手 の順
+// 今日やる章：近い試験の範囲 → 必須に届いていない章 → 正答率が低い段階 → 周回が遅れている → やりかけ → 苦手
 function sprintQueue() {
   const items = [];
   for (const ch of CHAPTERS_QB) {
-    const st = qbSt(ch.id), pr = plannedRounds(ch);
-    let r = 0;
-    for (let k = 1; k <= pr.goal; k++) if (qbRoundDone(st, k) < ch.n) { r = k; break; }
-    if (!r) continue;
-    const doneR = Math.min(qbRoundDone(st, r), ch.n);
-    const cur = chapterCurrent(st, ch.n);
-    const acc = cur.done > 0 ? cur.ok / cur.done * 100 : null;
+    const pl = chapterRoundPlan(ch);
+    if (!pl.next) continue;
+    const r = pl.next, doneR = Math.min(qbRoundDone(qbSt(ch.id), r), ch.n);
     const ex = currentBank === 'qb' ? chapterExamDays(ch.id) : null;
-    items.push({ ch, r, left: ch.n - doneR, partial: doneR > 0, belowMin: r <= pr.min, acc,
+    items.push({ ch, r, left: ch.n - doneR, partial: doneR > 0, belowMin: r <= pl.need, acc: pl.acc, plan: pl,
                  examSoon: ex && ex.days <= 7 ? ex : null });
   }
   items.sort((a, b) =>
     (b.examSoon ? 1 : 0) - (a.examSoon ? 1 : 0) ||
     (b.belowMin ? 1 : 0) - (a.belowMin ? 1 : 0) ||
+    ROUND_TIERS[a.plan.tier].order - ROUND_TIERS[b.plan.tier].order ||
     a.r - b.r ||
     (b.partial ? 1 : 0) - (a.partial ? 1 : 0) ||
-    (a.acc == null ? 101 : a.acc) - (b.acc == null ? 101 : b.acc));
+    (a.acc == null ? -1 : a.acc) - (b.acc == null ? -1 : b.acc));
   return items;
 }
 
@@ -4875,7 +4928,7 @@ function renderSprint() {
   const daysLeft = Math.max(0, Math.round((CBT - TODAY) / 86400000));
   setEl('spDaysLeft', daysLeft);
 
-  const mainLabel = plan.main === 'goal' ? '目標（4周・vol4/5は3周）' : '最低ライン（3周・vol4/5は2周）';
+  const mainLabel = plan.main === 'goal' ? '推奨ライン' : '必須ライン';
   const qEl = document.getElementById('spQuota');
   const noteEl = document.getElementById('spNote');
   if (daysLeft === 0) {
@@ -4902,21 +4955,21 @@ function renderSprint() {
     </div>`;
   };
   document.getElementById('spPlans').innerHTML =
-    box('goal', '🎯 目標 4周（vol4/5 3周）') + box('min', '🛟 最低 3周（vol4/5 2周）');
+    box('goal', '🎯 推奨（正答率で調整）') + box('min', '🛟 必須');
 
   const v = document.getElementById('spVerdict');
   const h = sprintHours();
   if (plan.lv.goal.rem === 0) {
-    v.style.color = 'var(--green-ink)'; v.textContent = '🎉 目標の周回をすべて達成！苦手章の見直しと模試へ';
+    v.style.color = 'var(--green-ink)'; v.textContent = '🎉 推奨の周回をすべて達成！苦手章の見直しと模試へ';
   } else if (plan.capacity >= plan.lv.goal.rem) {
     v.style.color = 'var(--green-ink)';
-    v.textContent = `✅ 今の設定（平日${h.wd}h・休日${h.we}h・${h.speed}問/h ≒ 約${plan.capacity.toLocaleString()}問）なら目標まで届く計算`;
+    v.textContent = `✅ 今の設定（平日${h.wd}h・休日${h.we}h・${h.speed}問/h ≒ 約${plan.capacity.toLocaleString()}問）なら推奨まで届く計算`;
   } else if (plan.capacity >= plan.lv.min.rem) {
     v.style.color = 'var(--orange)';
-    v.textContent = `⚠️ 4周目まで全部は時間的に厳しい（こなせる約${plan.capacity.toLocaleString()}問）。最低ラインを優先し、4周目は苦手章から`;
+    v.textContent = `⚠️ 推奨まで全部は時間的に厳しい（こなせる約${plan.capacity.toLocaleString()}問）。必須を優先し、余った時間は苦手章へ`;
   } else {
     v.style.color = 'var(--red-ink)';
-    v.textContent = `🚨 最低ラインにも約${(plan.lv.min.rem - plan.capacity).toLocaleString()}問足りない計算。苦手章を優先して、得意章の周回は削ろう`;
+    v.textContent = `🚨 必須にも約${(plan.lv.min.rem - plan.capacity).toLocaleString()}問足りない計算。苦手章を優先して、得意章の周回は削ろう`;
   }
 
   // 今日やる章：今日の残りノルマを上から割り当て（最大4章）
@@ -4942,7 +4995,8 @@ function renderSprint() {
       const m = ROUND_META[x.r], color = BLOCK_COLORS[x.ch.block];
       const why = [];
       if (x.examSoon) why.push(`試験「${x.examSoon.name}」まで${x.examSoon.days}日`);
-      if (x.belowMin) why.push('最低ライン未達');
+      const t = ROUND_TIERS[x.plan.tier];
+      why.push(`${t.icon}${x.belowMin ? '必須' : '推奨'} あと${fmtLaps(x.belowMin ? x.plan.lapsNeed : x.plan.lapsWant)}周`);
       if (x.partial) why.push(`${m.label}やりかけ（残り${x.left}問）`);
       if (x.acc != null) why.push(`正答${x.acc.toFixed(0)}%`);
       return `<div class="sp-row" style="border-left:3px solid ${color}">
@@ -5731,6 +5785,8 @@ function openChapterDetail(id) {
 
   // 記憶度（忘却曲線）
   const rs = reviewStatus(id);
+  const rp = currentBank === 'qb' ? chapterRoundPlan(ch) : null;
+  const planHtml = rp ? `<div class="cd-exam" style="color:${ROUND_TIERS[rp.tier].color}">🧭 ${ROUND_TIERS[rp.tier].icon}${ROUND_TIERS[rp.tier].label}（正答${rp.acc != null ? rp.acc.toFixed(0) + '%' : '—'}）→ 推奨${rp.want}周・必須${rp.need}周 ・ ${rp.remWant > 0 ? `あと<strong>${fmtLaps(rp.lapsWant)}周</strong>` : '<strong>完了</strong>'}</div>` : '';
   const memHtml = rs
     ? `<div class="cd-mem">
          <span>🧠 記憶度 <strong style="color:${memoryLevel(rs.retention).color}">${Math.round(rs.retention*100)}% ${memoryLevel(rs.retention).icon}${memoryLevel(rs.retention).label}</strong></span>
@@ -5777,6 +5833,7 @@ function openChapterDetail(id) {
       <span class="cd-n">${ch.n}問</span>
     </div>
     ${examHtml}
+    ${planHtml}
     ${memHtml}
     <div class="cd-sec">周回の進み具合</div>
     ${roundHtml}
@@ -5994,7 +6051,47 @@ function renderVolSummary() {
   }).join('');
 }
 
+let _rpShowAll = false;
+function renderRoundPlan() {
+  const body = document.getElementById('roundPlanBody');
+  if (!body) return;
+  const plans = CHAPTERS_QB.map(chapterRoundPlan);
+  const cnt = { weak: 0, mid: 0, good: 0, done: 0 };
+  let remNeed = 0, remWant = 0;
+  for (const p of plans) { cnt[p.tier]++; remNeed += p.remNeed; remWant += p.remWant; }
+  // 並び：やることが残っている章を、正答率の低い段階 → 残り周回の多い順
+  const sorted = plans.slice().sort((a, b) =>
+    ((b.remWant > 0) - (a.remWant > 0)) ||
+    ROUND_TIERS[a.tier].order - ROUND_TIERS[b.tier].order ||
+    b.lapsWant - a.lapsWant ||
+    (a.acc == null ? -1 : a.acc) - (b.acc == null ? -1 : b.acc));
+  const shown = _rpShowAll ? sorted : sorted.slice(0, 10);
+  const sum = Object.keys(ROUND_TIERS).map(k => {
+    const t = ROUND_TIERS[k];
+    return `<div class="rp-sum-b"><div class="rp-sum-v" style="color:${t.color}">${cnt[k]}</div><div class="rp-sum-l">${t.icon}${t.label}<br>${t.desc}</div></div>`;
+  }).join('');
+  const rows = shown.map(p => {
+    const t = ROUND_TIERS[p.tier], color = BLOCK_COLORS[p.ch.block];
+    const doneTxt = p.completed > 0 ? `${ROUND_META[p.completed].icon}まで完了` : '1周目途中';
+    const lapsTxt = p.remWant <= 0
+      ? `<b style="color:var(--teal)">完了</b><span>${t.label}</span>`
+      : `<b style="color:${t.color}">あと${fmtLaps(p.lapsWant)}周</b><span>${p.remNeed > 0 ? `必須あと${fmtLaps(p.lapsNeed)}周` : '必須は達成'}</span>`;
+    return `<div class="rp-row" onclick="openChapterDetail('${p.ch.id}')">
+      <span class="rp-id" style="color:${color}">${p.ch.id}</span>
+      <div class="rp-main"><div class="rp-name">${p.ch.subj}</div>
+        <div class="rp-sub">${t.icon}正答${p.acc != null ? p.acc.toFixed(0) + '%' : '—'} ・ ${doneTxt} ・ 推奨${p.want}周</div></div>
+      <div class="rp-laps">${lapsTxt}</div>
+    </div>`;
+  }).join('');
+  body.innerHTML = `<div class="rp-sum">${sum}</div>
+    <div class="rp-total">推奨まで残り <strong>${remWant.toLocaleString()}問</strong>（必須だけなら ${remNeed.toLocaleString()}問）。
+      正答率は今の実力（解き直した問題は最新周回の結果）。80%以上の章は周回を減らして後回しにしています。</div>
+    ${rows}
+    ${sorted.length > 10 ? `<button class="rp-more" onclick="_rpShowAll=!_rpShowAll;renderRoundPlan()">${_rpShowAll ? '上位10章だけ表示' : `全${sorted.length}章を表示`}</button>` : ''}`;
+}
+
 function renderSubjects() {
+  renderRoundPlan();
   renderWeakHeatmap();
   renderReviewPriority();
   renderRoundAnalysis();
