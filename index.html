@@ -2209,7 +2209,15 @@ const WEEKLY_PLAN = [
   { start:'2026-11-02', chapters:['4A','4B','5A'],       note:'直前期：全誤答の最終確認' },
 ];
 
-const CBT = new Date('2026-11-06');
+const CBT = ymd('2026-11-06');
+
+// 'YYYY-MM-DD' をローカル時刻の0時として解釈する。
+// new Date('YYYY-MM-DD') はUTC扱いになり、日本では朝9時になるため、
+// 「今日(0時)」との比較で境界の日が1日ずれていた（月曜に先週の計画が出る等）。
+function ymd(s) {
+  const [y, m, d] = String(s).split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
 
 // ローカル日付を YYYY-MM-DD で返す（toISOStringはUTC変換で日本だと最大9時間ずれるため自前で）
 function toLocalDateStr(d) {
@@ -2424,6 +2432,7 @@ async function init() {
         state.r2        = parsed.r2        ?? 0;
         state.r3        = parsed.r3        ?? 0;
         state.m         = parsed.m         ?? 0;
+        state.m_ok      = parsed.m_ok      ?? 0;
         state.streak    = parsed.streak    ?? [];
         state.daily_log = parsed.daily_log ?? [];
         state.chapter_log = parsed.chapter_log ?? [];
@@ -2572,7 +2581,9 @@ window.addEventListener('online', retrySaveIfPending);
 window.addEventListener('focus', retrySaveIfPending);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) retrySaveIfPending(); });
 
+let _saveInFlight = false;  // 保存の通信中か（その間はクラウドからの取り込みをしない）
 async function doSave() {
+  _saveTimer = null;         // 予約は消化済み（残すと refreshFromCloud が永久にスキップされる）
   // ── ガード1：クラウドを読めていないなら絶対に書かない ──
   // （Supabase停止中などに初期データや空データで本物を上書きする事故を防ぐ）
   if (!_cloudLoadOk) {
@@ -2616,8 +2627,10 @@ async function doSave() {
   if (!_noSubjectCol) payload.subject_status = BANK_SUBJ.qb;
   if (!_noMiscCol)    payload.misc = buildMisc();
 
+  _saveInFlight = true;
   try {
     const { error } = await CLOUD.write(payload);
+    _saveInFlight = false;
     if (error) throw error;
     localStorage.setItem('cbt_cache', JSON.stringify(state));
     localStorage.setItem('cbt_last_sync', nowIso);
@@ -2626,6 +2639,7 @@ async function doSave() {
     _cloudBaselineDone = nextDone;   // 正常保存できた量を新しい基準に
     setSyncState('ok');
   } catch (err) {
+    _saveInFlight = false;
     // ネットワーク到達失敗（Supabase停止・オフライン等）は「保存失敗」ではなく
     // 「未同期（ローカル保存済み）」として扱い、接続復帰で自動リトライする
     const emsg = (err && (err.message || String(err))) || '';
@@ -2662,7 +2676,8 @@ async function doSave() {
 
 // ── クラウドから最新を取り込み（別端末の更新を反映・競合対策 #16） ──
 async function refreshFromCloud() {
-  if (_saveTimer) return;        // 自分の未保存編集があるときは触らない
+  // 自分の未保存・未同期の編集があるときは触らない（上書きして消さないため）
+  if (_saveTimer || _saveInFlight || _pendingSave) return;
   try {
     const { data, error } = await CLOUD.read();
     if (error || !data) return;
@@ -2698,16 +2713,16 @@ async function refreshFromCloud() {
 
 // ── フェーズ別日ノルマ ──
 function getDayTarget(date) {
-  if (date >= new Date('2026-11-01')) return 0;
-  if (date >= new Date('2026-09-01')) return 20;
-  if (date >= new Date('2026-07-11')) return 50;
+  if (date >= ymd('2026-11-01')) return 0;
+  if (date >= ymd('2026-09-01')) return 20;
+  if (date >= ymd('2026-07-11')) return 50;
   return 10;
 }
 
 // ── 次の試験を取得 ──
 function getNextExam() {
   for (const exam of EXAMS) {
-    const d = new Date(exam.date);
+    const d = ymd(exam.date);
     d.setHours(0, 0, 0, 0);
     if (d >= TODAY) {
       return { name: exam.name, date: d, daysLeft: Math.round((d - TODAY) / 86400000) };
@@ -2723,9 +2738,9 @@ function calcRequiredPace() {
 
   // 今日以降の解答可能日数（フェーズ内、直前期除く）
   const phaseRanges = [
-    { start: new Date('2026-06-01'), end: new Date('2026-07-10') },
-    { start: new Date('2026-07-11'), end: new Date('2026-08-31') },
-    { start: new Date('2026-09-01'), end: new Date('2026-10-31') },
+    { start: ymd('2026-06-01'), end: ymd('2026-07-10') },
+    { start: ymd('2026-07-11'), end: ymd('2026-08-31') },
+    { start: ymd('2026-09-01'), end: ymd('2026-10-31') },
   ];
   let totalDays = 0;
   for (const ph of phaseRanges) {
@@ -2769,13 +2784,13 @@ function useFreeze(date) {
 
 function checkPenalty() {
   // 直前期・初回起動はスキップ
-  if (new Date() >= new Date('2026-11-01')) return;
+  if (new Date() >= ymd('2026-11-01')) return;
   if (!state.last_date) return;
 
   // 今日すでにチェック済みならスキップ
   if (localStorage.getItem('penalty_checked') === TODAY_STR) return;
 
-  const lastDate = new Date(state.last_date);
+  const lastDate = ymd(state.last_date);
   lastDate.setHours(0, 0, 0, 0);
   const yesterday = new Date(TODAY);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -2953,8 +2968,8 @@ function pickDefaultChapter() {
   }
   // 今週の計画から未完了を探す
   for (let i = 0; i < WEEKLY_PLAN.length; i++) {
-    const start = new Date(WEEKLY_PLAN[i].start);
-    const nextStart = i + 1 < WEEKLY_PLAN.length ? new Date(WEEKLY_PLAN[i + 1].start) : new Date('2026-11-09');
+    const start = ymd(WEEKLY_PLAN[i].start);
+    const nextStart = i + 1 < WEEKLY_PLAN.length ? ymd(WEEKLY_PLAN[i + 1].start) : ymd('2026-11-09');
     if (TODAY >= start && TODAY < nextStart) {
       for (const id of WEEKLY_PLAN[i].chapters) {
         if (!isChapterDone(id)) return id;
@@ -3043,8 +3058,8 @@ function computeRecommendation() {
   const weekDistance = {};
   let curWeekIdx = WEEKLY_PLAN.length;
   for (let i = 0; i < WEEKLY_PLAN.length; i++) {
-    const start = new Date(WEEKLY_PLAN[i].start);
-    const nextStart = i + 1 < WEEKLY_PLAN.length ? new Date(WEEKLY_PLAN[i + 1].start) : new Date('2026-11-09');
+    const start = ymd(WEEKLY_PLAN[i].start);
+    const nextStart = i + 1 < WEEKLY_PLAN.length ? ymd(WEEKLY_PLAN[i + 1].start) : ymd('2026-11-09');
     if (TODAY >= start && TODAY < nextStart) curWeekIdx = i;
   }
   for (let i = 0; i < WEEKLY_PLAN.length; i++) {
@@ -3322,6 +3337,7 @@ function addToday() {
 
   // アンドゥ用に記録前の状態を保存
   _undoSnapshot = {
+    bank: currentBank,
     chapter: selectedChapter,
     subject_status: JSON.parse(JSON.stringify(state.subject_status)),
     daily_log: JSON.parse(JSON.stringify(state.daily_log)),
@@ -3463,6 +3479,9 @@ function addToday() {
 // 直前の記録を取り消す
 function undoLastRecord() {
   if (!_undoSnapshot) { showToast('取り消せる記録がありません'); return; }
+  // 記録後に問題集を切り替えていたら、記録した問題集に戻してから取り消す
+  // （戻さないと、表示中の別の問題集のデータがスナップショットで上書きされる）
+  if (_undoSnapshot.bank && _undoSnapshot.bank !== currentBank) switchBank(_undoSnapshot.bank);
   state.subject_status = _undoSnapshot.subject_status;
   BANK_SUBJ[currentBank] = state.subject_status;   // バンク側の参照も戻す
   state.daily_log      = _undoSnapshot.daily_log;
@@ -3695,8 +3714,8 @@ function calcBestStreak() {
   const sorted = [...dates].sort();
   let best = 1, cur = 1;
   for (let i = 1; i < sorted.length; i++) {
-    const prev = new Date(sorted[i-1]);
-    const curD = new Date(sorted[i]);
+    const prev = ymd(sorted[i-1]);
+    const curD = ymd(sorted[i]);
     const gap = Math.round((curD - prev) / 86400000);
     if (gap === 1) { cur++; best = Math.max(best, cur); }
     else cur = 1;
@@ -3803,7 +3822,7 @@ function maybeShowWeekReview() {
 
   // 先週(=seen週)のサマリーを集計
   const prevStart = seen;
-  const prevEnd = (() => { const d = new Date(seen); d.setDate(d.getDate()+6); return toLocalDateStr(d); })();
+  const prevEnd = (() => { const d = ymd(seen); d.setDate(d.getDate()+6); return toLocalDateStr(d); })();
   let q = 0, correct = 0, min = 0, daysActive = 0;
   for (const l of state.daily_log) {
     if (l.date >= prevStart && l.date <= prevEnd) {
@@ -3982,7 +4001,7 @@ function updateAll() {
   const T  = BANK_TOTALS[currentBank];             // 現在バンクの集計
   const r1 = T.r1, ok = T.ok, r2 = T.r2, r3 = T.r3;
   const m = state.m, m_ok = state.m_ok;            // モントレはQB専用（stateのまま）
-  // 正答率は「今の実力」＝2周目に着手した章は2周目(+3周目回収)基準で評価
+  // 正答率は「今の実力」＝解き直した問題は最新周回の結果で評価
   const curDone = T.curDone != null ? T.curDone : r1;
   const curOk   = T.curOk   != null ? T.curOk   : ok;
   const acc   = curDone > 0 ? (curOk / curDone * 100) : 0;
@@ -4072,11 +4091,11 @@ function updateAll() {
   const effectiveTarget = state.debt > 0 ? Math.ceil(baseTarget * 1.5) : baseTarget;
   const now = new Date();
   let phase = 'Phase 1 — 授業試験と共存期';
-  if (now >= new Date('2026-07-11') && now < new Date('2026-09-01')) {
+  if (now >= ymd('2026-07-11') && now < ymd('2026-09-01')) {
     phase = 'Phase 2 ★夏 — 最重要期間';
-  } else if (now >= new Date('2026-09-01') && now < new Date('2026-11-01')) {
+  } else if (now >= ymd('2026-09-01') && now < ymd('2026-11-01')) {
     phase = 'Phase 3 — 実習・試験並走';
-  } else if (now >= new Date('2026-11-01')) {
+  } else if (now >= ymd('2026-11-01')) {
     phase = '直前期 — 復習のみ';
   }
   const targetEl = document.getElementById('todayTarget');
@@ -4145,7 +4164,7 @@ function renderBarChart() {
       : d.isToday ? 'var(--blue)'
       : d.n >= target ? 'var(--green)'
       : 'rgba(52,232,160,0.35)';
-    const dateLabel = new Date(d.ds).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' });
+    const dateLabel = ymd(d.ds).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' });
     html += `<div
       style="flex:1;height:${pct}%;border-radius:3px 3px 0 0;background:${color};cursor:pointer;min-height:${d.n>0?3:0}px;"
       title="${dateLabel}: ${d.n}問"
@@ -4375,7 +4394,7 @@ function renderGhost() {
 
   // 理想ペース累計（6/1〜今日、フェーズ別の基本ノルマを毎日加算）
   let ghostTotal = 0;
-  const planStart = new Date('2026-06-01');
+  const planStart = ymd('2026-06-01');
   let cursor = new Date(planStart);
   while (cursor <= TODAY) {
     ghostTotal += getDayTarget(cursor);
@@ -4409,8 +4428,8 @@ function renderWeekPlan() {
   // 今日が含まれる週の計画を探す（start <= today < 次のstart）
   let plan = null;
   for (let i = 0; i < WEEKLY_PLAN.length; i++) {
-    const start = new Date(WEEKLY_PLAN[i].start);
-    const nextStart = i + 1 < WEEKLY_PLAN.length ? new Date(WEEKLY_PLAN[i + 1].start) : new Date('2026-11-09');
+    const start = ymd(WEEKLY_PLAN[i].start);
+    const nextStart = i + 1 < WEEKLY_PLAN.length ? ymd(WEEKLY_PLAN[i + 1].start) : ymd('2026-11-09');
     if (TODAY >= start && TODAY < nextStart) { plan = WEEKLY_PLAN[i]; break; }
   }
 
@@ -4467,12 +4486,12 @@ function retentionAt(t, S) { return Math.pow(1 + FSRS_FACTOR * t / S, FSRS_DECAY
 
 // YYYY-MM-DD に days 日足した文字列
 function addDaysStr(dateStr, days) {
-  const d = new Date(dateStr); d.setDate(d.getDate() + days);
+  const d = ymd(dateStr); d.setDate(d.getDate() + days);
   return toLocalDateStr(d);
 }
 // 最後の学習からの経過日数（小数）
 function daysSinceStr(dateStr) {
-  const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
+  const d = ymd(dateStr); d.setHours(0, 0, 0, 0);
   return Math.max(0, (TODAY - d) / 86400000);
 }
 // 正答率による安定度の補正（50%→1.0, 100%→1.3, 0%→0.7, 未計測→1.0）
@@ -4525,7 +4544,7 @@ function bumpReview(id, dateStr) {
   // Level up only for a spaced review (at least half the current interval has passed).
   // A round split into several sessions a few days apart must not jump straight to stage 5.
   const curStage = st.srv.stage || 0;
-  const gap = st.srv.last ? (new Date(when) - new Date(st.srv.last)) / 86400000 : Infinity;
+  const gap = st.srv.last ? (ymd(when) - ymd(st.srv.last)) / 86400000 : Infinity;
   const interval = memoryStrength(id, curStage) * DUE_PER_STRENGTH;
   if (gap >= interval / 2) st.srv.stage = Math.min(curStage + 1, SRS_STRENGTH.length - 1);
   // Never move the review anchor backwards (a back-filled old record must not reset it)
@@ -4753,9 +4772,9 @@ function runSim() {
   const p3q  = +document.getElementById('p3q').value  || 20;
 
   const phases = [
-    { start: new Date('2026-06-01'), days: 40, q: p1q },
-    { start: new Date('2026-07-11'), days: 52, q: p2q },
-    { start: new Date('2026-09-01'), days: 61, q: p3q },
+    { start: ymd('2026-06-01'), days: 40, q: p1q },
+    { start: ymd('2026-07-11'), days: 52, q: p2q },
+    { start: ymd('2026-09-01'), days: 61, q: p3q },
   ];
 
   const need1 = QB - state.r1;
@@ -5287,12 +5306,12 @@ function chapterExamDays(id) {
   let best = null;
   for (let i = 0; i < WEEKLY_PLAN.length; i++) {
     if (!WEEKLY_PLAN[i].chapters.includes(id)) continue;
-    const weekStart = new Date(WEEKLY_PLAN[i].start);
+    const weekStart = ymd(WEEKLY_PLAN[i].start);
     const windowEnd = new Date(weekStart); windowEnd.setDate(windowEnd.getDate() + 14);
     // Only the exam belonging to that plan week (within 2 weeks of its start).
     // Previously any later exam matched, so a June chapter showed an unrelated September exam.
     for (const ex of EXAMS) {
-      const ed = new Date(ex.date);
+      const ed = ymd(ex.date);
       if (ed >= weekStart && ed < windowEnd && ed >= TODAY) {
         const days = Math.round((ed - TODAY) / 86400000);
         if (!best || days < best.days) best = { days, name: ex.name };
@@ -5755,13 +5774,13 @@ function makeChapterRow(ch) {
   if (acc != null) {
     const c = acc < 50 ? 'var(--red)' : acc < 70 ? 'var(--yellow)' : 'var(--green)';
     accEl.style.color = c;
-    // 2周目に着手していれば「今の実力（2周目基準）」なので②を添えて明示
+    // 2・3周目に着手していれば「今の実力（最新周回基準）」なので②③を添えて明示
     const st2 = state.subject_status[ch.id] || {};
-    const basedOn2 = (st2.done2 || 0) > 0;
-    accEl.textContent = `正答${acc.toFixed(0)}%${basedOn2 ? '②' : ''}`;
+    const latest = (st2.done3 || 0) > 0 ? 3 : (st2.done2 || 0) > 0 ? 2 : 1;
+    accEl.textContent = `正答${acc.toFixed(0)}%${latest > 1 ? ROUND_META[latest].icon : ''}`;
     const a1 = chapterAccR1(ch.id);
-    accEl.title = basedOn2 && a1 != null
-      ? `今の実力（2周目基準・3周目回収込み）: ${acc.toFixed(0)}%／1周目: ${a1.toFixed(0)}%`
+    accEl.title = latest > 1 && a1 != null
+      ? `今の実力（${ROUND_META[latest].label}基準）: ${acc.toFixed(0)}%／1周目: ${a1.toFixed(0)}%`
       : '1周目の正答率';
   } else {
     accEl.style.color = 'var(--dim)';
@@ -5945,7 +5964,8 @@ function exportData() {
   const backup = {
     app: 'cbt-planner', version: 2,
     exportedAt: new Date().toISOString(),
-    state: state,
+    // subject_status は表示中の問題集になっているため、必ずQBを入れる
+    state: Object.assign({}, state, { subject_status: BANK_SUBJ.qb }),
     localStorage: ls
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -5973,10 +5993,16 @@ function importData(event) {
       if (backup.localStorage) {
         for (const k in backup.localStorage) localStorage.setItem(k, backup.localStorage[k]);
       }
-      // subject_status（QBバンク）を反映
-      if (state.subject_status) localStorage.setItem('cbt_subj', JSON.stringify(state.subject_status));
+      // QBの進捗は localStorage の cbt_subj を正とする
+      // （古いバックアップは state.subject_status に表示中の別の問題集が入っていることがある）
+      let qbSubj = state.subject_status || {};
+      if (backup.localStorage && backup.localStorage.cbt_subj) {
+        try { qbSubj = JSON.parse(backup.localStorage.cbt_subj); } catch (e2) {}
+      }
+      state.subject_status = qbSubj;
+      localStorage.setItem('cbt_subj', JSON.stringify(qbSubj));
       // ── バンク参照を再構築（重要：これをしないとクラウドに古いデータが同期される） ──
-      BANK_SUBJ.qb = state.subject_status || {};
+      BANK_SUBJ.qb = qbSubj;
       try { BANK_SUBJ.orig  = JSON.parse(localStorage.getItem('cbt_subj_orig')  || '{}'); } catch(e){ BANK_SUBJ.orig  = {}; }
       try { BANK_SUBJ.monte = JSON.parse(localStorage.getItem('cbt_subj_monte') || '{}'); } catch(e){ BANK_SUBJ.monte = {}; }
       currentBank = 'qb'; localStorage.setItem('cbt_cur_bank', 'qb');
@@ -6028,7 +6054,7 @@ function checkReminder() {
   if (localStorage.getItem('reminder_sent') === TODAY_STR) return;
   const today = state.daily_log.find(l => l.date === TODAY_STR);
   if (today && today.n > 0) return; // もう解いてる
-  if (new Date() >= new Date('2026-11-01')) return; // 直前期は除外
+  if (new Date() >= ymd('2026-11-01')) return; // 直前期は除外
   try {
     new Notification('QB Planner', { body: '今日まだ0問です。少しだけでも解こう！🔥', icon: 'icon-192.png' });
     localStorage.setItem('reminder_sent', TODAY_STR);
