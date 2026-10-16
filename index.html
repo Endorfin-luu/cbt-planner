@@ -718,6 +718,7 @@ body.sprint .sprint-hide{display:none !important;}
 .cal-tag.today{background:var(--orange);color:#fff;}
 .cal-tag.win{background:rgba(91,143,255,0.15);}
 .cal-sum{margin-left:auto;color:var(--dim);font-size:10.5px;font-weight:700;}
+.cal-note{font-size:9.5px;color:var(--dim);margin-top:3px;}
 .cal-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;}
 .cal-chip{font-size:10px;border:1px solid var(--border);border-left-width:3px;border-radius:6px;padding:1px 5px;font-family:'JetBrains Mono',monospace;}
 .sp-speed{width:100%;border-collapse:collapse;font-size:11px;font-family:'JetBrains Mono',monospace;}
@@ -1370,13 +1371,13 @@ body.bank-orig .qb-only{display:none !important;}
       <details class="sprint-settings">
         <summary>📅 勉強できる日・時間の設定</summary>
         <div class="sp-inputs">
-          <label>平日<input type="number" id="spWd" min="0" max="16" step="0.5" onchange="onSprintInput()">h</label>
-          <label>休日<input type="number" id="spWe" min="0" max="16" step="0.5" onchange="onSprintInput()">h</label>
+          <label>空き日<input type="number" id="spFree" min="0" max="16" step="0.5" onchange="onSprintInput()">h</label>
+          <label>研究室<input type="number" id="spLab" min="0" max="8" step="0.5" onchange="onSprintInput()">h/日</label>
           <label>基準の速さ<input type="number" id="spSpeed" min="1" max="60" step="1" onchange="onSprintInput()">問/h</label>
           <label>記憶キープ<select id="spFreshSel" onchange="setFreshDays(this.value)" style="background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px;font-size:12px;"><option value="14">直前2週間</option><option value="21">直前3週間</option></select></label>
         </div>
         <div class="sp-days" id="spDayGrid"></div>
-        <div class="sp-hint">日付をタップで「勉強しない日」を切り替え（大学の試験日は最初から休み扱い）。各日の勉強時間に入るぶんだけ章を割り振り、遅れた分は翌日以降に自動で組み直します。</div>
+        <div class="sp-hint">各日の勉強時間は予定表から自動で計算：何もない日は「空き日」の時間、授業は内職で7割、移動（往復2時間）は半分、バイト・試験の時間は0、空き時間は何もない日と同じ割合で勉強（1日の上限は空き日の時間）。そこから研究室の作業を毎日差し引きます。日付をタップすると、その日の時間を手で変えられます（0で休み・空欄で自動に戻す）。✎＝手で変えた日。</div>
         <div class="sprint-sec">解く速さ（問/時間）</div>
         <table class="sp-speed" id="spSpeedTable"></table>
         <div class="sp-hint">●実測 ◐実測からの推定 ○基準の速さからの仮の値。記録に「かかった時間」が付くと（タイマーを使うと自動）vol・周回ごとに実測し、20問以上たまると●になります。周回が進むほど速くなり、vol4は1問が重い前提で推定します。基準の速さ＝3周目・vol1〜3の目安。</div>
@@ -2449,9 +2450,10 @@ const MISC_KEYS = [
   'cbt_mocks','cbt_irt_target','cbt_home_prefs','cbt_week_seen','streak_milestones','cbt_level',
   'cbt_subj_orig',   // Originalバンクの進捗（misc経由でクラウド同期）
   'cbt_subj_monte',  // モントレバンクの進捗
-  'cbt_sprint_off',  // 直前期の「勉強しない日」
+  'cbt_day_hours',   // 直前期：日ごとの勉強時間を手で変えた分
+  'cbt_free_h', 'cbt_lab_h',   // 直前期：空き日の勉強時間・研究室の作業時間
   'cbt_fresh_days',  // 記憶キープ期間（14 / 21日）
-  'cbt_avail_wd', 'cbt_avail_we', 'cbt_solve_speed'   // 勉強時間・速度（ノルマ計算に使う）
+  'cbt_solve_speed'   // 基準の解く速さ（実測がたまるまで使う）
 ];
 // localStorageからmiscオブジェクトを構築
 function buildMisc() {
@@ -3711,6 +3713,7 @@ function renderBankDash() {
 
 // ── 全UI更新 ──
 function updateAll() {
+  _sprintCache = null;   // 記録・設定の変更を必ず反映するため、直前期の計算は毎回作り直す
   const planning = BANKS[currentBank].planning;   // QB専用機能を出すか
   const bankName = BANKS[currentBank].name;
   const total    = bankTotal();                    // 現在バンクの総問題数
@@ -4310,27 +4313,66 @@ function touchNeeded() {
 // 「あと1.4周」のような表示
 function fmtLaps(x) { return x <= 0 ? '0' : x >= 0.95 && Math.abs(x - Math.round(x)) < 0.05 ? String(Math.round(x)) : x.toFixed(1); }
 
-function getSprintOff() { try { return JSON.parse(localStorage.getItem('cbt_sprint_off') || '{}'); } catch (e) { return {}; } }
+// ── 予定表（Googleカレンダーより）─────────────────────────────
+//   class: 授業（内職で勉強できる） / work: バイト・カテキョ（勉強できない）
+//   lab: 研究室（勉強できない。その日の研究室作業に数える） / exam: 試験（勉強できない）
+//   place: 'univ' = 大学 / 'tutor' = カテキョ先。行き先ごとに往復2時間の移動がかかる
+const SCHEDULE = {
+  '2026-10-16': [{ t: 'class', s: 9,  e: 16, name: '公衆衛生', place: 'univ' }],
+  '2026-10-19': [{ t: 'class', s: 14, e: 16, name: '泌尿器科', place: 'univ' }],
+  '2026-10-20': [{ t: 'work',  s: 18, e: 21, name: 'カテキョ', place: 'tutor' }],
+  '2026-10-21': [{ t: 'class', s: 13, e: 16, name: '公衆衛生', place: 'univ' }],
+  '2026-10-22': [{ t: 'class', s: 9,  e: 12, name: '公衆衛生', place: 'univ' },
+                 { t: 'lab',   s: 12, e: 13, name: '研究室',   place: 'univ' },
+                 { t: 'class', s: 15, e: 16, name: '病理実習', place: 'univ' }],
+  '2026-10-23': [{ t: 'exam',  s: 9,  e: 12, name: '眼科・放射線科試験', place: 'univ' }],
+  '2026-10-27': [{ t: 'class', s: 9,  e: 12, name: '感染制御', place: 'univ' },
+                 { t: 'work',  s: 18, e: 21, name: 'カテキョ', place: 'tutor' }],
+  '2026-10-28': [{ t: 'class', s: 9,  e: 12, name: '感染制御', place: 'univ' },
+                 { t: 'class', s: 13, e: 16, name: '感染制御', place: 'univ' }],
+  '2026-10-29': [{ t: 'class', s: 9,  e: 12, name: '感染制御', place: 'univ' },
+                 { t: 'class', s: 15, e: 16, name: '病理実習', place: 'univ' }],
+  '2026-10-30': [{ t: 'exam',  s: 9,  e: 12, name: '皮膚科・泌尿器科試験', place: 'univ' },
+                 { t: 'class', s: 13, e: 16, name: '感染制御', place: 'univ' }],
+  '2026-11-03': [{ t: 'work',  s: 18, e: 21, name: 'カテキョ', place: 'tutor' }],
+};
+// 1日の勉強時間の見積もり（あなたの回答から）
+//   何もない日：FREE_H 時間（＝起きている WINDOW_H 時間のうち FREE_H/WINDOW_H の割合で勉強）
+//   授業中の内職：授業時間 × 0.7 / 移動：往復2時間のうち半分（×0.5） / バイト・試験・研究室：0
+//   それ以外の空き時間：何もない日と同じ割合。合計は何もない日の FREE_H まで
+//   研究室の作業：毎日平均 LAB_H 時間を差し引く（予定表の研究室の時間はここに含める）
+const WINDOW_H = 14, NAISHOKU = 0.7, COMMUTE_H = 2, COMMUTE_STUDY = 0.5;
+function sprintHours() {
+  const num = (k, d) => { const v = parseFloat(localStorage.getItem(k)); return isNaN(v) ? d : Math.max(0, v); };
+  return { free: num('cbt_free_h', 8), lab: num('cbt_lab_h', 1.5), speed: Math.max(1, num('cbt_solve_speed', 16)) };
+}
+function getDayHoursOverride() { try { return JSON.parse(localStorage.getItem('cbt_day_hours') || '{}'); } catch (e) { return {}; } }
 function sprintExamName(ds) {
   const e = EXAMS.find(x => x.date === ds && ymd(x.date) < CBT);
   return e ? e.name : '';
 }
-function isSprintOff(ds) {
-  const o = getSprintOff();
-  if (ds in o) return !!o[ds];
-  return !!sprintExamName(ds);           // 大学の試験日は既定で休み
+// その日の勉強時間 {hours, auto, override, events, note}
+function dayStudyHours(ds) {
+  const h = sprintHours(), events = SCHEDULE[ds] || [];
+  const dur = t => events.filter(e => e.t === t).reduce((a, e) => a + (e.e - e.s), 0);
+  const classH = dur('class'), workH = dur('work'), examH = dur('exam'), labH = dur('lab');
+  const commute = new Set(events.map(e => e.place)).size * COMMUTE_H;
+  const freeH = Math.max(0, WINDOW_H - classH - workH - examH - labH - commute);
+  const rate = Math.min(1, h.free / WINDOW_H);
+  const raw = classH * NAISHOKU + commute * COMMUTE_STUDY + freeH * rate;
+  const auto = Math.max(0, Math.round((Math.min(h.free, raw) - Math.max(0, h.lab - labH)) * 2) / 2);
+  const o = getDayHoursOverride();
+  const override = ds in o ? Math.max(0, +o[ds] || 0) : null;
+  const note = events.map(e => `${e.name} ${e.s}-${e.e}`).join(' / ');
+  return { hours: override != null ? override : auto, auto, override, events, note };
 }
-function sprintHours() {
-  const num = (k, d) => { const v = parseFloat(localStorage.getItem(k)); return isNaN(v) ? d : Math.max(0, v); };
-  return { wd: num('cbt_avail_wd', 3), we: num('cbt_avail_we', 6), speed: Math.max(1, num('cbt_solve_speed', 16)) };
-}
-// 今日〜CBT前日の各日 {ds, date, off, hours}
+// 今日〜CBT前日の各日 {ds, date, off, hours, ...}
 function sprintDays() {
-  const h = sprintHours(), out = [];
+  const out = [];
   for (const d = new Date(TODAY); d < CBT; d.setDate(d.getDate() + 1)) {
-    const ds = toLocalDateStr(d), off = isSprintOff(ds);
-    const we = d.getDay() === 0 || d.getDay() === 6;
-    out.push({ ds, date: new Date(d), off, exam: sprintExamName(ds), hours: off ? 0 : (we ? h.we : h.wd) });
+    const ds = toLocalDateStr(d), dh = dayStudyHours(ds);
+    out.push({ ds, date: new Date(d), off: dh.hours <= 0, exam: sprintExamName(ds), hours: dh.hours,
+               auto: dh.auto, override: dh.override, events: dh.events, note: dh.note });
   }
   return out;
 }
@@ -4643,7 +4685,8 @@ function renderSprint() {
   document.getElementById('spCalendar').innerHTML = plan.cal.map(d => {
     const head = `<div class="cal-head"><b>${d.date.getMonth() + 1}/${d.date.getDate()}(${youbi[d.date.getDay()]})</b>` +
       `${d.ds === TODAY_STR ? '<span class="cal-tag today">今日</span>' : ''}${d.window ? '<span class="cal-tag win">🧊</span>' : ''}` +
-      `<span class="cal-sum">${d.off ? (d.exam ? `📝 ${d.exam}（休み）` : '休み') : `${d.q}問 · ${fmtMin(d.min)}${d.ds === TODAY_STR && plan.solvedToday ? `（済${plan.solvedToday}問）` : ''}`}</span></div>`;
+      `<span class="cal-sum">${d.off ? '休み' : `${d.hours}h · ${d.q}問${d.ds === TODAY_STR && plan.solvedToday ? `（済${plan.solvedToday}問）` : ''}`}</span></div>` +
+      (d.note ? `<div class="cal-note">${d.events.map(e => ({ class: '🏫', work: '💼', lab: '🔬', exam: '📝' })[e.t] + e.name + ' ' + e.s + '-' + e.e).join('　')}</div>` : '');
     const chips = d.alloc.map(a => {
       const c = BLOCK_COLORS[a.ch.block];
       return `<span class="cal-chip" style="border-color:${c}"><b style="color:${c}">${a.ch.id}</b>${ROUND_META[a.r].icon}${a.reviewOnly ? '見直し' : a.q}${a.touch ? '🧊' : ''}</span>`;
@@ -4655,12 +4698,12 @@ function renderSprint() {
   // 設定欄
   const h = sprintHours();
   const setVal = (id, val) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = val; };
-  setVal('spWd', h.wd); setVal('spWe', h.we); setVal('spSpeed', h.speed);
+  setVal('spFree', h.free); setVal('spLab', h.lab); setVal('spSpeed', h.speed);
   setVal('spFreshSel', String(freshDays()));
   document.getElementById('spDayGrid').innerHTML = plan.cal.map(d =>
-    `<div class="sp-day${d.off ? ' off' : ''}${d.ds === TODAY_STR ? ' today' : ''}${d.exam ? ' exam' : ''}" onclick="toggleSprintDay('${d.ds}')">
+    `<div class="sp-day${d.off ? ' off' : ''}${d.ds === TODAY_STR ? ' today' : ''}${d.exam ? ' exam' : ''}" onclick="editDayHours('${d.ds}')" title="${d.note}">
       <b>${d.date.getMonth() + 1}/${d.date.getDate()}</b>
-      <span>${d.exam ? '試験' : youbi[d.date.getDay()]}${d.off ? '' : ' ' + d.hours + 'h'}</span>
+      <span>${d.exam ? '試験' : youbi[d.date.getDay()]} ${d.hours}h${d.override != null ? '✎' : ''}</span>
     </div>`).join('');
   // 速さの表（vol × 周回）
   const srcMark = { measured: '●', scaled: '◐', default: '○' };
@@ -4722,23 +4765,31 @@ function sprintMarkReviewed(id) {
   markReviewed(id);
   updateAll();
 }
-function setFreshDays(v) {
-  localStorage.setItem('cbt_fresh_days', String(v));
-  updateAll();
-}
-function toggleSprintDay(ds) {
-  const o = getSprintOff();
-  o[ds] = !isSprintOff(ds);
-  localStorage.setItem('cbt_sprint_off', JSON.stringify(o));
+// 日付タップ：その日の勉強時間を手で変える（0で休み・空欄で自動）
+function editDayHours(ds) {
+  const dh = dayStudyHours(ds);
+  const v = prompt(`${ds.slice(5).replace('-', '/')} に勉強できる時間（時間）
+自動の見積もり: ${dh.auto}h${dh.note ? `（${dh.note}）` : ''}
+0で休み・空欄で自動に戻す`,
+                   dh.override != null ? dh.override : '');
+  if (v === null) return;
+  const o = getDayHoursOverride();
+  if (String(v).trim() === '') delete o[ds];
+  else { const n = parseFloat(v); if (isNaN(n) || n < 0) return; o[ds] = Math.min(16, n); }
+  localStorage.setItem('cbt_day_hours', JSON.stringify(o));
   updateAll();
 }
 function onSprintInput() {
-  const pairs = [['spWd', 'cbt_avail_wd'], ['spWe', 'cbt_avail_we'], ['spSpeed', 'cbt_solve_speed']];
+  const pairs = [['spFree', 'cbt_free_h'], ['spLab', 'cbt_lab_h'], ['spSpeed', 'cbt_solve_speed']];
   for (const [id, key] of pairs) {
     const v = parseFloat(document.getElementById(id).value);
     if (isNaN(v) || v < 0) continue;
     localStorage.setItem(key, String(v));
   }
+  updateAll();
+}
+function setFreshDays(v) {
+  localStorage.setItem('cbt_fresh_days', String(v));
   updateAll();
 }
 
