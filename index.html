@@ -709,6 +709,22 @@ body.sprint .sprint-hide{display:none !important;}
 .sp-day.exam span{color:var(--red-ink);font-weight:700;}
 .sp-hint{font-size:9.5px;color:var(--dim);margin-top:6px;line-height:1.5;}
 
+.cal-day{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:7px 9px;margin-bottom:5px;}
+.cal-day.today{border-color:var(--orange);}
+.cal-day.off{opacity:0.6;}
+.cal-head{display:flex;align-items:center;gap:6px;font-size:11px;}
+.cal-head b{font-family:'JetBrains Mono',monospace;font-size:12px;}
+.cal-tag{font-size:9px;font-weight:800;border-radius:6px;padding:1px 5px;}
+.cal-tag.today{background:var(--orange);color:#fff;}
+.cal-tag.win{background:rgba(91,143,255,0.15);}
+.cal-sum{margin-left:auto;color:var(--dim);font-size:10.5px;font-weight:700;}
+.cal-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;}
+.cal-chip{font-size:10px;border:1px solid var(--border);border-left-width:3px;border-radius:6px;padding:1px 5px;font-family:'JetBrains Mono',monospace;}
+.sp-speed{width:100%;border-collapse:collapse;font-size:11px;font-family:'JetBrains Mono',monospace;}
+.sp-speed th,.sp-speed td{padding:4px 2px;text-align:center;border-bottom:1px solid var(--border);}
+.sp-speed th{color:var(--dim);font-weight:700;}
+.rec-min{width:64px;background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:14px;font-family:'JetBrains Mono',monospace;text-align:center;}
+
 /* ── 周回プラン（あと何周） ── */
 .rp-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;}
 .rp-sum-b{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:7px 4px;text-align:center;}
@@ -1339,6 +1355,8 @@ body.bank-orig .qb-only{display:none !important;}
         </div>
         <div class="sprint-today"><div id="spDone">0</div><div class="sprint-today-l">今日のQB</div></div>
       </div>
+      <div id="spDayOf" style="display:none;"></div>
+      <div id="spBody">
       <div class="pb-bg sprint-bar"><div class="pb-fill" id="spBar" style="width:0%"></div></div>
       <div class="sprint-plans" id="spPlans"></div>
       <div class="sprint-verdict" id="spVerdict"></div>
@@ -1346,16 +1364,24 @@ body.bank-orig .qb-only{display:none !important;}
       <div class="sprint-sec">今日やる章（タップで記録にセット）</div>
       <div id="spChapters"></div>
       <details class="sprint-settings">
+        <summary>🗓 カレンダー（CBT前日まで）</summary>
+        <div id="spCalendar" style="margin-top:6px;"></div>
+      </details>
+      <details class="sprint-settings">
         <summary>📅 勉強できる日・時間の設定</summary>
         <div class="sp-inputs">
           <label>平日<input type="number" id="spWd" min="0" max="16" step="0.5" onchange="onSprintInput()">h</label>
           <label>休日<input type="number" id="spWe" min="0" max="16" step="0.5" onchange="onSprintInput()">h</label>
-          <label>速度<input type="number" id="spSpeed" min="1" max="60" step="1" onchange="onSprintInput()">問/h</label>
+          <label>基準の速さ<input type="number" id="spSpeed" min="1" max="60" step="1" onchange="onSprintInput()">問/h</label>
           <label>記憶キープ<select id="spFreshSel" onchange="setFreshDays(this.value)" style="background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px;font-size:12px;"><option value="14">直前2週間</option><option value="21">直前3週間</option></select></label>
         </div>
         <div class="sp-days" id="spDayGrid"></div>
-        <div class="sp-hint">日付をタップで「勉強しない日」を切り替え（大学の試験日は最初から休み扱い）。ノルマは勉強できる時間に比例して残りの日に割り振られ、遅れた分は翌日以降に自動で上乗せされます。</div>
+        <div class="sp-hint">日付をタップで「勉強しない日」を切り替え（大学の試験日は最初から休み扱い）。各日の勉強時間に入るぶんだけ章を割り振り、遅れた分は翌日以降に自動で組み直します。</div>
+        <div class="sprint-sec">解く速さ（問/時間）</div>
+        <table class="sp-speed" id="spSpeedTable"></table>
+        <div class="sp-hint">●実測 ◐実測からの推定 ○基準の速さからの仮の値。記録に「かかった時間」が付くと（タイマーを使うと自動）vol・周回ごとに実測し、20問以上たまると●になります。周回が進むほど速くなり、vol4は1問が重い前提で推定します。基準の速さ＝3周目・vol1〜3の目安。</div>
       </details>
+      </div>
     </div>
 
     <!-- 復習リマインダー（忘却曲線・間欠反復） -->
@@ -1451,6 +1477,13 @@ body.bank-orig .qb-only{display:none !important;}
         </div>
       </div>
       <div class="wrong-hint" id="wrongHint">正答率は自動計算されます（任意・分からなければ0でOK）</div>
+
+      <!-- かかった時間（任意）：解く速さの実測に使う。タイマー計測中は自動 -->
+      <div class="wrong-row">
+        <span class="wrong-label">かかった時間<span style="font-size:9px;color:var(--dim);display:block;" id="recMinHint">任意・タイマーを使うと自動</span></span>
+        <div class="wrong-ctrl"><input type="number" id="recMin" class="rec-min" min="0" max="600" inputmode="numeric" placeholder="—">
+          <span style="font-size:11px;color:var(--dim);">分</span></div>
+      </div>
 
       <!-- 周回の内訳（任意・2周目以降で表示）：回収数 -->
       <div class="round-extra" id="roundExtra" style="display:none;">
@@ -1739,7 +1772,7 @@ body.bank-orig .qb-only{display:none !important;}
       </div>
       <div style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.5;">
         書き出し：全進捗をJSONファイルで保存。復元：そのファイルから元に戻せます。<br>
-        リマインダー：夜まだ0問のとき通知（iPhoneはホーム画面追加後・通知許可が必要）。
+        リマインダー：夜20時以降に、直前期は「今日の予定の残り・まだ触れていない章」を通知（アプリを開いている/バックグラウンドのときのみ。iPhoneはホーム画面追加後・通知許可が必要）。
       </div>
     </div>
 
@@ -3155,8 +3188,16 @@ function addToday() {
 
   // 章別の記録履歴（科目ごとの推移グラフ・直近の記録一覧に使う）
   if (!state.chapter_log) state.chapter_log = [];
-  state.chapter_log.push({ d: RDATE, b: currentBank, c: selectedChapter,
-                           r: round, n: added, w: wrongToday });
+  // かかった時間：手入力 > タイマー（前回の記録から計った分）
+  const recMinEl = document.getElementById('recMin');
+  const manualMin = recMinEl ? parseFloat(recMinEl.value) : NaN;
+  const spentMin = manualMin > 0 ? manualMin : Math.round(timerSinceRecord / 60);
+  const logEntry = { d: RDATE, b: currentBank, c: selectedChapter, r: round, n: added, w: wrongToday };
+  if (spentMin > 0) logEntry.m = Math.round(spentMin * 10) / 10;
+  state.chapter_log.push(logEntry);
+  timerSinceRecord = 0;
+  if (recMinEl) recMinEl.value = '';
+  renderTimer();
   if (state.chapter_log.length > 2000) state.chapter_log.shift();  // 保存サイズの上限
 
   if (RDATE > (state.last_date || '')) state.last_date = RDATE;
@@ -3231,6 +3272,7 @@ let pomoPhase = 'focus';     // 'focus' | 'break'
 let pomoRemaining = 25 * 60; // ポモドーロの残り秒
 let pomoFocusAccum = 0;      // 今セッションで集中した秒（記録用）
 const POMO_FOCUS = 25 * 60, POMO_BREAK = 5 * 60;
+let timerSinceRecord = 0;    // 前回の記録から計った秒（記録の「かかった時間」に自動で入る）
 
 function fmtTimer(sec) {
   const m = Math.floor(sec / 60), s = sec % 60;
@@ -3249,6 +3291,13 @@ function renderTimer() {
     disp.textContent = fmtTimer(timerElapsed);
     disp.className = 'timer-display' + (timerRunning ? ' running' : '');
     phase.textContent = timerRunning ? '記録中…' : '';
+  }
+  // 記録カードの「かかった時間」にタイマーの分を表示
+  const rm = document.getElementById('recMin'), rh = document.getElementById('recMinHint');
+  if (rm) {
+    const auto = Math.round(timerSinceRecord / 60);
+    rm.placeholder = auto > 0 ? String(auto) : '—';
+    if (rh) rh.textContent = auto > 0 ? `空欄ならタイマーの${auto}分で記録` : '任意・タイマーを使うと自動';
   }
   const startBtn = document.getElementById('timerStartBtn');
   if (startBtn) {
@@ -3283,7 +3332,7 @@ function pauseTimer() {
 function timerTick() {
   if (pomodoroMode) {
     pomoRemaining--;
-    if (pomoPhase === 'focus') pomoFocusAccum++;
+    if (pomoPhase === 'focus') { pomoFocusAccum++; timerSinceRecord++; }
     if (pomoRemaining <= 0) {
       // フェーズ切り替え
       if (navigator.vibrate) navigator.vibrate(200);
@@ -3297,6 +3346,7 @@ function timerTick() {
     }
   } else {
     timerElapsed++;
+    timerSinceRecord++;
   }
   renderTimer();
 }
@@ -4260,15 +4310,6 @@ function touchNeeded() {
 // 「あと1.4周」のような表示
 function fmtLaps(x) { return x <= 0 ? '0' : x >= 0.95 && Math.abs(x - Math.round(x)) < 0.05 ? String(Math.round(x)) : x.toFixed(1); }
 
-// 指定ライン（'min'=必須 | 'goal'=推奨）まで回すのに残っている問題数
-function sprintRemaining(level) {
-  let t = 0;
-  for (const ch of CHAPTERS_QB) {
-    const pl = chapterRoundPlan(ch);
-    t += level === 'goal' ? pl.remWant : pl.remNeed;
-  }
-  return t;
-}
 function getSprintOff() { try { return JSON.parse(localStorage.getItem('cbt_sprint_off') || '{}'); } catch (e) { return {}; } }
 function sprintExamName(ds) {
   const e = EXAMS.find(x => x.date === ds && ymd(x.date) < CBT);
@@ -4297,186 +4338,294 @@ function sprintDays() {
 function qbSolvedOn(ds) {
   return (state.chapter_log || []).filter(e => e.d === ds && e.b === 'qb').reduce((a, e) => a + (e.n || 0), 0);
 }
-// 今日のノルマと見通し
-function sprintPlan() {
-  const days = sprintDays(), h = sprintHours();
-  const solvedToday = qbSolvedOn(TODAY_STR);
-  // 重み＝勉強時間。全部0時間なら休みでない日に均等
-  let weights = days.map(d => d.hours);
-  if (weights.reduce((a, b) => a + b, 0) <= 0) weights = days.map(d => d.off ? 0 : 1);
-  const totalW = weights.reduce((a, b) => a + b, 0);
-  const todayW = days.length && days[0].ds === TODAY_STR ? weights[0] : 0;
-  const capacity = Math.round(days.reduce((a, d) => a + d.hours, 0) * h.speed);   // 今日を含む残りでこなせる問数
-  // 今日の記録を「計画内の周回」と「計画外（触れ直し等）」に分ける。
-  // 朝の時点の残りで割るために足し戻すが、計画外の分まで足すと記録するたびにノルマが増えてしまう
-  const plans = {};
-  for (const ch of CHAPTERS_QB) plans[ch.id] = chapterRoundPlan(ch);
-  const todayLog = (state.chapter_log || []).filter(e => e.d === TODAY_STR && e.b === 'qb');
-  const solvedIn = level => todayLog.reduce((a, e) => {
-    const pl = plans[e.c]; if (!pl) return a;
-    return a + (e.r <= (level === 'goal' ? pl.want : pl.need) ? (e.n || 0) : 0);
-  }, 0);
-  const lv = {};
-  for (const level of ['goal', 'min']) {
-    const rem = sprintRemaining(level);
-    const remAtStart = rem + solvedIn(level);    // 今日の分を足し戻して「朝の時点の残り」で割る（記録するたびにノルマが減らないように）
-    const quota = totalW > 0 ? Math.ceil(remAtStart * todayW / totalW) : rem;
-    const perDay = totalW > 0 ? Math.ceil(rem / Math.max(1, days.filter((d, i) => weights[i] > 0).length)) : rem;
-    lv[level] = { rem, quota, perDay };
-  }
-  // 記憶キープの触れ直し分は、記憶キープ期間の日だけに割り振る
-  const fs = freshStartStr();
-  const touchRem = touchNeeded().reduce((a, ch) => a + touchSize(ch), 0);
-  // 今日すでに触れ直した分（計画外の周回の記録）も朝の時点の残りに足し戻す
-  const touchedToday = todayLog.reduce((a, e) => {
-    const pl = plans[e.c]; if (!pl || e.r <= pl.want) return a;
-    return a + Math.min(e.n || 0, touchSize(pl.ch));
-  }, 0);
-  const touchAtStart = touchRem + touchedToday;
-  const winW = days.reduce((a, d, i) => a + (d.ds >= fs ? weights[i] : 0), 0);
-  const touchQuota = TODAY_STR >= fs && winW > 0 ? Math.ceil(touchAtStart * todayW / winW) : 0;
-  // 推奨が時間的に無理なら、必須のペースを今日のノルマにする（朝の時点の量で判定して、日中に切り替わらないように）
-  const goalAtStart = lv.goal.rem + solvedIn('goal');
-  const main = capacity >= goalAtStart + touchAtStart || lv.goal.rem === 0 ? 'goal' : 'min';
-  return {
-    days, solvedToday, capacity, lv, main, touchRem, touchQuota,
-    quota: lv[main].quota + touchQuota,
-    todayOff: todayW === 0,
-    studyDays: weights.filter(w => w > 0).length,
-  };
-}
 
-// 今日やる章：近い試験の範囲 → 必須に届いていない章 → 正答率が低い段階 → 周回が遅れている → やりかけ → 苦手
-function sprintQueue() {
-  const items = [], win = freshWindowOpen();
-  for (const ch of CHAPTERS_QB) {
-    const pl = chapterRoundPlan(ch);
-    if (!pl.next) continue;
-    const r = pl.next, doneR = Math.min(qbRoundDone(qbSt(ch.id), r), ch.n);
-    const ex = currentBank === 'qb' ? chapterExamDays(ch.id) : null;
-    items.push({ ch, r, left: ch.n - doneR, partial: doneR > 0, belowMin: r <= pl.need, acc: pl.acc, plan: pl,
-                 stale: win && isStale(ch.id), examSoon: ex && ex.days <= 7 ? ex : null });
+// ── 解く速さ（vol × 周回）──────────────────────────────────────
+// 記録に「かかった時間」が付いたもの（タイマー or 手入力）から実測する。
+// 実測が少ないうちは、近い周回・他のvolの実測から比率で推定し、それもなければ基準の速さ（設定値）を使う。
+// 周回が進むほど速く、vol4（多選択肢・4連問）は1問が重い、という前提の比率：
+const ROUND_SPEED_F = { 1: 0.55, 2: 0.8, 3: 1.0, 4: 1.1 };   // 3周目を1としたときの速さ
+const BLOCK_SPEED_F = { 1: 1, 2: 1, 3: 1, 4: 0.7, 5: 0.9 };    // vol1〜3を1としたときの速さ
+const SPEED_MIN_Q = 20;                                        // これ以上の問題数を実測したら採用
+function measuredSpeeds() {
+  const blk = {};
+  for (const ch of CHAPTERS_QB) blk[ch.id] = ch.block;
+  const out = {};
+  for (const e of (state.chapter_log || [])) {
+    if (e.b !== 'qb' || !(e.m > 0) || !(e.n > 0) || !blk[e.c] || !ROUND_META[e.r]) continue;
+    const k = blk[e.c] + '-' + e.r;
+    if (!out[k]) out[k] = { n: 0, min: 0 };
+    out[k].n += e.n; out[k].min += e.m;
   }
-  // 記憶キープ：周回は終わっているが期間内にまだ触れていない章 → 次の周回を少しだけ（前回の誤答くらい）
-  if (win) {
-    for (const ch of touchNeeded()) {
-      const pl = chapterRoundPlan(ch);
-      const r = Math.min(pl.completed + 1, MAX_ROUND);
-      const doneR = Math.min(qbRoundDone(qbSt(ch.id), r), ch.n);
-      items.push({ ch, r, left: Math.min(touchSize(ch), ch.n - doneR), partial: false, belowMin: false, acc: pl.acc, plan: pl,
-                   stale: true, touch: true, reviewOnly: pl.completed >= MAX_ROUND || doneR >= ch.n, examSoon: null });
+  return out;
+}
+// {v: 問/時間, src: 'measured' | 'scaled' | 'default'}
+function speedFor(block, round, ms) {
+  ms = ms || measuredSpeeds();
+  const ok = x => x && x.n >= SPEED_MIN_Q && x.min > 0;
+  const qph = x => x.n / x.min * 60;
+  const exact = ms[block + '-' + round];
+  if (ok(exact)) return { v: qph(exact), src: 'measured' };
+  // 同じvolの近い周回の実測 → 周回の比で換算
+  for (const d of [-1, 1, -2, 2, -3, 3]) {
+    const r2 = round + d, x = ms[block + '-' + r2];
+    if (r2 >= 1 && r2 <= MAX_ROUND && ok(x)) return { v: qph(x) * ROUND_SPEED_F[round] / ROUND_SPEED_F[r2], src: 'scaled' };
+  }
+  // 他のvolの実測（同じ周回を優先）→ 基準（3周目・vol1〜3）に直して平均し、このvol・周回に換算
+  for (const sameRound of [true, false]) {
+    let n = 0, base = 0;
+    for (const k in ms) {
+      const [b, rr] = k.split('-').map(Number);
+      if (!ok(ms[k]) || (sameRound && rr !== round)) continue;
+      base += qph(ms[k]) / (ROUND_SPEED_F[rr] * BLOCK_SPEED_F[b]) * ms[k].n; n += ms[k].n;
+    }
+    if (n > 0) return { v: base / n * ROUND_SPEED_F[round] * BLOCK_SPEED_F[block], src: 'scaled' };
+  }
+  return { v: sprintHours().speed * ROUND_SPEED_F[round] * BLOCK_SPEED_F[block], src: 'default' };
+}
+// 記録1件にかかった（とみなす）分：実測があればそれ、なければ速さから推定
+function entryMinutes(e, ms) {
+  if (e.m > 0) return e.m;
+  const ch = CHAPTERS_QB.find(c => c.id === e.c);
+  if (!ch || !ROUND_META[e.r]) return 0;
+  return (e.n || 0) / speedFor(ch.block, e.r, ms).v * 60;
+}
+// 章に紐づく大学の試験（今日以降）{ds, name}
+function qbExamFor(id) {
+  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
+    if (!WEEKLY_PLAN[i].chapters.includes(id)) continue;
+    const weekStart = ymd(WEEKLY_PLAN[i].start);
+    const windowEnd = new Date(weekStart); windowEnd.setDate(windowEnd.getDate() + 14);
+    for (const ex of EXAMS) {
+      const ed = ymd(ex.date);
+      if (ed >= weekStart && ed < windowEnd) {
+        if (ed >= TODAY && ed < CBT) return { ds: ex.date, name: ex.name };
+        break;
+      }
     }
   }
-  items.sort((a, b) =>
-    (b.examSoon ? 1 : 0) - (a.examSoon ? 1 : 0) ||
-    (b.belowMin ? 1 : 0) - (a.belowMin ? 1 : 0) ||
-    (b.stale ? 1 : 0) - (a.stale ? 1 : 0) ||
-    ROUND_TIERS[a.plan.tier].order - ROUND_TIERS[b.plan.tier].order ||
-    a.r - b.r ||
-    (b.partial ? 1 : 0) - (a.partial ? 1 : 0) ||
-    (a.acc == null ? -1 : a.acc) - (b.acc == null ? -1 : b.acc));
-  return items;
+  return null;
 }
+
+// ── スケジューラー：CBT前日までの各日に、勉強時間ぶんの章を割り振る ──
+// 優先：近い試験の範囲 → 必須の周回 → 記憶キープ（期間内に未接触）→ 正答率の低い段階 → 若い周回 → やりかけ → 苦手
+// 各章の時間は vol×周回 の速さで見積もる。今日の分は、今日すでに使った時間を差し引いて組む。
+let _sprintCache = null;
+function sprintPlan() {
+  if (_sprintCache) return _sprintCache;
+  const ms = measuredSpeeds();
+  const days = sprintDays(), fs = freshStartStr();
+  const log = state.chapter_log || [];
+  const todayLog = log.filter(e => e.d === TODAY_STR && e.b === 'qb');
+  const solvedToday = todayLog.reduce((a, e) => a + (e.n || 0), 0);
+  const usedToday = todayLog.reduce((a, e) => a + entryMinutes(e, ms), 0);
+
+  // シミュレーション用に章の状態をコピー
+  const sim = {};
+  for (const ch of CHAPTERS_QB) {
+    const st = qbSt(ch.id), pl = chapterRoundPlan(ch);
+    const done = {}; for (const k of ROUNDS) done[k] = Math.min(qbRoundDone(st, k), ch.n);
+    sim[ch.id] = { ch, pl, done, last: qbLastTouch(ch.id), exam: qbExamFor(ch.id), touchSize: touchSize(ch), examRound: 0 };
+  }
+  const nextRound = s => {
+    for (let k = s.pl.completed + 1; k <= s.pl.want; k++) if (s.done[k] < s.ch.n) return k;
+    return 0;
+  };
+  for (const id in sim) sim[id].examRound = nextRound(sim[id]);   // 試験前に優先するのは次の1周だけ
+  const group = ch => ch.block >= 4 ? 'v45' : 'v13';
+  const completedNow = s => { let c = 0; for (const k of ROUNDS) { if (s.done[k] >= s.ch.n || k <= s.pl.completed) c = k; else break; } return c; };
+  // usedCh: その日すでに割り振った章（同じ日に同じ章ばかりにしない） / lastGroup: 直前に割り振ったvolのグループ
+  const itemsFor = (ds, usedCh, lastGroup) => {
+    const inWin = ds >= fs, items = [];
+    for (const id in sim) {
+      const s = sim[id], ch = s.ch, stale = inWin && (!s.last || s.last < fs);
+      const r = nextRound(s);
+      const examSoon = r && r === s.examRound && s.exam && ds < s.exam.ds && (ymd(s.exam.ds) - ymd(ds)) / 86400000 <= 7 ? s.exam : null;
+      if (r) {
+        items.push({ ch, r, left: ch.n - s.done[r], belowMin: r <= s.pl.need, stale, examSoon,
+                     partial: s.done[r] > 0, plan: s.pl, acc: s.pl.acc });
+      } else if (stale) {
+        // 周回は終わっているが記憶キープ期間に未接触 → 次の周回を少しだけ（前回の誤答くらい）
+        const rr = Math.min(completedNow(s) + 1, MAX_ROUND);
+        const reviewOnly = s.done[rr] >= ch.n;
+        items.push({ ch, r: rr, left: reviewOnly ? 0 : Math.min(s.touchSize, ch.n - s.done[rr]), touch: true, reviewOnly,
+                     belowMin: false, stale: true, examSoon: null, partial: false, plan: s.pl, acc: s.pl.acc });
+      }
+    }
+    const used = it => usedCh && usedCh.has(it.ch.id) ? 1 : 0;
+    const same = it => lastGroup && group(it.ch) === lastGroup ? 1 : 0;
+    items.sort((a, b) =>
+      used(a) - used(b) ||
+      (b.examSoon ? 1 : 0) - (a.examSoon ? 1 : 0) ||
+      (b.belowMin ? 1 : 0) - (a.belowMin ? 1 : 0) ||
+      same(a) - same(b) ||
+      (b.stale ? 1 : 0) - (a.stale ? 1 : 0) ||
+      ROUND_TIERS[a.plan.tier].order - ROUND_TIERS[b.plan.tier].order ||
+      a.r - b.r ||
+      (b.partial ? 1 : 0) - (a.partial ? 1 : 0) ||
+      (a.acc == null ? -1 : a.acc) - (b.acc == null ? -1 : b.acc));
+    return items;
+  };
+
+  const REVIEW_MIN = 10;   // 4周目まで終わった章の「見直し」にかける分
+  const cal = days.map(d => ({ ...d, alloc: [], q: 0, min: 0, cap: 0, window: d.ds >= fs }));
+  for (const day of cal) {
+    let minutes = day.hours * 60;
+    if (day.ds === TODAY_STR) minutes = Math.max(0, minutes - usedToday);
+    day.cap = minutes;
+    // 1章に使うのはその日の約4割まで（最低45分）→ 1日に数章を混ぜる（vol1〜3とvol4・5を交互に）
+    const chunk = Math.max(45, day.cap * 0.4);
+    const usedCh = new Set();
+    let lastGroup = null, guard = 0;
+    while (minutes > 0.5 && guard++ < 200) {
+      const it = itemsFor(day.ds, usedCh, lastGroup)[0];
+      if (!it) break;
+      const s = sim[it.ch.id];
+      if (it.reviewOnly) {
+        if (minutes < REVIEW_MIN) break;
+        day.alloc.push({ ...it, q: 0, min: REVIEW_MIN });
+        minutes -= REVIEW_MIN; day.min += REVIEW_MIN; s.last = day.ds;
+        usedCh.add(it.ch.id); lastGroup = group(it.ch);
+        continue;
+      }
+      const perQ = 60 / speedFor(it.ch.block, it.r, ms).v;
+      // 他に割り振れる章がある間は1章あたり chunk 分まで。ほかに無ければ残り時間を全部使う
+      const others = itemsFor(day.ds, usedCh, lastGroup).some(x => x.ch.id !== it.ch.id && !usedCh.has(x.ch.id));
+      const limit = others ? Math.min(minutes, chunk) : minutes;
+      const q = Math.min(it.left, Math.floor(limit / perQ + 1e-9));
+      if (q <= 0 || q < Math.min(5, it.left)) break;   // 5問未満の端数は組まない（章の残りが5問未満なら別）
+      const prev = day.alloc.find(a => a.ch.id === it.ch.id && a.r === it.r);
+      if (prev) { prev.q += q; prev.min += q * perQ; }
+      else day.alloc.push({ ...it, q, min: q * perQ, perQ });
+      s.done[it.r] += q; s.last = day.ds;
+      minutes -= q * perQ; day.q += q; day.min += q * perQ;
+      usedCh.add(it.ch.id); lastGroup = group(it.ch);
+    }
+  }
+  // 時間内に入らなかった分
+  let leftNeed = 0, leftWant = 0, touchLeft = 0, remNeed = 0, remWant = 0;
+  for (const id in sim) {
+    const s = sim[id], n = s.ch.n, st = qbSt(id);
+    for (let k = s.pl.completed + 1; k <= s.pl.want; k++) {
+      const left = n - s.done[k], real = n - Math.min(qbRoundDone(st, k), n);
+      leftWant += left; remWant += real;
+      if (k <= s.pl.need) { leftNeed += left; remNeed += real; }
+    }
+    if (!s.last || s.last < fs) touchLeft++;
+  }
+  const today = cal.length && cal[0].ds === TODAY_STR ? cal[0] : null;
+  const todayQ = today ? today.q : 0;
+  _sprintCache = {
+    cal, today, ms, solvedToday, usedToday,
+    quota: solvedToday + todayQ,
+    todayOff: !today || today.off || today.hours <= 0,
+    leftNeed, leftWant, touchLeft, remNeed, remWant,
+    studyDays: cal.filter(d => d.hours > 0).length,
+    spareMin: cal.reduce((a, d) => a + Math.max(0, d.cap - d.min), 0),
+    nextItems: () => itemsFor(TODAY_STR, null, null),
+  };
+  setTimeout(() => { _sprintCache = null; }, 0);   // 同じ処理の中だけ使い回す（記録や設定変更で作り直す）
+  return _sprintCache;
+}
+
+const fmtMin = m => m >= 60 ? `${Math.floor(m / 60)}時間${Math.round(m % 60) ? Math.round(m % 60) + '分' : ''}` : `${Math.round(m)}分`;
+const mdLabel = ds => ds.slice(5).replace('-', '/').replace(/^0/, '');
 
 let _sprintRows = [];
 function renderSprint() {
   const card = document.getElementById('sprintCard');
   if (!card || !sprintEnabled()) return;
-  const plan = sprintPlan();
   const daysLeft = Math.max(0, Math.round((CBT - TODAY) / 86400000));
   setEl('spDaysLeft', daysLeft);
+  const isDayOf = daysLeft === 0;
+  document.getElementById('spBody').style.display = isDayOf ? 'none' : '';
+  document.getElementById('spDayOf').style.display = isDayOf ? '' : 'none';
+  for (const id of ['spQuota', 'spNote']) document.getElementById(id).style.display = isDayOf ? 'none' : '';
+  document.querySelector('#sprintCard .sprint-today').style.display = isDayOf ? 'none' : '';
+  if (isDayOf) { renderDayOf(); return; }
 
-  const mainLabel = plan.main === 'goal' ? '推奨ライン' : '必須ライン';
+  const plan = sprintPlan();
   const qEl = document.getElementById('spQuota');
   const noteEl = document.getElementById('spNote');
-  if (daysLeft === 0) {
-    qEl.innerHTML = '本番 <span>当日</span>';
-    noteEl.textContent = 'ここまでの積み上げを信じて。苦手章のメモだけ見直そう';
-  } else if (plan.todayOff) {
+  if (plan.todayOff) {
     const ex = sprintExamName(TODAY_STR);
     qEl.innerHTML = '休み <span>の日</span>';
     noteEl.textContent = ex ? `今日は「${ex}」の試験日。解いた分は記録すれば残りが減ります` : '今日は勉強しない日に設定中';
   } else {
     qEl.innerHTML = `${plan.quota} <span>問 / 今日</span>`;
-    noteEl.textContent = `${mainLabel}に向けた今日の分（残り${plan.studyDays}日に勉強時間で割り振り）`;
+    const left = plan.today ? plan.today.min : 0;
+    noteEl.textContent = plan.quota > plan.solvedToday
+      ? `残り約${fmtMin(left)}ぶん（vol・周回ごとの速さで見積もり）`
+      : '今日の予定はクリア！';
   }
   setEl('spDone', plan.solvedToday);
   const pct = plan.quota > 0 ? Math.min(100, plan.solvedToday / plan.quota * 100) : (plan.solvedToday > 0 ? 100 : 0);
   document.getElementById('spBar').style.width = pct + '%';
 
-  const box = (level, title) => {
-    const x = plan.lv[level];
-    return `<div class="sprint-plan${plan.main === level ? ' main' : ''}">
+  const box = (title, rem, left, main) => `<div class="sprint-plan${main ? ' main' : ''}">
       <div class="sprint-plan-t">${title}</div>
-      <div class="sprint-plan-v">${x.rem.toLocaleString()}<span> 問残り</span></div>
-      <div class="sprint-plan-s">${x.rem > 0 ? `平均 約${x.perDay}問/日` : '✅ 達成！'}</div>
+      <div class="sprint-plan-v">${rem.toLocaleString()}<span> 問残り</span></div>
+      <div class="sprint-plan-s">${rem <= 0 ? '✅ 達成！' : left > 0 ? `⚠️ ${left.toLocaleString()}問が時間内に入らない` : '✅ 時間内に入る'}</div>
     </div>`;
-  };
   document.getElementById('spPlans').innerHTML =
-    box('goal', '🎯 推奨（正答率で調整）') + box('min', '🛟 必須');
+    box('🎯 推奨（正答率で調整）', plan.remWant, plan.leftWant, plan.leftNeed === 0) +
+    box('🛟 必須', plan.remNeed, plan.leftNeed, plan.leftNeed > 0);
 
   const v = document.getElementById('spVerdict');
-  const h = sprintHours();
-  if (plan.lv.goal.rem === 0) {
-    v.style.color = 'var(--green-ink)'; v.textContent = '🎉 推奨の周回をすべて達成！苦手章の見直しと模試へ';
-  } else if (plan.capacity >= plan.lv.goal.rem) {
-    v.style.color = 'var(--green-ink)';
-    v.textContent = `✅ 今の設定（平日${h.wd}h・休日${h.we}h・${h.speed}問/h ≒ 約${plan.capacity.toLocaleString()}問）なら推奨まで届く計算`;
-  } else if (plan.capacity >= plan.lv.min.rem) {
-    v.style.color = 'var(--orange)';
-    v.textContent = `⚠️ 推奨まで全部は時間的に厳しい（こなせる約${plan.capacity.toLocaleString()}問）。必須を優先し、余った時間は苦手章へ`;
-  } else {
+  if (plan.remWant === 0 && plan.touchLeft === 0) {
+    v.style.color = 'var(--green-ink)'; v.textContent = '🎉 推奨の周回も記憶キープもすべて完了！苦手章の見直しと模試へ';
+  } else if (plan.leftNeed > 0) {
     v.style.color = 'var(--red-ink)';
-    v.textContent = `🚨 必須にも約${(plan.lv.min.rem - plan.capacity).toLocaleString()}問足りない計算。苦手章を優先して、得意章の周回は削ろう`;
+    v.textContent = `🚨 今の勉強時間だと必須のうち約${plan.leftNeed.toLocaleString()}問が入りません。勉強時間を増やすか、得意章の周回を削ろう`;
+  } else if (plan.leftWant > 0) {
+    v.style.color = 'var(--orange)';
+    v.textContent = `⚠️ 必須は全部入ります。推奨のうち約${plan.leftWant.toLocaleString()}問は入らないので、苦手章から順に組んでいます`;
+  } else {
+    v.style.color = 'var(--green-ink)';
+    v.textContent = `✅ 推奨まで全部入ります（CBT前日までに約${fmtMin(plan.spareMin)}の余裕）`;
   }
 
-  // 記憶キープの状況
+  // 記憶キープ
   {
     const fs = freshStartStr(), fd = freshDays();
     const staleCh = CHAPTERS_QB.filter(ch => isStale(ch.id));
-    const fsLabel = fs.slice(5).replace('-', '/');
     const el = document.getElementById('spFresh');
     if (!freshWindowOpen()) {
-      el.textContent = `🧊 記憶キープ：${fsLabel}〜CBT前日に全${CHAPTERS_QB.length}章へ1回は触れる（本番で「最後に解いたのが${fd}日以上前」の章をなくす）。期間に入ったら未接触の章を自動で優先します`;
+      el.textContent = `🧊 記憶キープ：${mdLabel(fs)}〜CBT前日に全${CHAPTERS_QB.length}章へ1回は触れる（本番で「最後に解いたのが${fd}日以上前」の章をなくす）。カレンダーで期間中に組み込み済み`;
     } else if (staleCh.length === 0) {
-      el.textContent = `🧊 記憶キープ：全章、${fsLabel}以降に触れ済み。本番まで${fd}日以内の記憶で臨めます`;
+      el.textContent = `🧊 記憶キープ：全章、${mdLabel(fs)}以降に触れ済み。本番まで${fd}日以内の記憶で臨めます`;
     } else {
-      el.textContent = `🧊 記憶キープ：${fsLabel}以降まだ触れていない章が あと${staleCh.length}章` +
-        (plan.touchQuota > 0 ? `（周回が終わった章の触れ直し 約${plan.touchRem}問 → 今日の分 ${plan.touchQuota}問をノルマに含む）` : '');
+      el.textContent = `🧊 記憶キープ：${mdLabel(fs)}以降まだ触れていない章が あと${staleCh.length}章` +
+        (plan.touchLeft > 0 && plan.cal.length ? '' : '');
     }
   }
 
-  // 今日やる章：今日の残りノルマを上から割り当て（最大4章）
-  const queue = sprintQueue();
-  let alloc = Math.max(0, plan.quota - plan.solvedToday);
-  const rows = [];
-  for (const it of queue) {
-    if (rows.length >= 4) break;
-    if (alloc <= 0 && rows.length >= 2) break;
-    const extra = alloc <= 0;              // ノルマ外（余力があれば）の行
-    const take = extra ? it.left : Math.min(it.left, alloc);
-    rows.push({ ...it, take, extra });
-    alloc -= take;
+  // 今日やる章（＝カレンダーの今日の分）。終わっていたら次の候補を「余力で」
+  let rows = plan.today && !plan.todayOff ? plan.today.alloc.map(a => ({ ...a, take: a.q })) : [];
+  let extraMode = false;
+  if (rows.length === 0) {
+    extraMode = true;
+    rows = plan.nextItems().slice(0, 2).map(it => ({ ...it, take: it.left, extra: true,
+      min: it.reviewOnly ? 10 : it.left / speedFor(it.ch.block, it.r, plan.ms).v * 60 }));
   }
   _sprintRows = rows;
   const list = document.getElementById('spChapters');
   if (rows.length === 0) {
     list.innerHTML = '<div class="sp-hint">予定の周回はすべて終わっています 🎉</div>';
   } else {
-    const head = alloc <= 0 && plan.quota > 0 && plan.solvedToday >= plan.quota
-      ? '<div class="sp-hint" style="margin:0 0 6px;color:var(--green-ink);font-weight:700;">✅ 今日のノルマ達成！余力があれば続きをどうぞ</div>' : '';
+    const head = extraMode && !plan.todayOff
+      ? '<div class="sp-hint" style="margin:0 0 6px;color:var(--green-ink);font-weight:700;">✅ 今日の予定は終わり！余力があれば続きをどうぞ</div>' : '';
     list.innerHTML = head + rows.map((x, i) => {
       const m = ROUND_META[x.r], color = BLOCK_COLORS[x.ch.block];
       const why = [];
-      if (x.examSoon) why.push(`試験「${x.examSoon.name}」まで${x.examSoon.days}日`);
+      if (x.examSoon) why.push(`試験「${x.examSoon.name}」まで${Math.round((ymd(x.examSoon.ds) - TODAY) / 86400000)}日`);
       const t = ROUND_TIERS[x.plan.tier];
       const lt = qbLastTouch(x.ch.id);
-      if (x.touch) why.push(`🧊記憶キープ（最後: ${lt ? lt.slice(5).replace('-', '/') : 'なし'}）`);
+      if (x.touch) why.push(`🧊記憶キープ（最後: ${lt ? mdLabel(lt) : 'なし'}）`);
       else {
         why.push(`${t.icon}${x.belowMin ? '必須' : '推奨'} あと${fmtLaps(x.belowMin ? x.plan.lapsNeed : x.plan.lapsWant)}周`);
         if (x.stale) why.push('🧊期間内に未接触');
       }
-      if (x.partial) why.push(`${m.label}やりかけ（残り${x.left}問）`);
+      if (x.min) why.push(`約${fmtMin(x.min)}`);
       if (x.acc != null) why.push(`正答${x.acc.toFixed(0)}%`);
       return `<div class="sp-row" style="border-left:3px solid ${color}">
         <span class="sp-id" style="color:${color}">${x.ch.id}</span>
@@ -4489,17 +4638,69 @@ function renderSprint() {
     }).join('');
   }
 
+  // カレンダー
+  const youbi = ['日','月','火','水','木','金','土'];
+  document.getElementById('spCalendar').innerHTML = plan.cal.map(d => {
+    const head = `<div class="cal-head"><b>${d.date.getMonth() + 1}/${d.date.getDate()}(${youbi[d.date.getDay()]})</b>` +
+      `${d.ds === TODAY_STR ? '<span class="cal-tag today">今日</span>' : ''}${d.window ? '<span class="cal-tag win">🧊</span>' : ''}` +
+      `<span class="cal-sum">${d.off ? (d.exam ? `📝 ${d.exam}（休み）` : '休み') : `${d.q}問 · ${fmtMin(d.min)}${d.ds === TODAY_STR && plan.solvedToday ? `（済${plan.solvedToday}問）` : ''}`}</span></div>`;
+    const chips = d.alloc.map(a => {
+      const c = BLOCK_COLORS[a.ch.block];
+      return `<span class="cal-chip" style="border-color:${c}"><b style="color:${c}">${a.ch.id}</b>${ROUND_META[a.r].icon}${a.reviewOnly ? '見直し' : a.q}${a.touch ? '🧊' : ''}</span>`;
+    }).join('');
+    return `<div class="cal-day${d.off ? ' off' : ''}${d.ds === TODAY_STR ? ' today' : ''}">${head}${chips ? `<div class="cal-chips">${chips}</div>` : ''}</div>`;
+  }).join('') + (plan.leftWant > 0
+    ? `<div class="sp-hint" style="margin-top:6px;">入りきらない分：必須 ${plan.leftNeed.toLocaleString()}問 / 推奨 ${plan.leftWant.toLocaleString()}問。勉強時間を増やすと自動で組み直します。</div>` : '');
+
   // 設定欄
-  const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; };
+  const h = sprintHours();
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = val; };
   setVal('spWd', h.wd); setVal('spWe', h.we); setVal('spSpeed', h.speed);
   setVal('spFreshSel', String(freshDays()));
-  const youbi = ['日','月','火','水','木','金','土'];
-  document.getElementById('spDayGrid').innerHTML = plan.days.map(d =>
+  document.getElementById('spDayGrid').innerHTML = plan.cal.map(d =>
     `<div class="sp-day${d.off ? ' off' : ''}${d.ds === TODAY_STR ? ' today' : ''}${d.exam ? ' exam' : ''}" onclick="toggleSprintDay('${d.ds}')">
       <b>${d.date.getMonth() + 1}/${d.date.getDate()}</b>
       <span>${d.exam ? '試験' : youbi[d.date.getDay()]}${d.off ? '' : ' ' + d.hours + 'h'}</span>
     </div>`).join('');
+  // 速さの表（vol × 周回）
+  const srcMark = { measured: '●', scaled: '◐', default: '○' };
+  let tbl = '<tr><th></th>' + ROUNDS.map(r => `<th>${ROUND_META[r].icon}</th>`).join('') + '</tr>';
+  for (let b = 1; b <= 5; b++) {
+    tbl += `<tr><th>vol${b}</th>` + ROUNDS.map(r => {
+      const sp = speedFor(b, r, plan.ms), x = plan.ms[b + '-' + r];
+      return `<td title="${x ? `実測 ${x.n}問 / ${Math.round(x.min)}分` : '実測なし'}">${srcMark[sp.src]}${sp.v.toFixed(0)}</td>`;
+    }).join('') + '</tr>';
+  }
+  document.getElementById('spSpeedTable').innerHTML = tbl;
 }
+
+// ── 当日モード（CBT当日）：苦手分野と章メモだけ ──
+function renderDayOf() {
+  const plans = CHAPTERS_QB.map(chapterRoundPlan).filter(p => p.acc != null);
+  const weak = plans.filter(p => p.acc < 80).sort((a, b) => a.acc - b.acc);
+  const memos = CHAPTERS_QB.filter(ch => (qbSt(ch.id).memo || '').trim());
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const weakHtml = weak.length ? weak.map(p => {
+    const t = ROUND_TIERS[p.tier], c = BLOCK_COLORS[p.ch.block], memo = (qbSt(p.ch.id).memo || '').trim();
+    return `<div class="sp-row" style="border-left:3px solid ${c}">
+      <span class="sp-id" style="color:${c}">${p.ch.id}</span>
+      <div class="sp-main"><div class="sp-name">${p.ch.subj}</div>
+        <div class="sp-why" style="white-space:normal;">${t.icon}正答${p.acc.toFixed(0)}%${memo ? ' · 📝 ' + esc(memo) : ''}</div></div>
+    </div>`;
+  }).join('') : '<div class="sp-hint">正答率80%未満の章はありません 💪</div>';
+  const memoOnly = memos.filter(ch => !weak.some(p => p.ch.id === ch.id));
+  const memoHtml = memoOnly.map(ch => {
+    const c = BLOCK_COLORS[ch.block];
+    return `<div class="sp-row" style="border-left:3px solid ${c}"><span class="sp-id" style="color:${c}">${ch.id}</span>
+      <div class="sp-main"><div class="sp-name">${ch.subj}</div><div class="sp-why" style="white-space:normal;">📝 ${esc(qbSt(ch.id).memo.trim())}</div></div></div>`;
+  }).join('');
+  document.getElementById('spDayOf').innerHTML = `
+    <div class="sprint-q" style="font-size:26px;">本番当日 🎯</div>
+    <div class="sprint-note">新しい問題は解かなくてOK。苦手ノートと、下の苦手分野だけ確認しよう</div>
+    <div class="sprint-sec">苦手分野（正答率80%未満・低い順）</div>${weakHtml}
+    ${memoHtml ? `<div class="sprint-sec">その他の章メモ</div>${memoHtml}` : ''}`;
+}
+
 // 「今日やる章」の行 → 記録カードにQB・周回・章・問題数をセット
 function applySprintRow(i) {
   const x = _sprintRows[i];
@@ -5017,27 +5218,8 @@ function chapterProgress(id) {
 // WEEKLY_PLAN（週次計画）から、その章を扱う直近の週に対応する試験日を引く
 function chapterExamDays(id) {
   if (!BANKS[currentBank].planning) return null;   // QB以外は大学試験と紐づかない
-  let best = null;
-  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
-    if (!WEEKLY_PLAN[i].chapters.includes(id)) continue;
-    const weekStart = ymd(WEEKLY_PLAN[i].start);
-    const windowEnd = new Date(weekStart); windowEnd.setDate(windowEnd.getDate() + 14);
-    // Only the exam belonging to that plan week (within 2 weeks of its start).
-    // Previously any later exam matched, so a June chapter showed an unrelated September exam.
-    for (const ex of EXAMS) {
-      const ed = ymd(ex.date);
-      // その週に対応する試験＝週の開始から2週間以内で最初の試験。終わっていたら対象外
-      // （終わった試験を飛ばして次の試験を拾うと、眼科の章に皮膚科の試験が付いてしまう）
-      if (ed >= weekStart && ed < windowEnd) {
-        if (ed >= TODAY) {
-          const days = Math.round((ed - TODAY) / 86400000);
-          if (!best || days < best.days) best = { days, name: ex.name };
-        }
-        break;
-      }
-    }
-  }
-  return best;
+  const ex = qbExamFor(id);
+  return ex ? { days: Math.round((ymd(ex.ds) - TODAY) / 86400000), name: ex.name } : null;
 }
 // 章の優先度スコア（残り問題数 × 弱さ × 試験の近さ）＝投資対効果
 function chapterPriority(id) {
@@ -5814,18 +5996,34 @@ function updateReminderBtn() {
   btn.textContent = on ? '🔔 リマインダーON（有効）' : '🔔 リマインダーON';
   btn.style.opacity = on ? '1' : '';
 }
-// 夜まだ0問なら通知（アプリが開いている/バックグラウンド時のみ）
+// 夜20時以降に通知（アプリが開いている/バックグラウンド時のみ）
+//   直前期モード：今日の予定の残り問題数・時間と、記憶キープ期間に未接触の章数
+//   それ以外：まだ0問なら
 function checkReminder() {
   if (localStorage.getItem('cbt_reminder') !== 'on') return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const hour = new Date().getHours();
   if (hour < 20) return; // 夜20時以降
   if (localStorage.getItem('reminder_sent') === TODAY_STR) return;
-  const today = state.daily_log.find(l => l.date === TODAY_STR);
-  if (today && today.n > 0) return; // もう解いてる
-  if (new Date() >= ymd('2026-11-01')) return; // 直前期は除外
+  let body = '';
+  if (sprintEnabled()) {
+    if (TODAY >= CBT) return;                       // 当日は通知しない
+    const plan = sprintPlan();
+    const rest = Math.max(0, plan.quota - plan.solvedToday);
+    const stale = freshWindowOpen() ? CHAPTERS_QB.filter(ch => isStale(ch.id)).length : 0;
+    const parts = [];
+    if (!plan.todayOff && rest > 0) parts.push(`今日の予定あと${rest}問（約${fmtMin(plan.today ? plan.today.min : 0)}）`);
+    if (stale > 0) parts.push(`🧊${freshStartStr().slice(5).replace('-', '/')}以降まだ触れていない章が${stale}章`);
+    if (!parts.length) return;
+    body = parts.join(' / ');
+  } else {
+    const today = state.daily_log.find(l => l.date === TODAY_STR);
+    if (today && today.n > 0) return; // もう解いてる
+    if (new Date() >= ymd('2026-11-01')) return;
+    body = '今日まだ0問です。少しだけでも解こう！🔥';
+  }
   try {
-    new Notification('QB Planner', { body: '今日まだ0問です。少しだけでも解こう！🔥', icon: 'icon-192.png' });
+    new Notification('QB Planner', { body, icon: 'icon-192.png' });
     localStorage.setItem('reminder_sent', TODAY_STR);
   } catch (e) {}
 }
