@@ -657,6 +657,58 @@ body::before{
 }
 .reco-btn:active{transform:scale(0.95);}
 
+/* ── 直前期カード（逆算ノルマ＋今日やる章） ── */
+.sprint-only{display:none;}
+body.sprint .sprint-only{display:block;}
+body.sprint .sprint-hide{display:none !important;}
+.sprint-card{
+  background:linear-gradient(135deg,rgba(255,64,96,0.13),rgba(255,138,60,0.08));
+  border:1px solid rgba(255,100,80,0.32);
+  border-radius:16px;padding:16px;margin-bottom:12px;
+}
+.sprint-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.sprint-label{font-size:11px;font-weight:800;color:var(--red-ink);letter-spacing:0.06em;margin-bottom:6px;}
+.sprint-q{font-size:34px;font-weight:900;font-family:'JetBrains Mono',monospace;line-height:1;}
+.sprint-q span{font-size:13px;font-weight:600;color:var(--dim);}
+.sprint-note{font-size:11px;color:var(--dim);margin-top:6px;line-height:1.5;}
+.sprint-today{text-align:center;flex-shrink:0;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:8px 12px;}
+.sprint-today div:first-child{font-size:22px;font-weight:900;font-family:'JetBrains Mono',monospace;line-height:1;}
+.sprint-today-l{font-size:9px;color:var(--dim);margin-top:4px;font-weight:700;}
+.sprint-bar{margin:12px 0 10px;}
+.sprint-bar .pb-fill{background:linear-gradient(90deg,var(--orange),var(--red));}
+.sprint-plans{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.sprint-plan{background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:9px 10px;}
+.sprint-plan.main{border-color:var(--orange);}
+.sprint-plan-t{font-size:10px;font-weight:800;color:var(--dim);}
+.sprint-plan-v{font-size:17px;font-weight:900;font-family:'JetBrains Mono',monospace;margin-top:3px;}
+.sprint-plan-v span{font-size:10px;color:var(--dim);font-weight:600;}
+.sprint-plan-s{font-size:9.5px;color:var(--dim);margin-top:2px;}
+.sprint-verdict{font-size:11px;font-weight:700;margin-top:9px;line-height:1.5;}
+.sprint-sec{font-size:10px;font-weight:800;color:var(--dim);letter-spacing:0.06em;margin:14px 0 6px;}
+.sp-row{display:flex;align-items:center;gap:8px;background:var(--s2);border-radius:0 10px 10px 0;padding:8px 10px;margin-bottom:6px;}
+.sp-id{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:14px;flex-shrink:0;}
+.sp-main{flex:1;min-width:0;}
+.sp-name{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sp-why{font-size:9.5px;color:var(--dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sp-round{font-size:13px;font-weight:900;flex-shrink:0;}
+.sp-btn{flex-shrink:0;border:none;border-radius:9px;padding:8px 10px;font-family:'Outfit',sans-serif;font-size:12px;font-weight:800;cursor:pointer;
+  background:linear-gradient(135deg,var(--orange),var(--red));color:#fff;}
+.sp-btn:active{transform:scale(0.95);}
+.sprint-settings{margin-top:12px;font-size:11px;}
+.sprint-settings summary{cursor:pointer;color:var(--dim);font-weight:700;padding:4px 0;}
+.sp-inputs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
+.sp-inputs label{display:flex;align-items:center;gap:4px;color:var(--dim);font-size:11px;}
+.sp-inputs input{width:52px;background:var(--s3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 6px;font-size:13px;font-family:'JetBrains Mono',monospace;}
+.sp-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px;}
+.sp-day{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:5px 2px;text-align:center;cursor:pointer;line-height:1.25;}
+.sp-day b{display:block;font-size:11px;font-family:'JetBrains Mono',monospace;}
+.sp-day span{font-size:9px;color:var(--dim);}
+.sp-day.off{opacity:0.5;}
+.sp-day.off b{text-decoration:line-through;}
+.sp-day.today{border-color:var(--orange);}
+.sp-day.exam span{color:var(--red-ink);font-weight:700;}
+.sp-hint{font-size:9.5px;color:var(--dim);margin-top:6px;line-height:1.5;}
+
 /* ── 自動インサイト ── */
 .insight-item{
   display:flex;align-items:flex-start;gap:8px;
@@ -808,6 +860,7 @@ body::before{
 /* active = 周回ごとのネオンカラー＋グロー */
 .round-seg-btn.active[data-round="1"]{background:linear-gradient(135deg,rgba(91,143,255,0.28),rgba(91,143,255,0.06));color:var(--blue);box-shadow:0 0 18px rgba(91,143,255,0.4),inset 0 0 0 1px rgba(91,143,255,0.45);}
 .round-seg-btn.active[data-round="2"]{background:linear-gradient(135deg,rgba(176,127,255,0.28),rgba(176,127,255,0.06));color:var(--purple);box-shadow:0 0 18px rgba(176,127,255,0.4),inset 0 0 0 1px rgba(176,127,255,0.45);}
+.round-seg-btn.active[data-round="4"]{background:linear-gradient(135deg,rgba(46,232,200,0.28),rgba(46,232,200,0.06));color:var(--teal);box-shadow:0 0 18px rgba(46,232,200,0.4),inset 0 0 0 1px rgba(46,232,200,0.45);}
 .round-seg-btn.active[data-round="3"]{background:linear-gradient(135deg,rgba(255,138,60,0.28),rgba(255,138,60,0.06));color:var(--orange);box-shadow:0 0 18px rgba(255,138,60,0.4),inset 0 0 0 1px rgba(255,138,60,0.45);}
 .round-sub{text-align:center;font-size:10px;color:var(--dim);margin:-2px 0 11px;font-weight:600;letter-spacing:0.04em;}
 
@@ -1048,9 +1101,9 @@ body.bank-orig .qb-only{display:none !important;}
 .subj-chk.on{border-color:rgba(52,232,160,0.5);background:rgba(52,232,160,0.15);}
 
 /* ── 章ごとの周回トラック（①②③） ── */
-.round-track{display:flex;gap:5px;flex-shrink:0;}
+.round-track{display:flex;gap:4px;flex-shrink:0;}
 .round-seg-mini{
-  position:relative;width:30px;height:30px;border-radius:8px;
+  position:relative;width:27px;height:30px;border-radius:8px;
   border:1px solid var(--border);background:var(--s3);overflow:hidden;
   display:flex;align-items:center;justify-content:center;cursor:pointer;
   font-size:12px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--dim);
@@ -1062,12 +1115,15 @@ body.bank-orig .qb-only{display:none !important;}
 .round-seg-mini.r1 .rsm-fill{background:var(--blue);}
 .round-seg-mini.r2 .rsm-fill{background:var(--purple);}
 .round-seg-mini.r3 .rsm-fill{background:var(--orange);}
+.round-seg-mini.r4 .rsm-fill{background:var(--teal);}
 .round-seg-mini.active.r1{border-color:rgba(91,143,255,0.5);color:var(--blue);}
 .round-seg-mini.active.r2{border-color:rgba(176,127,255,0.5);color:var(--purple);}
 .round-seg-mini.active.r3{border-color:rgba(255,138,60,0.5);color:var(--orange);}
+.round-seg-mini.active.r4{border-color:rgba(46,232,200,0.5);color:var(--teal);}
 .round-seg-mini.done.r1{background:rgba(91,143,255,0.18);border-color:var(--blue);color:var(--blue);box-shadow:0 0 10px rgba(91,143,255,0.35);}
 .round-seg-mini.done.r2{background:rgba(176,127,255,0.18);border-color:var(--purple);color:var(--purple);box-shadow:0 0 10px rgba(176,127,255,0.35);}
 .round-seg-mini.done.r3{background:rgba(255,138,60,0.18);border-color:var(--orange);color:var(--orange);box-shadow:0 0 10px rgba(255,138,60,0.35);}
+.round-seg-mini.done.r4{background:rgba(46,232,200,0.18);border-color:var(--teal);color:var(--teal);box-shadow:0 0 10px rgba(46,232,200,0.35);}
 .round-seg-mini.locked{opacity:0.4;cursor:default;font-size:11px;}
 
 /* ── 周回パターン分析 ── */
@@ -1087,6 +1143,7 @@ body.bank-orig .qb-only{display:none !important;}
 .ra-acc.r1{background:rgba(91,143,255,0.14);color:var(--blue);}
 .ra-acc.r2{background:rgba(176,127,255,0.14);color:var(--purple);}
 .ra-acc.r3{background:rgba(255,138,60,0.14);color:var(--orange);}
+.ra-acc.r4{background:rgba(46,232,200,0.14);color:var(--teal);}
 .ra-arrow{color:var(--dim);font-size:11px;}
 .ra-details{display:flex;flex-wrap:wrap;gap:10px;margin-top:7px;}
 .ra-d{font-size:10px;color:var(--dim);}
@@ -1245,13 +1302,13 @@ body.bank-orig .qb-only{display:none !important;}
   <div class="panel active" id="p-home">
 
     <!-- バンク横断ダッシュボード（QB / Original / モントレ 一覧） -->
-    <div class="card" id="bankDashCard">
+    <div class="card sprint-hide" id="bankDashCard">
       <div class="ct">📚 3つの問題集</div>
       <div id="bankDashBody"></div>
     </div>
 
     <!-- 受験日までに間に合う？（勉強時間→ペース判定） -->
-    <div class="card" id="paceCard">
+    <div class="card sprint-hide" id="paceCard">
       <div class="ct">⏱ 受験日までに間に合う？</div>
       <div class="pace-inputs">
         <label>平日<input type="number" id="availWd" min="0" max="16" step="0.5" value="3" oninput="renderPacePlan()">h/日</label>
@@ -1262,7 +1319,7 @@ body.bank-orig .qb-only{display:none !important;}
     </div>
 
     <!-- レベルカード -->
-    <div class="level-card qb-only" id="levelCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
+    <div class="level-card qb-only sprint-hide" id="levelCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
       <div class="level-badge" id="levelBadge">1</div>
       <div style="flex:1;min-width:0;">
         <div class="level-title-row">
@@ -1275,7 +1332,7 @@ body.bank-orig .qb-only{display:none !important;}
     </div>
 
     <!-- ゴーストペースメーカー -->
-    <div class="ghost-card qb-only" id="ghostCard">
+    <div class="ghost-card qb-only sprint-hide" id="ghostCard">
       <div class="ghost-icon" id="ghostIcon">👻</div>
       <div style="flex:1;">
         <div class="ghost-label">理想ペースのゴースト</div>
@@ -1287,7 +1344,34 @@ body.bank-orig .qb-only{display:none !important;}
     <!-- 励ましメッセージ -->
     <div class="cheer-banner qb-only" id="cheerBanner"></div>
 
-    <div class="today-card qb-only" id="todayCard">
+    <!-- 直前期：残り日数から逆算した今日のノルマ＋今日やる章 -->
+    <div class="sprint-card sprint-only" id="sprintCard">
+      <div class="sprint-top">
+        <div style="min-width:0;">
+          <div class="sprint-label">🔥 直前期 · CBTまで <span id="spDaysLeft">—</span>日</div>
+          <div class="sprint-q" id="spQuota">— <span>問</span></div>
+          <div class="sprint-note" id="spNote"></div>
+        </div>
+        <div class="sprint-today"><div id="spDone">0</div><div class="sprint-today-l">今日のQB</div></div>
+      </div>
+      <div class="pb-bg sprint-bar"><div class="pb-fill" id="spBar" style="width:0%"></div></div>
+      <div class="sprint-plans" id="spPlans"></div>
+      <div class="sprint-verdict" id="spVerdict"></div>
+      <div class="sprint-sec">今日やる章（タップで記録にセット）</div>
+      <div id="spChapters"></div>
+      <details class="sprint-settings">
+        <summary>📅 勉強できる日・時間の設定</summary>
+        <div class="sp-inputs">
+          <label>平日<input type="number" id="spWd" min="0" max="16" step="0.5" onchange="onSprintInput()">h</label>
+          <label>休日<input type="number" id="spWe" min="0" max="16" step="0.5" onchange="onSprintInput()">h</label>
+          <label>速度<input type="number" id="spSpeed" min="1" max="60" step="1" onchange="onSprintInput()">問/h</label>
+        </div>
+        <div class="sp-days" id="spDayGrid"></div>
+        <div class="sp-hint">日付をタップで「勉強しない日」を切り替え（大学の試験日は最初から休み扱い）。ノルマは勉強できる時間に比例して残りの日に割り振られ、遅れた分は翌日以降に自動で上乗せされます。</div>
+      </details>
+    </div>
+
+    <div class="today-card qb-only sprint-hide" id="todayCard">
       <div class="today-label">TODAY'S TARGET</div>
       <div class="today-q" id="todayTarget">— <span>問/日</span></div>
       <div class="today-note" id="todayPhase">計算中...</div>
@@ -1304,7 +1388,7 @@ body.bank-orig .qb-only{display:none !important;}
     </div>
 
     <!-- 今週やる章サジェスト -->
-    <div class="weekplan-card qb-only" id="weekPlanCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
+    <div class="weekplan-card qb-only sprint-hide" id="weekPlanCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
       <div class="weekplan-hdr">
         <span class="weekplan-title">📖 今週やる章</span>
         <span class="weekplan-note" id="weekPlanNote"></span>
@@ -1336,7 +1420,7 @@ body.bank-orig .qb-only{display:none !important;}
     </div>
 
     <!-- 借金カード (debt > 0 のとき表示) -->
-    <div class="debt-card qb-only" id="debt-card" style="display:none;">
+    <div class="debt-card qb-only sprint-hide" id="debt-card" style="display:none;">
       <div style="font-size:24px;">💸</div>
       <div style="flex:1;">
         <div class="debt-label">現在の借金</div>
@@ -1346,7 +1430,7 @@ body.bank-orig .qb-only{display:none !important;}
     </div>
 
     <!-- 次の一手レコメンド -->
-    <div class="reco-card qb-only" id="recoCard" style="display:none;">
+    <div class="reco-card qb-only sprint-hide" id="recoCard" style="display:none;">
       <div style="flex:1;min-width:0;">
         <div class="reco-label">🎯 今おすすめの章</div>
         <div class="reco-name" id="recoName">—</div>
@@ -1359,7 +1443,7 @@ body.bank-orig .qb-only{display:none !important;}
     <div class="card" id="recordCard">
       <div class="ct">今日解いた問題数を記録<span class="record-bank-badge" id="recordBankBadge">QB</span></div>
 
-      <!-- 周回モード（1周目 / 2周目 / 3周目） -->
+      <!-- 周回モード（1〜4周目） -->
       <div class="round-seg" role="tablist" aria-label="周回モード">
         <button class="round-seg-btn active" data-round="1" onclick="setRound(1)">
           <span class="rs-num">1</span><span class="rs-lbl">周目</span>
@@ -1369,6 +1453,9 @@ body.bank-orig .qb-only{display:none !important;}
         </button>
         <button class="round-seg-btn" data-round="3" onclick="setRound(3)">
           <span class="rs-num">3</span><span class="rs-lbl">周目</span>
+        </button>
+        <button class="round-seg-btn" data-round="4" onclick="setRound(4)">
+          <span class="rs-num">4</span><span class="rs-lbl">周目</span>
         </button>
       </div>
       <div class="round-sub" id="roundSub">全問を解く</div>
@@ -1423,7 +1510,7 @@ body.bank-orig .qb-only{display:none !important;}
       </div>
       <div class="wrong-hint" id="wrongHint">正答率は自動計算されます（任意・分からなければ0でOK）</div>
 
-      <!-- 周回の内訳（任意・2・3周目で表示）：回収数 -->
+      <!-- 周回の内訳（任意・2周目以降で表示）：回収数 -->
       <div class="round-extra" id="roundExtra" style="display:none;">
         <div class="wrong-row">
           <span class="wrong-label">前回間違えたうち今回正解した数<span style="font-size:9px;color:var(--dim);display:block;">任意・回収数</span></span>
@@ -1445,13 +1532,13 @@ body.bank-orig .qb-only{display:none !important;}
     </div>
 
     <!-- 自動インサイト（コーチ） -->
-    <div class="card qb-only" id="insightCard" style="display:none;">
+    <div class="card qb-only sprint-hide" id="insightCard" style="display:none;">
       <div class="ct" style="margin-bottom:8px;">💡 今日の気づき（自動コーチ）</div>
       <div id="insightList"></div>
     </div>
 
     <!-- デイリークエスト -->
-    <div class="card qb-only" id="questCard">
+    <div class="card qb-only sprint-hide" id="questCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div class="ct" style="margin-bottom:0;">⚔️ 今日のクエスト</div>
         <span id="questProgress" style="font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--purple);">0/3</span>
@@ -1480,7 +1567,7 @@ body.bank-orig .qb-only{display:none !important;}
     </div>
 
     <!-- 週次コミットメント -->
-    <div class="card qb-only" id="weekGoalCard">
+    <div class="card qb-only sprint-hide" id="weekGoalCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div class="ct" style="margin-bottom:0;">🎯 今週の目標</div>
         <button onclick="setWeekGoal()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;color:var(--dim);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;">設定</button>
@@ -1572,6 +1659,10 @@ body.bank-orig .qb-only{display:none !important;}
             <div class="ph"><span class="pl">QB 3周目</span><span class="pp" style="color:var(--orange)" id="pb3pct">—</span></div>
             <div class="pb-bg"><div class="pb-fill" style="background:var(--orange);" id="pb3"></div></div>
           </div>
+          <div class="pb">
+            <div class="ph"><span class="pl">QB 4周目</span><span class="pp" style="color:var(--teal)" id="pb4pct">—</span></div>
+            <div class="pb-bg"><div class="pb-fill" style="background:var(--teal);" id="pb4"></div></div>
+          </div>
           <div class="pb" style="margin-bottom:0">
             <div class="ph"><span class="pl">モントレ</span><span class="pp" style="color:var(--green)" id="pbmpct">0%</span></div>
             <div class="pb-bg"><div class="pb-fill" style="background:var(--green);" id="pbm"></div></div>
@@ -1598,6 +1689,7 @@ body.bank-orig .qb-only{display:none !important;}
     <!-- 表示設定 -->
     <div class="card" id="homePrefsCard">
       <div class="ct" style="margin-bottom:10px;">⚙️ ホームの表示設定</div>
+      <label class="pref-row"><span>🔥 直前期モード（逆算ノルマ・今日やる章。ONの間はレベル・クエスト等を隠す）</span><input type="checkbox" id="pref-sprint" onchange="saveHomePrefs()" checked></label>
       <label class="pref-row"><span>やる気カード（レベル・ゴースト）</span><input type="checkbox" id="pref-motivation" onchange="saveHomePrefs()" checked></label>
       <label class="pref-row"><span>励ましメッセージ</span><input type="checkbox" id="pref-cheer" onchange="saveHomePrefs()" checked></label>
       <label class="pref-row"><span>勉強タイマー</span><input type="checkbox" id="pref-timer" onchange="saveHomePrefs()" checked></label>
@@ -1843,11 +1935,15 @@ body.bank-orig .qb-only{display:none !important;}
     </div>
     <div class="tip-item">
       <div class="tip-num" style="background:var(--purple)">②</div>
-      <div><div class="tip-title">2周目：間違えた〜1680問だけ</div><div class="tip-desc">全体シャッフルで解く。モントレをここで並走させる。</div></div>
+      <div><div class="tip-title">2周目：全問を解き直す</div><div class="tip-desc">全体シャッフルで本番形式に。</div></div>
     </div>
     <div class="tip-item">
-      <div class="tip-num" style="background:var(--green)">③</div>
-      <div><div class="tip-title">3周目：もう一度全問</div><div class="tip-desc">10月末に終わらせれば直前期に余裕ができる。</div></div>
+      <div class="tip-num" style="background:var(--orange)">③</div>
+      <div><div class="tip-title">3周目：もう一度全問</div><div class="tip-desc">vol1〜3は最低ここまで。vol4・5は2周が最低ライン。</div></div>
+    </div>
+    <div class="tip-item">
+      <div class="tip-num" style="background:var(--teal)">④</div>
+      <div><div class="tip-title">4周目：仕上げ（vol4・5は3周目まで）</div><div class="tip-desc">時間が足りなければ苦手章から。QBが固まったら模試を1回 → 苦手範囲だけモントレ。</div></div>
     </div>
   </div>
 
@@ -1872,15 +1968,16 @@ body.bank-orig .qb-only{display:none !important;}
         <span style="display:flex;align-items:center;gap:5px;"><span style="color:var(--blue);font-weight:800;font-family:'JetBrains Mono',monospace;">①</span>1周目（全問）</span>
         <span style="display:flex;align-items:center;gap:5px;"><span style="color:var(--purple);font-weight:800;font-family:'JetBrains Mono',monospace;">②</span>2周目（全問）</span>
         <span style="display:flex;align-items:center;gap:5px;"><span style="color:var(--orange);font-weight:800;font-family:'JetBrains Mono',monospace;">③</span>3周目（全問）</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="color:var(--teal);font-weight:800;font-family:'JetBrains Mono',monospace;">④</span>4周目（全問）</span>
       </div>
       <div style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.6;">
-        💡 右側の <strong>①②③</strong> をタップ → その周回の「やった数・正解数」を記録（塗りが進捗、✓で完了）。<br>
+        💡 右側の <strong>①②③④</strong> をタップ → その周回の「やった数・正解数」を記録（塗りが進捗、✓で完了）。<br>
         💡 章ID（例: 2H）をタップ → 苦手/普通/得意を切替。🔒は前の周回が未完了の合図です。
       </div>
     </div>
 
     <!-- 完了率サマリー -->
-    <div class="sg" style="margin-bottom:4px;">
+    <div class="sg" style="margin-bottom:4px;grid-template-columns:repeat(4,1fr);">
       <div class="sb">
         <div class="sv" style="color:var(--blue)" id="subj-cnt-exam">0</div>
         <div class="sl">1周目完了</div>
@@ -1892,6 +1989,10 @@ body.bank-orig .qb-only{display:none !important;}
       <div class="sb">
         <div class="sv" style="color:var(--purple)" id="subj-cnt-shuf">0</div>
         <div class="sl">3周目完了</div>
+      </div>
+      <div class="sb">
+        <div class="sv" style="color:var(--teal)" id="subj-cnt-r4">0</div>
+        <div class="sl">4周目完了</div>
       </div>
     </div>
     <div style="text-align:center;font-size:10px;color:var(--dim);margin-bottom:12px;" id="subjTotalLabel">/ 41単元（3,359問）</div>
@@ -2497,7 +2598,9 @@ const MISC_KEYS = [
   'cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak',
   'cbt_mocks','cbt_irt_target','cbt_home_prefs','cbt_week_seen','streak_milestones','cbt_level',
   'cbt_subj_orig',   // Originalバンクの進捗（misc経由でクラウド同期）
-  'cbt_subj_monte'   // モントレバンクの進捗
+  'cbt_subj_monte',  // モントレバンクの進捗
+  'cbt_sprint_off',  // 直前期の「勉強しない日」
+  'cbt_avail_wd', 'cbt_avail_we', 'cbt_solve_speed'   // 勉強時間・速度（ノルマ計算に使う）
 ];
 // localStorageからmiscオブジェクトを構築
 function buildMisc() {
@@ -2510,6 +2613,11 @@ function applyMisc(misc) {
   if (!misc || typeof misc !== 'object') return;
   for (const k of MISC_KEYS) {
     if (misc[k] != null) localStorage.setItem(k, misc[k]);
+  }
+  // 勉強時間・速度の入力欄も同期後の値に合わせる（古い入力値で上書きし返さないように）
+  for (const [id, k] of [['availWd','cbt_avail_wd'],['availWe','cbt_avail_we'],['solveSpeed','cbt_solve_speed']]) {
+    const el = document.getElementById(id), v = localStorage.getItem(k);
+    if (el && v != null) el.value = v;
   }
   _lastMiscJson = JSON.stringify(buildMisc());
 }
@@ -2713,6 +2821,8 @@ async function refreshFromCloud() {
 
 // ── フェーズ別日ノルマ ──
 function getDayTarget(date) {
+  // 直前期モード中の「今日」は、残り日数から逆算したノルマ
+  if (sprintEnabled() && toLocalDateStr(date) === TODAY_STR) return sprintPlan().quota;
   if (date >= ymd('2026-11-01')) return 0;
   if (date >= ymd('2026-09-01')) return 20;
   if (date >= ymd('2026-07-11')) return 50;
@@ -2783,8 +2893,9 @@ function useFreeze(date) {
 }
 
 function checkPenalty() {
-  // 直前期・初回起動はスキップ
+  // 直前期・初回起動はスキップ（直前期モードは遅れを翌日以降のノルマに自動で上乗せするので借金は不要）
   if (new Date() >= ymd('2026-11-01')) return;
+  if (sprintEnabled()) return;
   if (!state.last_date) return;
 
   // 今日すでにチェック済みならスキップ
@@ -3031,7 +3142,7 @@ function setRound(round) {
   if (card) card.style.setProperty('--round-accent', meta.color);
   const sub = document.getElementById('roundSub');
   if (sub) sub.textContent = meta.sub;
-  // 回収数の任意入力は2・3周目で表示（前周回の誤答のうち今回正解した数）
+  // 回収数の任意入力は2周目以降で表示（前周回の誤答のうち今回正解した数）
   const extra = document.getElementById('roundExtra');
   if (extra) extra.style.display = (round >= 2) ? 'block' : 'none';
   initChapterSelect();       // ドロップダウンを選択周回の進捗に更新
@@ -3160,7 +3271,7 @@ function clampWrong() {
   clampRec();
 }
 
-// ── 回収数ステッパー（任意・2・3周目の内訳） ──
+// ── 回収数ステッパー（任意・2周目以降の内訳） ──
 function stepRec(n) {
   todayRec = Math.max(0, todayRec + n);
   clampRec();
@@ -3371,7 +3482,7 @@ function addToday() {
     st[corrKey] = (st[corrKey] || 0) + chapterCorrect;
     // 周回の内訳：回収数（前周回で間違えた問題のうち、今回正解した数）を集計
     if (round >= 2) {
-      // 2・3周目は任意入力（今回の正解数を超えない範囲で加算）
+      // 2周目以降は任意入力（今回の正解数を超えない範囲で加算）
       const recAdd = Math.min(Math.max(0, todayRec), chapterCorrect);
       if (recAdd > 0) st['rec' + round] = (st['rec' + round] || 0) + recAdd;
     }
@@ -4033,6 +4144,8 @@ function updateAll() {
   setPB('pb1', p1,  'pb1pct', p1.toFixed(0) + '%');
   setPB('pb2', p2,  'pb2pct', r2 > 0 ? p2.toFixed(0) + '%' : '—');
   setPB('pb3', p3,  'pb3pct', r3 > 0 ? p3.toFixed(0) + '%' : '—');
+  const r4 = T.r4 || 0, p4 = Math.min(r4 / total * 100, 100);
+  setPB('pb4', p4,  'pb4pct', r4 > 0 ? p4.toFixed(0) + '%' : '—');
   setPB('pbm', pm,  'pbmpct', pm.toFixed(0) + '%');
 
   // 計画タブのバー
@@ -4108,6 +4221,8 @@ function updateAll() {
     document.getElementById('todayPhase').textContent = phase;
   }
 
+  document.body.classList.toggle('sprint', sprintEnabled());
+  renderSprint();               // 直前期カード（直前期モードのときだけ表示）
   renderBankDash();             // 3バンク横断ダッシュボード（常に表示）
   renderPacePlan();             // 受験日までのペース判定（現在バンク基準）
   renderStreak();
@@ -4346,7 +4461,7 @@ const LEVEL_TITLES = [
 ];
 
 function calcXp() {
-  return state.r1 + state.r2 + state.r3 + Math.round(state.m * 0.5);
+  return state.r1 + state.r2 + state.r3 + (BANK_TOTALS.qb.r4 || 0) + Math.round(state.m * 0.5);
 }
 // レベルに必要な累計XP（2次曲線でだんだん必要量が増える）
 function xpForLevel(lv) {
@@ -4648,6 +4763,239 @@ function renderReviewReminder() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// 直前期モード（ラストスパート）
+// ──────────────────────────────────────────────────────────────
+// QBを章ごとに「最低ライン／目標」の周回数まで回すのに、残り何問か → 勉強できる日に割り振る。
+//   vol1〜3: 最低3周・目標4周 / vol4・5: 最低2周・目標3周
+// 勉強できる日 = 今日〜CBT前日（大学の試験日と、自分で休みにした日を除く）。
+// 各日の割り当ては勉強時間（平日/休日）に比例。遅れた分は毎日の再計算で自動的に上乗せされる。
+// ══════════════════════════════════════════════════════════════
+const SPRINT_START = ymd('2026-10-12');
+function sprintActive() { return TODAY >= SPRINT_START && TODAY <= CBT; }
+function sprintEnabled() { return sprintActive() && loadHomePrefs().sprint; }
+function plannedRounds(ch) { return ch.block >= 4 ? { min: 2, goal: 3 } : { min: 3, goal: 4 }; }
+function qbSt(id) { return BANK_SUBJ.qb[id] || {}; }
+function qbRoundDone(st, r) { return st[ROUND_META[r].done] || 0; }
+
+// 指定ライン（'min' | 'goal'）まで回すのに残っている問題数
+function sprintRemaining(level) {
+  let t = 0;
+  for (const ch of CHAPTERS_QB) {
+    const st = qbSt(ch.id), R = plannedRounds(ch)[level];
+    for (let r = 1; r <= R; r++) t += Math.max(0, ch.n - Math.min(qbRoundDone(st, r), ch.n));
+  }
+  return t;
+}
+function getSprintOff() { try { return JSON.parse(localStorage.getItem('cbt_sprint_off') || '{}'); } catch (e) { return {}; } }
+function sprintExamName(ds) {
+  const e = EXAMS.find(x => x.date === ds && ymd(x.date) < CBT);
+  return e ? e.name : '';
+}
+function isSprintOff(ds) {
+  const o = getSprintOff();
+  if (ds in o) return !!o[ds];
+  return !!sprintExamName(ds);           // 大学の試験日は既定で休み
+}
+function sprintHours() {
+  const num = (k, d) => { const v = parseFloat(localStorage.getItem(k)); return isNaN(v) ? d : Math.max(0, v); };
+  return { wd: num('cbt_avail_wd', 3), we: num('cbt_avail_we', 6), speed: Math.max(1, num('cbt_solve_speed', 16)) };
+}
+// 今日〜CBT前日の各日 {ds, date, off, hours}
+function sprintDays() {
+  const h = sprintHours(), out = [];
+  for (const d = new Date(TODAY); d < CBT; d.setDate(d.getDate() + 1)) {
+    const ds = toLocalDateStr(d), off = isSprintOff(ds);
+    const we = d.getDay() === 0 || d.getDay() === 6;
+    out.push({ ds, date: new Date(d), off, exam: sprintExamName(ds), hours: off ? 0 : (we ? h.we : h.wd) });
+  }
+  return out;
+}
+// 今日QBで解いた数（章別ログから）
+function qbSolvedOn(ds) {
+  return (state.chapter_log || []).filter(e => e.d === ds && e.b === 'qb').reduce((a, e) => a + (e.n || 0), 0);
+}
+// 今日のノルマと見通し
+function sprintPlan() {
+  const days = sprintDays(), h = sprintHours();
+  const solvedToday = qbSolvedOn(TODAY_STR);
+  // 重み＝勉強時間。全部0時間なら休みでない日に均等
+  let weights = days.map(d => d.hours);
+  if (weights.reduce((a, b) => a + b, 0) <= 0) weights = days.map(d => d.off ? 0 : 1);
+  const totalW = weights.reduce((a, b) => a + b, 0);
+  const todayW = days.length && days[0].ds === TODAY_STR ? weights[0] : 0;
+  const capacity = Math.round(days.reduce((a, d) => a + d.hours, 0) * h.speed);   // 今日を含む残りでこなせる問数
+  const lv = {};
+  for (const level of ['goal', 'min']) {
+    const rem = sprintRemaining(level);
+    const remAtStart = rem + solvedToday;        // 今日の分を足し戻して「朝の時点の残り」で割る（記録するたびにノルマが減らないように）
+    const quota = totalW > 0 ? Math.ceil(remAtStart * todayW / totalW) : rem;
+    const perDay = totalW > 0 ? Math.ceil(rem / Math.max(1, days.filter((d, i) => weights[i] > 0).length)) : rem;
+    lv[level] = { rem, quota, perDay };
+  }
+  // 目標が時間的に無理なら、最低ラインのペースを今日のノルマにする
+  const main = capacity >= lv.goal.rem || lv.goal.rem === 0 ? 'goal' : 'min';
+  return {
+    days, solvedToday, capacity, lv, main,
+    quota: lv[main].quota,
+    todayOff: todayW === 0,
+    studyDays: weights.filter(w => w > 0).length,
+  };
+}
+
+// 今日やる章：最低ラインに届いていない章 → 周回が遅れている章 → やりかけ → 苦手 の順
+function sprintQueue() {
+  const items = [];
+  for (const ch of CHAPTERS_QB) {
+    const st = qbSt(ch.id), pr = plannedRounds(ch);
+    let r = 0;
+    for (let k = 1; k <= pr.goal; k++) if (qbRoundDone(st, k) < ch.n) { r = k; break; }
+    if (!r) continue;
+    const doneR = Math.min(qbRoundDone(st, r), ch.n);
+    const cur = chapterCurrent(st, ch.n);
+    const acc = cur.done > 0 ? cur.ok / cur.done * 100 : null;
+    const ex = currentBank === 'qb' ? chapterExamDays(ch.id) : null;
+    items.push({ ch, r, left: ch.n - doneR, partial: doneR > 0, belowMin: r <= pr.min, acc,
+                 examSoon: ex && ex.days <= 7 ? ex : null });
+  }
+  items.sort((a, b) =>
+    (b.examSoon ? 1 : 0) - (a.examSoon ? 1 : 0) ||
+    (b.belowMin ? 1 : 0) - (a.belowMin ? 1 : 0) ||
+    a.r - b.r ||
+    (b.partial ? 1 : 0) - (a.partial ? 1 : 0) ||
+    (a.acc == null ? 101 : a.acc) - (b.acc == null ? 101 : b.acc));
+  return items;
+}
+
+let _sprintRows = [];
+function renderSprint() {
+  const card = document.getElementById('sprintCard');
+  if (!card || !sprintEnabled()) return;
+  const plan = sprintPlan();
+  const daysLeft = Math.max(0, Math.round((CBT - TODAY) / 86400000));
+  setEl('spDaysLeft', daysLeft);
+
+  const mainLabel = plan.main === 'goal' ? '目標（4周・vol4/5は3周）' : '最低ライン（3周・vol4/5は2周）';
+  const qEl = document.getElementById('spQuota');
+  const noteEl = document.getElementById('spNote');
+  if (daysLeft === 0) {
+    qEl.innerHTML = '本番 <span>当日</span>';
+    noteEl.textContent = 'ここまでの積み上げを信じて。苦手章のメモだけ見直そう';
+  } else if (plan.todayOff) {
+    const ex = sprintExamName(TODAY_STR);
+    qEl.innerHTML = '休み <span>の日</span>';
+    noteEl.textContent = ex ? `今日は「${ex}」の試験日。解いた分は記録すれば残りが減ります` : '今日は勉強しない日に設定中';
+  } else {
+    qEl.innerHTML = `${plan.quota} <span>問 / 今日</span>`;
+    noteEl.textContent = `${mainLabel}に向けた今日の分（残り${plan.studyDays}日に勉強時間で割り振り）`;
+  }
+  setEl('spDone', plan.solvedToday);
+  const pct = plan.quota > 0 ? Math.min(100, plan.solvedToday / plan.quota * 100) : (plan.solvedToday > 0 ? 100 : 0);
+  document.getElementById('spBar').style.width = pct + '%';
+
+  const box = (level, title) => {
+    const x = plan.lv[level];
+    return `<div class="sprint-plan${plan.main === level ? ' main' : ''}">
+      <div class="sprint-plan-t">${title}</div>
+      <div class="sprint-plan-v">${x.rem.toLocaleString()}<span> 問残り</span></div>
+      <div class="sprint-plan-s">${x.rem > 0 ? `平均 約${x.perDay}問/日` : '✅ 達成！'}</div>
+    </div>`;
+  };
+  document.getElementById('spPlans').innerHTML =
+    box('goal', '🎯 目標 4周（vol4/5 3周）') + box('min', '🛟 最低 3周（vol4/5 2周）');
+
+  const v = document.getElementById('spVerdict');
+  const h = sprintHours();
+  if (plan.lv.goal.rem === 0) {
+    v.style.color = 'var(--green-ink)'; v.textContent = '🎉 目標の周回をすべて達成！苦手章の見直しと模試へ';
+  } else if (plan.capacity >= plan.lv.goal.rem) {
+    v.style.color = 'var(--green-ink)';
+    v.textContent = `✅ 今の設定（平日${h.wd}h・休日${h.we}h・${h.speed}問/h ≒ 約${plan.capacity.toLocaleString()}問）なら目標まで届く計算`;
+  } else if (plan.capacity >= plan.lv.min.rem) {
+    v.style.color = 'var(--orange)';
+    v.textContent = `⚠️ 4周目まで全部は時間的に厳しい（こなせる約${plan.capacity.toLocaleString()}問）。最低ラインを優先し、4周目は苦手章から`;
+  } else {
+    v.style.color = 'var(--red-ink)';
+    v.textContent = `🚨 最低ラインにも約${(plan.lv.min.rem - plan.capacity).toLocaleString()}問足りない計算。苦手章を優先して、得意章の周回は削ろう`;
+  }
+
+  // 今日やる章：今日の残りノルマを上から割り当て（最大4章）
+  const queue = sprintQueue();
+  let alloc = Math.max(0, plan.quota - plan.solvedToday);
+  const rows = [];
+  for (const it of queue) {
+    if (rows.length >= 4) break;
+    if (alloc <= 0 && rows.length >= 2) break;
+    const extra = alloc <= 0;              // ノルマ外（余力があれば）の行
+    const take = extra ? it.left : Math.min(it.left, alloc);
+    rows.push({ ...it, take, extra });
+    alloc -= take;
+  }
+  _sprintRows = rows;
+  const list = document.getElementById('spChapters');
+  if (rows.length === 0) {
+    list.innerHTML = '<div class="sp-hint">予定の周回はすべて終わっています 🎉</div>';
+  } else {
+    const head = alloc <= 0 && plan.quota > 0 && plan.solvedToday >= plan.quota
+      ? '<div class="sp-hint" style="margin:0 0 6px;color:var(--green-ink);font-weight:700;">✅ 今日のノルマ達成！余力があれば続きをどうぞ</div>' : '';
+    list.innerHTML = head + rows.map((x, i) => {
+      const m = ROUND_META[x.r], color = BLOCK_COLORS[x.ch.block];
+      const why = [];
+      if (x.examSoon) why.push(`試験「${x.examSoon.name}」まで${x.examSoon.days}日`);
+      if (x.belowMin) why.push('最低ライン未達');
+      if (x.partial) why.push(`${m.label}やりかけ（残り${x.left}問）`);
+      if (x.acc != null) why.push(`正答${x.acc.toFixed(0)}%`);
+      return `<div class="sp-row" style="border-left:3px solid ${color}">
+        <span class="sp-id" style="color:${color}">${x.ch.id}</span>
+        <div class="sp-main"><div class="sp-name">${x.ch.subj}</div><div class="sp-why">${why.join(' · ')}</div></div>
+        <span class="sp-round" style="color:${m.color}">${m.icon}</span>
+        <button class="sp-btn"${x.extra ? ' style="opacity:0.7"' : ''} onclick="applySprintRow(${i})">${x.extra ? '余力で' : ''}${x.take}問</button>
+      </div>`;
+    }).join('');
+  }
+
+  // 設定欄
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; };
+  setVal('spWd', h.wd); setVal('spWe', h.we); setVal('spSpeed', h.speed);
+  const youbi = ['日','月','火','水','木','金','土'];
+  document.getElementById('spDayGrid').innerHTML = plan.days.map(d =>
+    `<div class="sp-day${d.off ? ' off' : ''}${d.ds === TODAY_STR ? ' today' : ''}${d.exam ? ' exam' : ''}" onclick="toggleSprintDay('${d.ds}')">
+      <b>${d.date.getMonth() + 1}/${d.date.getDate()}</b>
+      <span>${d.exam ? '試験' : youbi[d.date.getDay()]}${d.off ? '' : ' ' + d.hours + 'h'}</span>
+    </div>`).join('');
+}
+// 「今日やる章」の行 → 記録カードにQB・周回・章・問題数をセット
+function applySprintRow(i) {
+  const x = _sprintRows[i];
+  if (!x) return;
+  if (currentBank !== 'qb') switchBank('qb');
+  setRound(x.r);
+  selectedChapter = x.ch.id;
+  localStorage.setItem(curChapterKey(), selectedChapter);
+  const sel = document.getElementById('chapterSelect');
+  if (sel) sel.value = selectedChapter;
+  updateRoundTargetHint();
+  setStep(x.take);
+  document.getElementById('recordCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  showToast(`${x.ch.id} ${x.ch.subj}・${ROUND_META[x.r].label} ${x.take}問をセット`);
+}
+function toggleSprintDay(ds) {
+  const o = getSprintOff();
+  o[ds] = !isSprintOff(ds);
+  localStorage.setItem('cbt_sprint_off', JSON.stringify(o));
+  updateAll();
+}
+function onSprintInput() {
+  const pairs = [['spWd', 'cbt_avail_wd', 'availWd'], ['spWe', 'cbt_avail_we', 'availWe'], ['spSpeed', 'cbt_solve_speed', 'solveSpeed']];
+  for (const [id, key, paceId] of pairs) {
+    const v = parseFloat(document.getElementById(id).value);
+    if (isNaN(v) || v < 0) continue;
+    localStorage.setItem(key, String(v));
+    const pe = document.getElementById(paceId); if (pe) pe.value = v;
+  }
+  updateAll();
+}
+
 // ── 必要ペース + 次の試験カウントダウン更新 ──
 function updatePaceAndExam() {
   // 必要ペース
@@ -4871,12 +5219,16 @@ const BLOCK_COLORS = {
 //   1周目: done  / correct  / r1_date
 //   2周目: done2 / correct2 / r2_date
 //   3周目: done3 / correct3 / r3_date
+//   4周目: done4 / correct4 / r4_date
 // ══════════════════════════════════════════════════════════════
 const ROUND_META = {
   1: { label:'1周目', sub:'全問を解く',         done:'done',  correct:'correct',  date:'r1_date', color:'var(--blue)',   icon:'①' },
   2: { label:'2周目', sub:'全問を解き直す',     done:'done2', correct:'correct2', date:'r2_date', color:'var(--purple)', icon:'②' },
   3: { label:'3周目', sub:'全問をもう一度解く', done:'done3', correct:'correct3', date:'r3_date', color:'var(--orange)', icon:'③' },
+  4: { label:'4周目', sub:'仕上げにもう一度全問', done:'done4', correct:'correct4', date:'r4_date', color:'var(--teal)',   icon:'④' },
 };
+const MAX_ROUND = 4;
+const ROUNDS = [1, 2, 3, 4];
 
 // その周回の「目標問題数」。1〜3周目とも章の全問数 n（前周回が未完了なら記録はガードで弾く）。
 function roundTarget(ch, round) {
@@ -4907,11 +5259,10 @@ function roundAcc(id, round) {
   if (done <= 0) return null;
   return roundCorrect(id, round) / done * 100;
 }
-// 章ごとの「最も若い未完了の周回」を返す（次に取り組むべき周回）。全部終わってたら 3 を返す
+// 章ごとの「最も若い未完了の周回」を返す（次に取り組むべき周回）。全部終わってたら最終周回
 function nextRoundFor(id) {
-  if (!isRoundDone(id, 1)) return 1;
-  if (!isRoundDone(id, 2)) return 2;
-  return 3;
+  for (const r of ROUNDS) if (!isRoundDone(id, r)) return r;
+  return MAX_ROUND;
 }
 
 // 章の周回パターン分析。合計値から計算（回収数 rec2 が入力されていれば「正確」、なければ「推定」）
@@ -4919,7 +5270,7 @@ function roundStats(id) {
   const ch = CHAPTERS.find(c => c.id === id);
   const st = state.subject_status[id] || {};
   const out = { id, subj: ch.subj, color: BLOCK_COLORS[ch.block], rounds: [] };
-  for (let r = 1; r <= 3; r++) {
+  for (const r of ROUNDS) {
     const done = roundDone(id, r);
     if (done <= 0) continue;
     const correct = roundCorrect(id, r);
@@ -4937,12 +5288,15 @@ function roundStats(id) {
     out.bothCorrect = Math.max(0, c2 - out.recovered); // 連続正解（1・2周目どちらも○）
     out.bothExact = out.recExact;
   }
-  // 2→3周目（3周目も全問。回収 = 2周目の誤答のうち3周目で正解した数）
-  const c3 = Math.min(st.correct3 || 0, ch.n), d3 = Math.min(st.done3 || 0, ch.n), w3 = Math.max(0, d3 - c3);
-  if (d2 > 0 && d3 > 0) {
-    out.rec3Total = w2;
-    if (st.rec3 != null) { out.rec3 = Math.min(st.rec3, w2); out.rec3Exact = true; }
-    else { out.rec3 = Math.max(0, w2 - w3); out.rec3Exact = false; }
+  // 3周目以降の回収 = 前の周回の誤答のうち、その周回で正解した数（入力なしなら誤答の減少から推定）
+  out.laterRecs = [];
+  for (let r = 3; r <= MAX_ROUND; r++) {
+    const pd = Math.min(st['done' + (r - 1)] || 0, ch.n), pc = Math.min(st['correct' + (r - 1)] || 0, ch.n);
+    const d = Math.min(st['done' + r] || 0, ch.n), c = Math.min(st['correct' + r] || 0, ch.n);
+    if (pd <= 0 || d <= 0) continue;
+    const pw = Math.max(0, pd - pc), w = Math.max(0, d - c);
+    const exact = st['rec' + r] != null;
+    out.laterRecs.push({ r, total: pw, rec: exact ? Math.min(st['rec' + r], pw) : Math.max(0, pw - w), exact });
   }
   return out;
 }
@@ -5003,7 +5357,7 @@ function saveSubjectStatus() {
 // 指定バンクの章別合計を BANK_TOTALS[bank] に集計（バンク横断で安全に呼べる）
 function recomputeBank(bank) {
   const chapters = BANKS[bank].chapters, ss = BANK_SUBJ[bank];
-  let d1 = 0, ok = 0, d2 = 0, d3 = 0;
+  let d1 = 0, ok = 0, d2 = 0, d3 = 0, d4 = 0;
   // curDone/curOk = 「今の実力」の集計（解き直した問題は最新周回の結果で評価）
   let curDone = 0, curOk = 0;
   for (const ch of chapters) {
@@ -5012,12 +5366,13 @@ function recomputeBank(bank) {
     if (st.done != null)  { d1 += Math.min(st.done, ch.n); ok += Math.min(st.correct || 0, st.done); }
     if (st.done2 != null) { d2 += Math.min(st.done2, ch.n); }
     if (st.done3 != null) { d3 += Math.min(st.done3, ch.n); }
+    if (st.done4 != null) { d4 += Math.min(st.done4, ch.n); }
     // Current ability (same blending as chapterAcc)
     const cur = chapterCurrent(st, ch.n);
     curDone += cur.done;
     curOk   += cur.ok;
   }
-  BANK_TOTALS[bank] = { r1: d1, ok, r2: d2, r3: d3, curDone, curOk };
+  BANK_TOTALS[bank] = { r1: d1, ok, r2: d2, r3: d3, r4: d4, curDone, curOk };
   // QBは同期カラム/計画系のため state にもミラー
   if (bank === 'qb') { state.r1 = d1; state.ok = ok; state.r2 = d2; state.r3 = d3; }
   // モントレは章別データがあれば既存の montre 集計(state.m/m_ok)にミラー（QBの計画バーに反映）
@@ -5044,22 +5399,20 @@ function isChapterDone(id) {
 }
 // 章の「今の正答率（実力）」。null=未着手
 // 解き直した問題は最新周回の結果を使い、まだ解き直していない分は前周回の正答率で補う。
-// （例：3周目を30問 → その30問は3周目の結果、残りは2周目、2周目未着手分は1周目）
+// （例：3周目を30問 → その30問は3周目の結果、残りは2周目、2周目未着手分は1周目。4周目も同様）
 // Current ability of a chapter as {done, ok}, blending rounds newest-first so a chapter
 // with only a few questions re-solved isn't judged on that small sample alone.
 function chapterCurrent(st, n) {
   st = st || {};
-  const d1 = Math.min(st.done || 0, n);
-  const c1 = Math.min(st.correct || 0, d1);
-  const d2 = Math.min(st.done2 || 0, n);
-  const c2 = Math.min(st.correct2 || 0, d2);
-  const d3 = Math.min(st.done3 || 0, n);
-  const c3 = Math.min(st.correct3 || 0, d3);
-  let done = d3, ok = c3;
-  const from2 = Math.max(0, d2 - d3);
-  if (from2 > 0 && d2 > 0) { done += from2; ok += c2 / d2 * from2; }
-  const from1 = Math.max(0, d1 - Math.max(d2, d3));
-  if (from1 > 0 && d1 > 0) { done += from1; ok += c1 / d1 * from1; }
+  let done = 0, ok = 0, covered = 0;     // covered = 新しい周回で解き直し済みの問題数
+  for (let r = MAX_ROUND; r >= 1; r--) {
+    const key = r === 1 ? '' : String(r);
+    const d = Math.min(st['done' + key] || 0, n);
+    const c = Math.min(st['correct' + key] || 0, d);
+    const use = Math.max(0, d - covered);  // この周回の結果で評価する分
+    if (use > 0 && d > 0) { done += use; ok += c / d * use; }
+    covered = Math.max(covered, d);
+  }
   return { done, ok };
 }
 function chapterAcc(id) {
@@ -5258,8 +5611,8 @@ function renderRoundAnalysis() {
       detail += `<span class="ra-d">回収 <strong>${s.recovered}</strong>/${s.recoverableTotal}${s.recExact ? '' : '<span class="ra-est">推定</span>'}</span>`;
       detail += `<span class="ra-d">連続正解 <strong>${s.bothCorrect}</strong>${s.bothExact ? '' : '<span class="ra-est">推定</span>'}</span>`;
     }
-    if (s.rec3 != null) {
-      detail += `<span class="ra-d" style="color:var(--orange)">3周目回収 <strong>${s.rec3}</strong>/${s.rec3Total}${s.rec3Exact ? '' : '<span class="ra-est">推定</span>'}</span>`;
+    for (const x of s.laterRecs) {
+      detail += `<span class="ra-d" style="color:${ROUND_META[x.r].color}">${ROUND_META[x.r].label}回収 <strong>${x.rec}</strong>/${x.total}${x.exact ? '' : '<span class="ra-est">推定</span>'}</span>`;
     }
     html += `
       <div class="ra-row" style="border-left:3px solid ${s.color}">
@@ -5355,7 +5708,7 @@ function openChapterDetail(id) {
   const color = BLOCK_COLORS[ch.block];
 
   // 周回別の成績
-  const rounds = [1,2,3].map(r => {
+  const rounds = ROUNDS.map(r => {
     const target = roundTarget(ch, r), done = roundDone(id, r), corr = roundCorrect(id, r);
     return { r, target, done, corr, acc: done > 0 ? corr/done*100 : null, done_: isRoundDone(id, r) };
   });
@@ -5655,15 +6008,17 @@ function renderSubjects() {
   container.innerHTML = '';
 
   // 完了数は常に全章から数える（絞り込みの影響を受けないように）
-  let cnt1 = 0, cnt2 = 0, cnt3 = 0;
+  let cnt1 = 0, cnt2 = 0, cnt3 = 0, cnt4 = 0;
   for (const ch of CHAPTERS) {
     if (isRoundDone(ch.id, 1)) cnt1++;
     if (isRoundDone(ch.id, 2)) cnt2++;
     if (isRoundDone(ch.id, 3)) cnt3++;
+    if (isRoundDone(ch.id, 4)) cnt4++;
   }
   setEl('subj-cnt-exam', cnt1);
   setEl('subj-cnt-qb1',  cnt2);
   setEl('subj-cnt-shuf', cnt3);
+  setEl('subj-cnt-r4',   cnt4);
 
   // ── 検索 ──
   const qEl = document.getElementById('subjSearch');
@@ -5776,7 +6131,7 @@ function makeChapterRow(ch) {
     accEl.style.color = c;
     // 2・3周目に着手していれば「今の実力（最新周回基準）」なので②③を添えて明示
     const st2 = state.subject_status[ch.id] || {};
-    const latest = (st2.done3 || 0) > 0 ? 3 : (st2.done2 || 0) > 0 ? 2 : 1;
+    const latest = [...ROUNDS].reverse().find(r => r === 1 || (st2['done' + r] || 0) > 0);
     accEl.textContent = `正答${acc.toFixed(0)}%${latest > 1 ? ROUND_META[latest].icon : ''}`;
     const a1 = chapterAccR1(ch.id);
     accEl.title = latest > 1 && a1 != null
@@ -5840,10 +6195,10 @@ function makeChapterRow(ch) {
   left.appendChild(topLine);
   left.appendChild(barWrap);
 
-  // 右側：3周回トラック（①②③）。各セグメントはその周回の進捗で塗られ、タップで編集
+  // 右側：周回トラック（①②③④）。各セグメントはその周回の進捗で塗られ、タップで編集
   const track = document.createElement('div');
   track.className = 'round-track';
-  for (let r = 1; r <= 3; r++) {
+  for (const r of ROUNDS) {
     const target   = roundTarget(ch, r);
     const rdone    = roundDone(ch.id, r);
     const doneFlag = isRoundDone(ch.id, r);
@@ -6432,7 +6787,7 @@ function reorderHome() {
   const panel = document.getElementById('p-home');
   if (!panel) return;
   const order = [
-    'cheerBanner', 'todayCard', 'insightCard', 'recoCard', 'recordCard', 'questCard',
+    'cheerBanner', 'sprintCard', 'todayCard', 'insightCard', 'recoCard', 'recordCard', 'questCard',
     'examCard', 'debt-card', 'weekPlanCard', 'reviewCard',
     'levelCard', 'ghostCard', 'timerCard', 'weekGoalCard',
     'streakCard', 'ringsCard', 'statsGrid', 'homePrefsCard'
@@ -6482,7 +6837,7 @@ function setupCollapsibles() {
 function loadHomePrefs() {
   let prefs = {};
   try { prefs = JSON.parse(localStorage.getItem('cbt_home_prefs') || '{}'); } catch(e) {}
-  return Object.assign({ motivation: true, cheer: true, timer: true, weekgoal: true, stats: true }, prefs);
+  return Object.assign({ motivation: true, cheer: true, timer: true, weekgoal: true, stats: true, sprint: true }, prefs);
 }
 function applyHomePrefs() {
   const p = loadHomePrefs();
@@ -6499,15 +6854,18 @@ function applyHomePrefs() {
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
   set('pref-motivation', p.motivation); set('pref-cheer', p.cheer);
   set('pref-timer', p.timer); set('pref-weekgoal', p.weekgoal); set('pref-stats', p.stats);
+  set('pref-sprint', p.sprint);
 }
 function saveHomePrefs() {
   const get = (id) => { const el = document.getElementById(id); return el ? el.checked : true; };
   const prefs = {
     motivation: get('pref-motivation'), cheer: get('pref-cheer'),
-    timer: get('pref-timer'), weekgoal: get('pref-weekgoal'), stats: get('pref-stats')
+    timer: get('pref-timer'), weekgoal: get('pref-weekgoal'), stats: get('pref-stats'),
+    sprint: get('pref-sprint')
   };
   localStorage.setItem('cbt_home_prefs', JSON.stringify(prefs));
   applyHomePrefs();
+  updateAll();
 }
 
 // ── 起動 ──
