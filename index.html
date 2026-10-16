@@ -1239,16 +1239,6 @@ body.bank-orig .qb-only{display:none !important;}
   </div>
 </div>
 
-<div id="penalty-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-box">
-    <div class="modal-icon">😰</div>
-    <div class="modal-title" id="penalty-title">昨日サボりました</div>
-    <div class="modal-body" id="penalty-body">借金が発生します</div>
-    <button class="modal-btn" onclick="acceptPenalty()">😔 反省して受け入れる</button>
-    <button class="modal-btn-skip" onclick="dismissPenalty()">実はやってた（入力忘れ）</button>
-  </div>
-</div>
-
 <!-- 週間レビューモーダル -->
 <div id="review-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box" style="border-color:rgba(91,143,255,0.35);">
@@ -1324,19 +1314,8 @@ body.bank-orig .qb-only{display:none !important;}
       <div id="bankDashBody"></div>
     </div>
 
-    <!-- 受験日までに間に合う？（勉強時間→ペース判定） -->
-    <div class="card sprint-hide" id="paceCard">
-      <div class="ct">⏱ 受験日までに間に合う？</div>
-      <div class="pace-inputs">
-        <label>平日<input type="number" id="availWd" min="0" max="16" step="0.5" value="3" oninput="renderPacePlan()">h/日</label>
-        <label>休日<input type="number" id="availWe" min="0" max="16" step="0.5" value="6" oninput="renderPacePlan()">h/日</label>
-        <label>速度<input type="number" id="solveSpeed" min="1" max="60" step="1" value="16" oninput="renderPacePlan()">問/h</label>
-      </div>
-      <div id="paceResult"></div>
-    </div>
-
     <!-- レベルカード -->
-    <div class="level-card qb-only sprint-hide" id="levelCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
+    <div class="level-card qb-only sprint-hide" id="levelCard" onclick="goPanel('subj')">
       <div class="level-badge" id="levelBadge">1</div>
       <div style="flex:1;min-width:0;">
         <div class="level-title-row">
@@ -1348,17 +1327,6 @@ body.bank-orig .qb-only{display:none !important;}
       </div>
     </div>
 
-    <!-- ゴーストペースメーカー -->
-    <div class="ghost-card qb-only sprint-hide" id="ghostCard">
-      <div class="ghost-icon" id="ghostIcon">👻</div>
-      <div style="flex:1;">
-        <div class="ghost-label">理想ペースのゴースト</div>
-        <div class="ghost-status" id="ghostStatus">計算中...</div>
-      </div>
-      <div class="ghost-diff" id="ghostDiff">—</div>
-    </div>
-
-    <!-- 励ましメッセージ -->
     <div class="cheer-banner qb-only" id="cheerBanner"></div>
 
     <!-- 直前期：残り日数から逆算した今日のノルマ＋今日やる章 -->
@@ -1390,31 +1358,6 @@ body.bank-orig .qb-only{display:none !important;}
       </details>
     </div>
 
-    <div class="today-card qb-only sprint-hide" id="todayCard">
-      <div class="today-label">TODAY'S TARGET</div>
-      <div class="today-q" id="todayTarget">— <span>問/日</span></div>
-      <div class="today-note" id="todayPhase">計算中...</div>
-      <hr class="today-divider">
-      <div class="today-footer">
-        <div class="pace-info">
-          <span style="color:var(--dim);">間に合わせるには</span>
-          <span class="pace-val" id="reqPaceVal">—</span>
-          <span style="font-size:10px;color:var(--dim);">問/日</span>
-        </div>
-        <div id="reqPaceStatus" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;"></div>
-      </div>
-      <div id="predText" style="font-size:10px;margin-top:6px;color:var(--dim);"></div>
-    </div>
-
-    <!-- 今週やる章サジェスト -->
-    <div class="weekplan-card qb-only sprint-hide" id="weekPlanCard" onclick="showPanel('subj', document.querySelectorAll('.nb')[4])">
-      <div class="weekplan-hdr">
-        <span class="weekplan-title">📖 今週やる章</span>
-        <span class="weekplan-note" id="weekPlanNote"></span>
-      </div>
-      <div class="weekplan-chips" id="weekPlanChips"></div>
-    </div>
-
     <!-- 復習リマインダー（忘却曲線・間欠反復） -->
     <div class="review-card" id="reviewCard" style="display:none;">
       <div class="weekplan-hdr">
@@ -1436,26 +1379,6 @@ body.bank-orig .qb-only{display:none !important;}
         <div class="exam-days" id="examDays" style="color:var(--blue);">—</div>
         <div class="exam-unit" style="color:var(--dim);">日後</div>
       </div>
-    </div>
-
-    <!-- 借金カード (debt > 0 のとき表示) -->
-    <div class="debt-card qb-only sprint-hide" id="debt-card" style="display:none;">
-      <div style="font-size:24px;">💸</div>
-      <div style="flex:1;">
-        <div class="debt-label">現在の借金</div>
-        <div class="debt-num"><span id="debtNum">0</span><span style="font-size:14px;font-weight:400;"> 問</span></div>
-        <div class="debt-note">今日のノルマ × 1.5 で返済ペース</div>
-      </div>
-    </div>
-
-    <!-- 次の一手レコメンド -->
-    <div class="reco-card qb-only sprint-hide" id="recoCard" style="display:none;">
-      <div style="flex:1;min-width:0;">
-        <div class="reco-label">🎯 今おすすめの章</div>
-        <div class="reco-name" id="recoName">—</div>
-        <div class="reco-reason" id="recoReason"></div>
-      </div>
-      <button class="reco-btn" id="recoBtn" onclick="applyReco()">記録する →</button>
     </div>
 
     <!-- Stepper -->
@@ -1603,7 +1526,6 @@ body.bank-orig .qb-only{display:none !important;}
       <div style="display:flex;justify-content:center;gap:16px;font-size:11px;color:var(--dim);margin-top:6px;">
         <span>🔥 連続 <span id="streakCount" style="color:var(--green);font-weight:700;font-family:'JetBrains Mono',monospace;">0</span> 日</span>
         <span>🏅 最長 <span id="streakBest" style="color:var(--yellow);font-weight:700;font-family:'JetBrains Mono',monospace;">0</span> 日</span>
-        <span id="freezeStatus" title="月1回サボりを救済">🛡 <span id="freezeText">利用可</span></span>
       </div>
 
       <!-- 週間サマリー -->
@@ -1709,7 +1631,7 @@ body.bank-orig .qb-only{display:none !important;}
     <div class="card" id="homePrefsCard">
       <div class="ct" style="margin-bottom:10px;">⚙️ ホームの表示設定</div>
       <label class="pref-row"><span>🔥 直前期モード（逆算ノルマ・今日やる章。ONの間はレベル・クエスト等を隠す）</span><input type="checkbox" id="pref-sprint" onchange="saveHomePrefs()" checked></label>
-      <label class="pref-row"><span>やる気カード（レベル・ゴースト）</span><input type="checkbox" id="pref-motivation" onchange="saveHomePrefs()" checked></label>
+      <label class="pref-row"><span>レベルカード</span><input type="checkbox" id="pref-motivation" onchange="saveHomePrefs()" checked></label>
       <label class="pref-row"><span>励ましメッセージ</span><input type="checkbox" id="pref-cheer" onchange="saveHomePrefs()" checked></label>
       <label class="pref-row"><span>勉強タイマー</span><input type="checkbox" id="pref-timer" onchange="saveHomePrefs()" checked></label>
       <label class="pref-row"><span>週次目標</span><input type="checkbox" id="pref-weekgoal" onchange="saveHomePrefs()" checked></label>
@@ -1718,108 +1640,8 @@ body.bank-orig .qb-only{display:none !important;}
 
   </div>
 
-  <!-- ===== 計画 ===== -->
-  <div class="panel" id="p-plan">
-
-    <div class="co warn">⚠️ 夏（7/11〜8/31）に最低 <strong>43問/日</strong> が1周目完了の最低ライン</div>
-
-    <div class="sec">フェーズ別ノルマ</div>
-
-    <div class="phase-item" style="background:rgba(91,143,255,.07);border-color:rgba(91,143,255,.25);color:var(--blue)">
-      <div class="ph-top"><span class="ph-name">Phase 1</span><span class="ph-date">6/1〜7/10（40日）</span></div>
-      <div><span class="ph-num">10</span><span class="ph-unit"> 問/日</span></div>
-      <div class="ph-note">試験週でもスキマで確保。0問の日を作らない</div>
-    </div>
-    <div class="phase-item" style="background:rgba(176,127,255,.08);border-color:rgba(176,127,255,.3);color:var(--purple)">
-      <div class="ph-top"><span class="ph-name">Phase 2 ★夏</span><span class="ph-date">7/11〜8/31（52日）</span></div>
-      <div><span class="ph-num" style="color:var(--red)">43〜60</span><span class="ph-unit" style="color:var(--purple)"> 問/日</span></div>
-      <div class="ph-note">QB 50問 ≈ 3時間。これが合否を決める</div>
-    </div>
-    <div class="phase-item" style="background:rgba(255,138,60,.07);border-color:rgba(255,138,60,.25);color:var(--orange)">
-      <div class="ph-top"><span class="ph-name">Phase 3</span><span class="ph-date">9/1〜10/31（61日）</span></div>
-      <div><span class="ph-num">20</span><span class="ph-unit"> 問/日</span></div>
-      <div class="ph-note">2・3周目 + モントレ並走。試験週は15問OK</div>
-    </div>
-    <div class="phase-item" style="background:rgba(255,64,96,.07);border-color:rgba(255,64,96,.25);color:var(--red)">
-      <div class="ph-top"><span class="ph-name">直前期</span><span class="ph-date">11/1〜5（5日）</span></div>
-      <div><span class="ph-num">0</span><span class="ph-unit"> 問（新規）</span></div>
-      <div class="ph-note">間違い問題の最終確認のみ。体調管理優先</div>
-    </div>
-
-    <div class="sec">周回ロードマップ</div>
-    <div class="ri">
-      <div class="ri-top"><span class="ri-name" style="color:var(--blue)">1周目</span><span class="ri-count" id="r1stat">— / 3359問</span></div>
-      <div class="pb-bg"><div class="pb-fill" style="background:var(--blue);" id="r1bar"></div></div>
-      <div style="font-size:10px;color:var(--dim);margin-top:5px;">目標完了: 8月中旬〜下旬</div>
-    </div>
-    <div class="ri">
-      <div class="ri-top"><span class="ri-name" style="color:var(--purple)">2周目（全問）</span><span class="ri-count" id="r2stat">0 / 3359問</span></div>
-      <div class="pb-bg"><div class="pb-fill" style="background:var(--purple);" id="r2bar"></div></div>
-      <div style="font-size:10px;color:var(--dim);margin-top:5px;">目標完了: 9月末〜10月中</div>
-    </div>
-    <div class="ri">
-      <div class="ri-top"><span class="ri-name" style="color:var(--orange)">3周目（全問）</span><span class="ri-count" id="r3stat">0 / 3359問</span></div>
-      <div class="pb-bg"><div class="pb-fill" style="background:var(--orange);" id="r3bar"></div></div>
-      <div style="font-size:10px;color:var(--dim);margin-top:5px;">目標完了: 10月末</div>
-    </div>
-    <div class="ri" style="margin-bottom:0">
-      <div class="ri-top"><span class="ri-name" style="color:var(--green)">モントレ</span><span class="ri-count" id="mstat">0 / 3573問</span></div>
-      <div class="pb-bg"><div class="pb-fill" style="background:var(--green);" id="mbar2"></div></div>
-      <div style="font-size:10px;color:var(--dim);margin-top:5px;">QB弱点科目に絞って使う</div>
-    </div>
-
-  </div>
-
-  <!-- ===== シミュ ===== -->
-  <div class="panel" id="p-sim">
-    <div class="co info">ペースを変えると完了予定日がリアルタイムで変わります</div>
-
-    <div class="card">
-      <div class="ct">QB ペース設定</div>
-      <div class="sim-ctrl">
-        <div class="sr"><label>Phase1（6/1〜7/10）</label><input class="ni" type="number" id="p1q" value="10" min="1" max="100" oninput="runSim()"><span class="unit">問/日</span></div>
-        <div class="sr"><label>Phase2（7/11〜8/31）★</label><input class="ni" type="number" id="p2q" value="50" min="1" max="120" oninput="runSim()"><span class="unit">問/日</span></div>
-        <div class="sr"><label>Phase3（9/1〜10/31）</label><input class="ni" type="number" id="p3q" value="20" min="1" max="80" oninput="runSim()"><span class="unit">問/日</span></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="ct">完了予定</div>
-      <div class="sim-grid">
-        <div class="sgb"><div class="rv" style="color:var(--blue)" id="sr1">—</div><div class="rl">1周目完了</div></div>
-        <div class="sgb"><div class="rv" style="color:var(--purple)" id="sr2">—</div><div class="rl">2周目完了</div></div>
-        <div class="sgb"><div class="rv" style="color:var(--orange)" id="sr3">—</div><div class="rl">3周目完了</div></div>
-        <div class="sgb"><div class="rv" id="sbuf">—</div><div class="rl">CBT前バッファ</div></div>
-      </div>
-      <div class="pb" style="margin-top:8px;">
-        <div class="ph"><span class="pl">1周目</span><span class="pp" style="color:var(--blue)" id="sp1pct">0%完了</span></div>
-        <div class="pb-bg"><div class="pb-fill" style="background:var(--blue);" id="sp1bar"></div></div>
-      </div>
-      <div class="pb">
-        <div class="ph"><span class="pl">2周目（残り<span id="sw1">—</span>問）</span><span class="pp" style="color:var(--purple)" id="sp2">未開始</span></div>
-        <div class="pb-bg"><div class="pb-fill" style="background:var(--purple);width:0%" id="sb2"></div></div>
-      </div>
-      <div class="pb" style="margin-bottom:0">
-        <div class="ph"><span class="pl">3周目（残り<span id="sw2">—</span>問）</span><span class="pp" style="color:var(--orange)" id="sp3">未開始</span></div>
-        <div class="pb-bg"><div class="pb-fill" style="background:var(--orange);width:0%" id="sb3"></div></div>
-      </div>
-    </div>
-    <div id="simMsg"></div>
-  </div>
-
   <!-- ===== 進捗 ===== -->
   <div class="panel" id="p-log">
-    <div class="card">
-      <div class="ct">現在の進捗を更新</div>
-      <div class="log-item"><label>QB 1周目（解いた数）<span style="font-size:9px;color:var(--dim);display:block;">📚科目タブで章別に自動集計</span></label><input class="log-ni" type="number" id="l_r1" value="0" readonly style="opacity:0.6;"></div>
-      <div class="log-item"><label>QB 1周目 正解数<span style="font-size:9px;color:var(--dim);display:block;">章別から自動計算</span></label><input class="log-ni" type="number" id="l_ok" value="0" readonly style="opacity:0.6;"></div>
-      <div class="log-item"><label>QB 2周目（解いた数）<span style="font-size:9px;color:var(--dim);display:block;">📚科目タブで章別に自動集計</span></label><input class="log-ni" type="number" id="l_r2" value="0" readonly style="opacity:0.6;"></div>
-      <div class="log-item"><label>QB 3周目（解いた数）<span style="font-size:9px;color:var(--dim);display:block;">📚科目タブで章別に自動集計</span></label><input class="log-ni" type="number" id="l_r3" value="0" readonly style="opacity:0.6;"></div>
-      <div class="log-item"><label>モントレ（解いた数）<span style="font-size:9px;color:var(--dim);display:block;">📚モントレタブで科目別に自動集計</span></label><input class="log-ni" type="number" id="l_m" value="0" readonly style="opacity:0.6;"></div>
-      <div class="log-item"><label>モントレ 正解数<span style="font-size:9px;color:var(--dim);display:block;">科目別から自動計算</span></label><input class="log-ni" type="number" id="l_m_ok" value="0" readonly style="opacity:0.6;"></div>
-      <button class="save-btn" onclick="saveAll()">💾 保存する</button>
-    </div>
-
     <div class="card">
       <div class="ct">ダッシュボード</div>
       <div class="sg" style="margin-bottom:14px;">
@@ -1872,12 +1694,6 @@ body.bank-orig .qb-only{display:none !important;}
       <div id="mockList"></div>
     </div>
 
-    <!-- 完了予測 -->
-    <div class="card">
-      <div class="ct">🔮 完了予測（直近7日の実ペース）</div>
-      <div id="finishPredict" style="font-size:13px;line-height:1.7;"></div>
-    </div>
-
     <!-- ブロック別達成率 -->
     <div class="card">
       <div class="ct">🧩 ブロック別 達成率</div>
@@ -1927,23 +1743,13 @@ body.bank-orig .qb-only{display:none !important;}
       </div>
     </div>
 
-    <div class="co warn">⚠️ 科目内シャッフルで解く → 2周目から全体シャッフルで本番形式に</div>
-
     <div class="sec">今すぐやること</div>
     <div class="tip-item">
-      <div class="tip-num" style="background:var(--blue)">1</div>
-      <div><div class="tip-title">科目内シャッフルに設定</div><div class="tip-desc">大学試験が終わった科目から、その科目内でシャッフル。2周目以降は全体シャッフルで本番形式。</div></div>
-    </div>
-    <div class="tip-item">
-      <div class="tip-num" style="background:var(--purple)">2</div>
+      <div class="tip-num" style="background:var(--purple)">1</div>
       <div><div class="tip-title">「自信なし正解」にフラグをつける</div><div class="tip-desc">Medilinkのフラグ機能で印をつける。2周目でその問題を重点的に。</div></div>
     </div>
     <div class="tip-item">
-      <div class="tip-num" style="background:var(--orange)">3</div>
-      <div><div class="tip-title">正答率高い科目こそモントレで確認</div><div class="tip-desc">メタ読みで解けてる可能性が高い。モントレで別角度から確認して本当の理解度を把握。</div></div>
-    </div>
-    <div class="tip-item">
-      <div class="tip-num" style="background:var(--green)">4</div>
+      <div class="tip-num" style="background:var(--green)">2</div>
       <div><div class="tip-title">「なぜ正解か」を一言で言えるか</div><div class="tip-desc">選択肢なしで説明できるかが定着の基準。言えなければ解説を再読。</div></div>
     </div>
 
@@ -2044,13 +1850,6 @@ body.bank-orig .qb-only{display:none !important;}
       <div id="priorityBody"></div>
     </div>
 
-    <!-- 復習優先（間違いが多い章 = 2周目フォーカス） -->
-    <div class="card collapsible" id="reviewPriorityCard" style="display:none;">
-      <div class="ct">🔁 2周目の優先順位（間違いが多い章）</div>
-      <div id="reviewPriorityList"></div>
-      <div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5;">💡 間違えた問題が多い章ほど復習価値が高い。2周目はここから。</div>
-    </div>
-
     <!-- vol別サマリー -->
     <div class="card collapsible" id="volSummaryCard">
       <div class="ct">🧩 vol別サマリー</div>
@@ -2105,8 +1904,6 @@ body.bank-orig .qb-only{display:none !important;}
 <!-- NAV -->
 <nav class="nav">
   <button class="nb active" onclick="showPanel('home',this)"><span class="ic">🏠</span>ホーム</button>
-  <button class="nb qb-only" onclick="showPanel('plan',this)"><span class="ic">📊</span>計画</button>
-  <button class="nb qb-only" onclick="showPanel('sim',this)"><span class="ic">🔢</span>シミュ</button>
   <button class="nb qb-only" onclick="showPanel('log',this)"><span class="ic">📝</span>進捗</button>
   <button class="nb" onclick="showPanel('subj',this)"><span class="ic">📚</span>科目</button>
   <button class="nb qb-only" onclick="showPanel('meta',this)"><span class="ic">🧠</span>対策</button>
@@ -2580,20 +2377,14 @@ async function init() {
   setRecordDate('');           // 記録日は既定で今日
   renderQuickPresets();        // よく使う数を学習したプリセット
   renderRepeatBtn();
-  // ペース判定の入力を復元
-  const _wd = localStorage.getItem('cbt_avail_wd'); if (_wd != null) document.getElementById('availWd').value = _wd;
-  const _we = localStorage.getItem('cbt_avail_we'); if (_we != null) document.getElementById('availWe').value = _we;
-  const _sp = localStorage.getItem('cbt_solve_speed'); if (_sp != null) document.getElementById('solveSpeed').value = _sp;
   updateAll();
   initChapterSelect();
   // 周回モードを復元（保存された周回 → なければ1周目）
   setRound(+localStorage.getItem('cbt_cur_round') || 1);
   renderTimer();
   renderTimerSummary();
-  runSim();
   updateCountdown();
   initTheme();
-  setTimeout(checkPenalty, 600);
   setTimeout(maybeShowWeekReview, 1200);
 }
 
@@ -2640,11 +2431,6 @@ function applyMisc(misc) {
   if (!misc || typeof misc !== 'object') return;
   for (const k of MISC_KEYS) {
     if (misc[k] != null) localStorage.setItem(k, misc[k]);
-  }
-  // 勉強時間・速度の入力欄も同期後の値に合わせる（古い入力値で上書きし返さないように）
-  for (const [id, k] of [['availWd','cbt_avail_wd'],['availWe','cbt_avail_we'],['solveSpeed','cbt_solve_speed']]) {
-    const el = document.getElementById(id), v = localStorage.getItem(k);
-    if (el && v != null) el.value = v;
   }
   _lastMiscJson = JSON.stringify(buildMisc());
 }
@@ -2868,136 +2654,17 @@ function getNextExam() {
   return null;
 }
 
-// ── 1周目完了に必要な今日からの問題数/日を計算 ──
-function calcRequiredPace() {
-  const remaining = QB - state.r1;
-  if (remaining <= 0) return { pace: 0, ok: true, finished: true };
-
-  // 今日以降の解答可能日数（フェーズ内、直前期除く）
-  const phaseRanges = [
-    { start: ymd('2026-06-01'), end: ymd('2026-07-10') },
-    { start: ymd('2026-07-11'), end: ymd('2026-08-31') },
-    { start: ymd('2026-09-01'), end: ymd('2026-10-31') },
-  ];
-  let totalDays = 0;
-  for (const ph of phaseRanges) {
-    const start = ph.start > TODAY ? ph.start : new Date(TODAY);
-    if (start <= ph.end) {
-      totalDays += Math.round((ph.end - start) / 86400000) + 1;
-    }
-  }
-  if (totalDays <= 0) return { pace: remaining, ok: false };
-
-  const pace = Math.ceil(remaining / totalDays);
-  const baseTarget = getDayTarget(TODAY);
-  return { pace, ok: pace <= baseTarget, finished: false };
-}
-
-// ── ペナルティ検出 ──
-let _pendingDebt = 0;
-
 // ── ストリークフリーズ（月1回までサボりを救済） ──
 function currentMonthStr() { return TODAY_STR.slice(0, 7); } // YYYY-MM
 function getFreezeState() {
   try { return JSON.parse(localStorage.getItem('cbt_freeze') || '{}'); } catch(e) { return {}; }
 }
-function freezeAvailable() {
-  const f = getFreezeState();
-  if (f.month !== currentMonthStr()) return true; // 新しい月はリセット
-  return (f.used || 0) < 1;
-}
 function getFrozenDates() {
   try { return JSON.parse(localStorage.getItem('cbt_freeze_dates') || '[]'); } catch(e) { return []; }
 }
-function useFreeze(date) {
-  const f = getFreezeState();
-  if (f.month !== currentMonthStr()) { f.month = currentMonthStr(); f.used = 0; }
-  f.used = (f.used || 0) + 1;
-  localStorage.setItem('cbt_freeze', JSON.stringify(f));
-  const dates = getFrozenDates();
-  if (!dates.includes(date)) dates.push(date);
-  localStorage.setItem('cbt_freeze_dates', JSON.stringify(dates));
-}
 
-function checkPenalty() {
-  // 直前期・初回起動はスキップ（直前期モードは遅れを翌日以降のノルマに自動で上乗せするので借金は不要）
-  if (new Date() >= ymd('2026-11-01')) return;
-  if (sprintEnabled()) return;
-  if (!state.last_date) return;
 
-  // 今日すでにチェック済みならスキップ
-  if (localStorage.getItem('penalty_checked') === TODAY_STR) return;
 
-  const lastDate = ymd(state.last_date);
-  lastDate.setHours(0, 0, 0, 0);
-  const yesterday = new Date(TODAY);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  // last_date から昨日までのギャップ日数
-  const gapDays = Math.round((yesterday - lastDate) / 86400000);
-  if (gapDays <= 0) return; // 昨日以降に記録あり → OK
-
-  // ギャップ期間に daily_log にない日のノルマを合計
-  let totalMissed = 0;
-  const missedDates = [];
-  for (let i = 1; i <= gapDays; i++) {
-    const d = new Date(lastDate);
-    d.setDate(d.getDate() + i);
-    const ds = toLocalDateStr(d);
-    const entry = state.daily_log.find(l => l.date === ds);
-    if (!entry || entry.n === 0) {
-      totalMissed += getDayTarget(d);
-      missedDates.push(ds);
-    }
-  }
-  if (totalMissed <= 0) return;
-
-  // 🛡 ストリークフリーズ：サボりが1日だけ＆今月分が残っていれば自動救済
-  if (missedDates.length === 1 && freezeAvailable()) {
-    useFreeze(missedDates[0]);
-    localStorage.setItem('penalty_checked', TODAY_STR);
-    // Mark through yesterday only; today is still open (setting TODAY hid a miss today from tomorrow's check)
-    { const y = new Date(TODAY); y.setDate(y.getDate() - 1); state.last_date = toLocalDateStr(y); }
-    scheduleSave();
-    updateAll();
-    setTimeout(() => showToast('🛡 ストリークフリーズ発動！連続記録を守りました'), 700);
-    return;
-  }
-
-  _pendingDebt = totalMissed;
-
-  const t = document.getElementById('penalty-title');
-  const b = document.getElementById('penalty-body');
-  t.textContent = gapDays === 1 ? '昨日サボりました 😰' : `${gapDays}日間サボりました 😱`;
-  b.innerHTML = `${missedDates.length}日分の借金 <strong>+${totalMissed}問</strong> が発生します。<br>今日のノルマに上乗せして取り戻そう！`;
-
-  document.getElementById('penalty-modal').style.display = 'flex';
-}
-
-function acceptPenalty() {
-  document.getElementById('penalty-modal').style.display = 'none';
-  localStorage.setItem('penalty_checked', TODAY_STR);
-  state.debt += _pendingDebt;
-  _pendingDebt = 0;
-  // Mark the missed days (through yesterday) as already penalized.
-  // Without this, last_date stayed old and the SAME gap was re-added every day the app opened
-  // (and once per device, since penalty_checked is device-local).
-  const yesterday = new Date(TODAY); yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = toLocalDateStr(yesterday);
-  if (!state.last_date || yesterdayStr > state.last_date) state.last_date = yesterdayStr;
-  scheduleSave();
-  updateAll();
-  showToast(`💸 借金が発生（合計 ${state.debt}問）... 頑張れ！`);
-}
-
-function dismissPenalty() {
-  document.getElementById('penalty-modal').style.display = 'none';
-  localStorage.setItem('penalty_checked', TODAY_STR);
-  _pendingDebt = 0;
-  // Mark the gap through yesterday as handled so it is not re-checked (today stays open)
-  { const y = new Date(TODAY); y.setDate(y.getDate() - 1); const ys = toLocalDateStr(y); if (ys > (state.last_date || '')) state.last_date = ys; }
-  scheduleSave();
-}
 
 // ── カウントダウン ──
 function updateCountdown() {
@@ -3023,9 +2690,6 @@ function refreshDate() {
   // 全UIを再計算（ターゲット・カウントダウン・ストリーク・試験日数など）
   updateCountdown();
   updateAll();
-  runSim();
-  // 新しい日のサボり判定（前日記録がなければペナルティ）
-  setTimeout(checkPenalty, 300);
   showToast('📅 日付が変わりました。今日も頑張ろう！');
 }
 
@@ -3042,13 +2706,17 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('focus', onForeground);
 
 // ── パネル切り替え ──
+// 下のナビのボタンを探して、そのタブに切り替える（ボタンの位置に依存しない）
+function goPanel(id) {
+  const btn = [...document.querySelectorAll('.nb')].find(b => (b.getAttribute('onclick') || '').includes(`'${id}'`));
+  if (btn) showPanel(id, btn);
+}
 function showPanel(id, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nb').forEach(b => b.classList.remove('active'));
   document.getElementById('p-' + id).classList.add('active');
   btn.classList.add('active');
   document.getElementById('scroll').scrollTop = 0;
-  if (id === 'sim')  runSim();
   if (id === 'subj') renderSubjects();
   if (id === 'log')  renderAnalytics();
 }
@@ -3189,76 +2857,9 @@ function updateRoundTargetHint() {
   el.innerHTML = `<strong style="color:${meta.color}">${meta.label}</strong> 残り <strong>${rem}</strong>問 <span style="color:var(--dim)">(${done}/${target})</span>`;
 }
 
-// ── 次の一手レコメンド（苦手×試験近い×やりかけでスコアリング） ──
-let _recoChapterId = '';
-function computeRecommendation() {
-  // 各章が登場する最も近い週（今週以降）までの距離を求める
-  const weekDistance = {};
-  let curWeekIdx = WEEKLY_PLAN.length;
-  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
-    const start = ymd(WEEKLY_PLAN[i].start);
-    const nextStart = i + 1 < WEEKLY_PLAN.length ? ymd(WEEKLY_PLAN[i + 1].start) : ymd('2026-11-09');
-    if (TODAY >= start && TODAY < nextStart) curWeekIdx = i;
-  }
-  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
-    const dist = i - curWeekIdx;
-    if (dist < 0) continue;
-    for (const id of WEEKLY_PLAN[i].chapters) {
-      if (weekDistance[id] == null) weekDistance[id] = dist;
-    }
-  }
 
-  let best = null, bestScore = -1;
-  for (const ch of CHAPTERS) {
-    if (isChapterDone(ch.id)) continue;       // 1周目未完了のみ対象
-    const st = state.subject_status[ch.id] || {};
-    const done = st.done || 0;
-    const partial = done > 0;
-    const acc = chapterAcc(ch.id);
-    const weak = acc != null && acc < 50;
-
-    let score = 0;
-    const dist = weekDistance[ch.id];
-    if (dist != null) score += Math.max(0, 200 - dist * 40); // 計画で近いほど高得点
-    if (partial) score += 60;                                 // やりかけは優先
-    if (weak)    score += 40;                                 // 苦手は強化
-    score += (6 - ch.block) * 3;                              // 基礎ブロックをやや優先（タイブレーク）
-
-    if (score > bestScore) { bestScore = score; best = { ch, dist, partial, acc, done }; }
-  }
-  return best;
-}
-
-function renderRecommendation() {
-  const card = document.getElementById('recoCard');
-  if (!card) return;
-  const rec = computeRecommendation();
-  if (!rec) { card.style.display = 'none'; return; }
-
-  _recoChapterId = rec.ch.id;
-  card.style.display = 'flex';
-  setEl('recoName', `${rec.ch.id} ${rec.ch.subj}`);
-
-  // 理由を組み立て
-  const reasons = [];
-  if (rec.dist === 0) reasons.push('今週の試験範囲');
-  else if (rec.dist === 1) reasons.push('来週の範囲');
-  if (rec.partial) reasons.push(`やりかけ（あと${rec.ch.n - rec.done}問）`);
-  if (rec.acc != null && rec.acc < 50) reasons.push(`正答${rec.acc.toFixed(0)}%・要強化`);
-  if (reasons.length === 0) reasons.push('計画通り次の章へ');
-  setEl('recoReason', reasons.join(' · '));
-}
 
 // レコメンドを記録対象にセットして記録カードへスクロール
-function applyReco() {
-  if (!_recoChapterId) return;
-  selectedChapter = _recoChapterId;
-  localStorage.setItem(curChapterKey(), selectedChapter);
-  const sel = document.getElementById('chapterSelect');
-  if (sel) sel.value = _recoChapterId;
-  document.getElementById('chapterSelect').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  showToast(`${_recoChapterId} を記録対象にセット`);
-}
 
 // contenteditable の値を todayStep に同期
 function syncStepVal() {
@@ -3560,24 +3161,6 @@ function addToday() {
 
   if (RDATE > (state.last_date || '')) state.last_date = RDATE;
 
-  // 借金の返済チェック（今日の合計が基本ノルマを超えた分を借金から差し引く）
-  if (state.debt > 0 && isToday) {
-    const todayEntry = state.daily_log.find(l => l.date === TODAY_STR);
-    const todaySolved = todayEntry ? todayEntry.n : 0;
-    const baseTarget = getDayTarget(TODAY);
-    // Only the part of THIS record that exceeds the daily target repays debt.
-    // (Using the whole day's excess double-subtracted when recording several times a day.)
-    const solvedBefore = Math.max(0, todaySolved - added);
-    const extra = Math.max(0, todaySolved - baseTarget) - Math.max(0, solvedBefore - baseTarget);
-    if (extra > 0) {
-      const prevDebt = state.debt;
-      state.debt = Math.max(0, state.debt - extra);
-      if (prevDebt > 0 && state.debt === 0) {
-        setTimeout(() => { confetti(); showToast('🎊 借金完済！すごい！'); }, 400);
-      }
-    }
-  }
-
   todayStep = 0;
   todayWrong = 0;
   todayRec = 0;
@@ -3800,14 +3383,6 @@ function renderStreak() {
     row.appendChild(div);
   }
 
-  // フリーズ状態表示
-  const ft = document.getElementById('freezeText');
-  const fs = document.getElementById('freezeStatus');
-  if (ft && fs) {
-    if (freezeAvailable()) { ft.textContent = '利用可'; fs.style.color = 'var(--blue)'; }
-    else { ft.textContent = '使用済'; fs.style.color = 'var(--dim)'; }
-  }
-
   // 連続日数をdaily_logから正確に計算（日付ギャップを検出）
   let streak = 0;
   for (let i = 0; ; i++) {
@@ -3996,14 +3571,12 @@ function renderCheer() {
   const streak = getStreakCount();
 
   let msg = '';
-  // 優先度：今日達成 > 借金 > 時間帯×未達成
+  // 優先度：今日達成 > 時間帯×未達成
   if (target > 0 && solvedToday >= target) {
     const over = solvedToday - target;
     msg = over > 0
       ? `🎉 今日のノルマ達成！さらに+${over}問、最高だ！`
       : `✅ 今日のノルマ達成！えらい！この調子で続けよう`;
-  } else if (state.debt > 0) {
-    msg = `💪 借金が${state.debt}問。今日多めに解いて取り返そう！`;
   } else if (hour < 11) {
     msg = solvedToday > 0
       ? `☀️ おはよう！もう${solvedToday}問、朝から素晴らしい`
@@ -4085,51 +3658,6 @@ function renderBankDash() {
 }
 
 // ── 受験日までに間に合う？（勉強時間→ペース判定・現在バンク基準） ──
-function renderPacePlan() {
-  const result = document.getElementById('paceResult');
-  if (!result) return;
-  // 入力（localStorageに保存して次回復元）
-  const wdH = Math.max(0, +document.getElementById('availWd').value || 0);
-  const weH = Math.max(0, +document.getElementById('availWe').value || 0);
-  const speed = Math.max(1, +document.getElementById('solveSpeed').value || 16);
-  localStorage.setItem('cbt_avail_wd', wdH);
-  localStorage.setItem('cbt_avail_we', weH);
-  localStorage.setItem('cbt_solve_speed', speed);
-
-  // 受験日までの平日・休日をカウント（今日を含む）
-  const daysLeft = Math.max(0, Math.round((CBT - TODAY) / 86400000));
-  let wd = 0, we = 0;
-  for (let i = 0; i < daysLeft; i++) {
-    const d = new Date(TODAY); d.setDate(d.getDate() + i);
-    if (d.getDay() === 0 || d.getDay() === 6) we++; else wd++;
-  }
-  const availHours = wd * wdH + we * weH;
-  const capacity = Math.round(availHours * speed);           // こなせる問数
-  const remaining = Math.max(0, bankTotal() - BANK_TOTALS[currentBank].r1); // 現在バンクの1周目残り
-  const bankName = BANKS[currentBank].name;
-
-  // 必要ペース（1周目を受験日までに終える）
-  const neededPerDay = daysLeft > 0 ? Math.ceil(remaining / daysLeft) : remaining;
-  const inTime = capacity >= remaining;
-  const diff = Math.abs(capacity - remaining);
-
-  // 文字は ink 色（ライトモードでも白背景で読めるよう濃いめ）
-  const verdictColor = inTime ? 'var(--green-ink)' : 'var(--red-ink)';
-  const verdictText = inTime
-    ? `✅ 間に合う（余裕 約${diff.toLocaleString()}問）`
-    : `⚠️ このペースだと約${diff.toLocaleString()}問 不足`;
-
-  result.innerHTML =
-    `<div class="pace-grid">` +
-      `<div class="pace-box"><div class="pace-v">${daysLeft}</div><div class="pace-l">受験まで(日)</div></div>` +
-      `<div class="pace-box"><div class="pace-v" style="color:var(--blue);">${availHours.toFixed(0)}<span class="pace-u">h</span></div><div class="pace-l">勉強できる時間</div></div>` +
-      `<div class="pace-box"><div class="pace-v" style="color:var(--purple);">${capacity.toLocaleString()}</div><div class="pace-l">こなせる問数</div></div>` +
-    `</div>` +
-    `<div class="pace-verdict" style="color:${verdictColor};border-color:${verdictColor};">${verdictText}</div>` +
-    `<div class="pace-note">${bankName}の1周目残り <strong>${remaining.toLocaleString()}問</strong>` +
-      ` ／ 間に合わせるには <strong>${neededPerDay}問/日</strong>` +
-      `（平日${wdH}h・休日${weH}h・${speed}問/hで計算）</div>`;
-}
 
 // ── 全UI更新 ──
 function updateAll() {
@@ -4175,26 +3703,6 @@ function updateAll() {
   setPB('pb4', p4,  'pb4pct', r4 > 0 ? p4.toFixed(0) + '%' : '—');
   setPB('pbm', pm,  'pbmpct', pm.toFixed(0) + '%');
 
-  // 計画タブのバー
-  setEl('r1stat', `${r1} / ${QB}問`);
-  document.getElementById('r1bar').style.width = p1 + '%';
-
-  setEl('r2stat', `${r2} / ${QB}問`);
-  document.getElementById('r2bar').style.width = p2 + '%';
-
-  setEl('r3stat', `${r3} / ${r3target}問`);
-  document.getElementById('r3bar').style.width = p3 + '%';
-
-  setEl('mstat', `${m} / ${MONTE}問`);
-  document.getElementById('mbar2').style.width = pm + '%';
-
-  // 進捗タブの入力値を同期
-  document.getElementById('l_r1').value = r1;
-  document.getElementById('l_ok').value = ok;
-  document.getElementById('l_r2').value = r2;
-  document.getElementById('l_r3').value = r3;
-  document.getElementById('l_m').value  = m;
-
   // 進捗タブのダッシュボード
   setEl('d_acc',   r1 > 0 ? acc.toFixed(1) + '%' : '—%');
   setEl('d_wrong', wrong.toLocaleString());
@@ -4205,53 +3713,9 @@ function updateAll() {
   const mAcc = m > 0 ? (m_ok / m * 100) : 0;
   setPB('dbmok', Math.min(mAcc, 100), 'dpmok', m > 0 ? mAcc.toFixed(1) + '%' : '—%');
 
-  // 進捗タブの m_ok 入力を同期
-  const lmok = document.getElementById('l_m_ok');
-  if (lmok) lmok.value = m_ok;
-
-  // シミュタブの現在進捗バー更新
-  const sp1bar = document.getElementById('sp1bar');
-  const sp1pct = document.getElementById('sp1pct');
-  if (sp1bar) sp1bar.style.width = p1 + '%';
-  if (sp1pct) sp1pct.textContent = p1.toFixed(0) + '%完了';
-
-  // 借金カード
-  const debtCard = document.getElementById('debt-card');
-  if (debtCard) {
-    if (state.debt > 0) {
-      debtCard.style.display = 'flex';
-      document.getElementById('debtNum').textContent = state.debt;
-    } else {
-      debtCard.style.display = 'none';
-    }
-  }
-
-  // TODAY'S TARGET（フェーズ別ノルマ、借金があれば1.5倍）
-  const baseTarget = getDayTarget(TODAY);
-  const effectiveTarget = state.debt > 0 ? Math.ceil(baseTarget * 1.5) : baseTarget;
-  const now = new Date();
-  let phase = 'Phase 1 — 授業試験と共存期';
-  if (now >= ymd('2026-07-11') && now < ymd('2026-09-01')) {
-    phase = 'Phase 2 ★夏 — 最重要期間';
-  } else if (now >= ymd('2026-09-01') && now < ymd('2026-11-01')) {
-    phase = 'Phase 3 — 実習・試験並走';
-  } else if (now >= ymd('2026-11-01')) {
-    phase = '直前期 — 復習のみ';
-  }
-  const targetEl = document.getElementById('todayTarget');
-  targetEl.innerHTML = effectiveTarget + '<span> 問/日</span>';
-  if (state.debt > 0) {
-    targetEl.style.color = 'var(--red)';
-    document.getElementById('todayPhase').textContent = `借金返済中（基本 ${baseTarget}問 × 1.5）`;
-  } else {
-    targetEl.style.color = '';
-    document.getElementById('todayPhase').textContent = phase;
-  }
-
   document.body.classList.toggle('sprint', sprintEnabled());
   renderSprint();               // 直前期カード（直前期モードのときだけ表示）
   renderBankDash();             // 3バンク横断ダッシュボード（常に表示）
-  renderPacePlan();             // 受験日までのペース判定（現在バンク基準）
   renderStreak();
   renderHeatmap();
   renderBarChart();
@@ -4261,10 +3725,7 @@ function updateAll() {
   if (planning) {
     renderWeekGoal();
     renderLevel();
-    renderGhost();
     renderCheer();
-    renderWeekPlan();
-    renderRecommendation();
     renderQuests();
     renderInsights();
     checkStreakMilestone();
@@ -4527,75 +3988,8 @@ function renderLevel() {
 
 // ── ゴーストペースメーカー ──
 // 6/1から今日までの理想ペース累計と自分のr1を比較
-function renderGhost() {
-  const card   = document.getElementById('ghostCard');
-  const statusEl = document.getElementById('ghostStatus');
-  const diffEl = document.getElementById('ghostDiff');
-  const iconEl = document.getElementById('ghostIcon');
-  if (!card) return;
-
-  // 理想ペース累計（6/1〜今日、フェーズ別の基本ノルマを毎日加算）
-  let ghostTotal = 0;
-  const planStart = ymd('2026-06-01');
-  let cursor = new Date(planStart);
-  while (cursor <= TODAY) {
-    ghostTotal += getDayTarget(cursor);
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  const diff = state.r1 - ghostTotal;
-
-  if (diff >= 0) {
-    card.className = 'ghost-card lead';
-    iconEl.textContent = '🏃';
-    statusEl.innerHTML = `理想ペースより<strong style="color:var(--green);">先行中</strong>！この調子！`;
-    diffEl.textContent = '+' + diff;
-    diffEl.style.color = 'var(--green)';
-  } else {
-    card.className = 'ghost-card behind';
-    iconEl.textContent = '👻';
-    statusEl.innerHTML = `ゴーストが<strong style="color:var(--orange);">${Math.abs(diff)}問</strong>先にいます。追いつこう！`;
-    diffEl.textContent = diff;
-    diffEl.style.color = 'var(--orange)';
-  }
-}
 
 // ── 今週やる章サジェスト ──
-function renderWeekPlan() {
-  const card   = document.getElementById('weekPlanCard');
-  const chips  = document.getElementById('weekPlanChips');
-  const noteEl = document.getElementById('weekPlanNote');
-  if (!card) return;
-
-  // 今日が含まれる週の計画を探す（start <= today < 次のstart）
-  let plan = null;
-  for (let i = 0; i < WEEKLY_PLAN.length; i++) {
-    const start = ymd(WEEKLY_PLAN[i].start);
-    const nextStart = i + 1 < WEEKLY_PLAN.length ? ymd(WEEKLY_PLAN[i + 1].start) : ymd('2026-11-09');
-    if (TODAY >= start && TODAY < nextStart) { plan = WEEKLY_PLAN[i]; break; }
-  }
-
-  if (!plan) {
-    card.style.display = 'none';
-    return;
-  }
-  card.style.display = 'block';
-  noteEl.textContent = plan.note || '';
-
-  chips.innerHTML = '';
-  // 章IDの重複を除去
-  const uniq = [...new Set(plan.chapters)];
-  for (const id of uniq) {
-    const ch = CHAPTERS.find(c => c.id === id);
-    if (!ch) continue;
-    const done = isChapterDone(id);
-    const chip = document.createElement('div');
-    chip.className = 'weekplan-chip' + (done ? ' done' : '');
-    chip.style.borderLeft = `3px solid ${BLOCK_COLORS[ch.block]}`;
-    chip.innerHTML = `<span class="cid" style="color:${BLOCK_COLORS[ch.block]};">${id}</span><span class="cn">${ch.subj || ch.n + '問'}</span>${done ? '✓' : ''}`;
-    chips.appendChild(chip);
-  }
-}
 
 // ══════════════════════════════════════════════════════════════
 // 間欠反復レビュー（忘却曲線＝Ebbinghausの保持率モデル）
@@ -5138,69 +4532,17 @@ function toggleSprintDay(ds) {
   updateAll();
 }
 function onSprintInput() {
-  const pairs = [['spWd', 'cbt_avail_wd', 'availWd'], ['spWe', 'cbt_avail_we', 'availWe'], ['spSpeed', 'cbt_solve_speed', 'solveSpeed']];
-  for (const [id, key, paceId] of pairs) {
+  const pairs = [['spWd', 'cbt_avail_wd'], ['spWe', 'cbt_avail_we'], ['spSpeed', 'cbt_solve_speed']];
+  for (const [id, key] of pairs) {
     const v = parseFloat(document.getElementById(id).value);
     if (isNaN(v) || v < 0) continue;
     localStorage.setItem(key, String(v));
-    const pe = document.getElementById(paceId); if (pe) pe.value = v;
   }
   updateAll();
 }
 
-// ── 必要ペース + 次の試験カウントダウン更新 ──
+// ── 次の試験カウントダウン更新 ──
 function updatePaceAndExam() {
-  // 必要ペース
-  const { pace, ok, finished } = calcRequiredPace();
-  const paceEl  = document.getElementById('reqPaceVal');
-  const statusEl = document.getElementById('reqPaceStatus');
-  if (paceEl) {
-    if (finished) {
-      paceEl.textContent = '完了';
-      paceEl.style.color = 'var(--green)';
-      statusEl.textContent = '🎉 1周目完了';
-      statusEl.style.cssText = 'background:rgba(52,232,160,0.15);color:var(--green);font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;';
-    } else {
-      paceEl.textContent = pace;
-      paceEl.style.color = ok ? 'var(--green)' : 'var(--red)';
-      statusEl.textContent = ok ? '✅ 順調' : '⚠️ 遅れ気味';
-      statusEl.style.cssText = ok
-        ? 'background:rgba(52,232,160,0.15);color:var(--green);font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;'
-        : 'background:rgba(255,64,96,0.12);color:var(--red);font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;';
-    }
-  }
-
-  // 今のペースで1周目完了予測（直近7日平均）
-  const predEl = document.getElementById('predText');
-  if (predEl) {
-    let recentTotal = 0;
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(TODAY);
-      d.setDate(d.getDate() - i);
-      const ds = toLocalDateStr(d);
-      const entry = state.daily_log.find(l => l.date === ds)
-                    || state.streak.find(s => s.date === ds);
-      recentTotal += entry ? entry.n : 0;
-    }
-    const avgPace = recentTotal / 7;
-    if (state.r1 >= QB) {
-      predEl.textContent = '🎉 1周目完了！';
-      predEl.style.color = 'var(--green)';
-    } else if (avgPace > 0) {
-      const remaining = QB - state.r1;
-      const daysNeeded = Math.ceil(remaining / avgPace);
-      const completion = new Date(TODAY);
-      completion.setDate(completion.getDate() + daysNeeded);
-      const dateStr = completion.toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' });
-      const isSafe = completion < CBT;
-      predEl.textContent = `今のペース(${avgPace.toFixed(0)}問/日) → ${dateStr}に1周目完了`;
-      predEl.style.color = isSafe ? 'var(--green)' : 'var(--red)';
-    } else {
-      predEl.textContent = '過去7日のデータ待ち';
-      predEl.style.color = 'var(--dim)';
-    }
-  }
-
   // 次の試験
   const exam = getNextExam();
   const card  = document.getElementById('examCard');
@@ -5243,110 +4585,8 @@ function setPB(barId, pct, pctId, pctText) {
 }
 
 // ── 進捗タブ：入力変更時にリアルタイム更新 ──
-function updateLog() {
-  // r1/ok/r2/r3（QB）も m/m_ok（モントレ）も、すべて科目別データから自動集計する。
-  // ここで手入力値を読むと、バンク集計と二重管理になって値が食い違うため何も読まない。
-  updateAll();
-}
 
-function saveAll() {
-  updateLog();
-  scheduleSave();
-  const btn = document.querySelector('.save-btn');
-  btn.textContent = '✅ 保存しました！';
-  btn.style.background = 'linear-gradient(135deg,var(--blue),var(--purple))';
-  setTimeout(() => {
-    btn.textContent = '💾 保存する';
-    btn.style.background = 'linear-gradient(135deg,var(--green),var(--teal))';
-  }, 1800);
-}
 
-// ── シミュレーター ──
-function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
-function diffDays(a, b) { return Math.round((b - a) / 86400000); }
-function fmtDate(d) { return d ? d.toLocaleDateString('ja-JP', {month:'numeric', day:'numeric'}) : '—'; }
-
-function runSim() {
-  const p1q  = +document.getElementById('p1q').value  || 10;
-  const p2q  = +document.getElementById('p2q').value  || 50;
-  const p3q  = +document.getElementById('p3q').value  || 20;
-
-  const phases = [
-    { start: ymd('2026-06-01'), days: 40, q: p1q },
-    { start: ymd('2026-07-11'), days: 52, q: p2q },
-    { start: ymd('2026-09-01'), days: 61, q: p3q },
-  ];
-
-  const need1 = QB - state.r1;
-  let ac = 0, r1end = null;
-  o1: for (const ph of phases) {
-    for (let d = 0; d < ph.days; d++) {
-      ac += ph.q;
-      if (ac >= need1) { r1end = addDays(ph.start, d); break o1; }
-    }
-  }
-
-  // 2・3周目も全問を解く（残り＝総問題数 − その周回で解いた数）
-  const w1 = Math.max(0, QB - state.r2);
-  setEl('sw1', w1);
-
-  let ac2 = 0, r2end = null;
-  if (r1end) {
-    o2: for (const ph of phases) {
-      const pe = addDays(ph.start, ph.days - 1);
-      if (pe < r1end) continue;
-      const st = r1end > ph.start ? r1end : ph.start;
-      const dl = diffDays(st, pe) + 1;
-      for (let d = 0; d < dl; d++) {
-        ac2 += ph.q;
-        if (ac2 >= w1) { r2end = addDays(st, d); break o2; }
-      }
-    }
-  }
-
-  const w2 = Math.max(0, QB - state.r3);
-  setEl('sw2', w2);
-
-  let ac3 = 0, r3end = null;
-  if (r2end) {
-    o3: for (const ph of phases) {
-      const pe = addDays(ph.start, ph.days - 1);
-      if (pe < r2end) continue;
-      const st = r2end > ph.start ? r2end : ph.start;
-      const dl = diffDays(st, pe) + 1;
-      for (let d = 0; d < dl; d++) {
-        ac3 += ph.q;
-        if (ac3 >= w2) { r3end = addDays(st, d); break o3; }
-      }
-    }
-  }
-
-  const buf = r3end ? diffDays(r3end, CBT) : -1;
-  setEl('sr1', fmtDate(r1end));
-  setEl('sr2', fmtDate(r2end));
-  setEl('sr3', fmtDate(r3end));
-
-  const be = document.getElementById('sbuf');
-  be.textContent = buf >= 0 ? buf + '日' : '—';
-  be.style.color = buf >= 14 ? 'var(--green)' : buf >= 0 ? 'var(--yellow)' : 'var(--red)';
-
-  setEl('sp2', r2end ? '完了: ' + fmtDate(r2end) : '未開始');
-  setEl('sp3', r3end ? '完了: ' + fmtDate(r3end) : '未開始');
-  document.getElementById('sb2').style.width = (r2end ? 100 : 0) + '%';
-  document.getElementById('sb3').style.width = (r3end ? 100 : 0) + '%';
-
-  const msg = document.getElementById('simMsg');
-  if (r3end && buf >= 0) {
-    msg.className = 'co ' + (buf >= 21 ? 'good' : buf >= 7 ? 'warn' : 'danger');
-    msg.innerHTML = `${buf >= 14 ? '✅' : '⚠️'} 3周目が<strong>${fmtDate(r3end)}</strong>完了。CBTまで<strong>${buf}日の余裕</strong>。`;
-  } else if (!r1end) {
-    msg.className = 'co danger';
-    msg.innerHTML = '🚨 1周目が終わりません。夏を<strong>43問/日以上</strong>にしてください。';
-  } else {
-    msg.className = 'co warn';
-    msg.innerHTML = `⚠️ 1周目は${fmtDate(r1end)}完了ですが3周目がギリギリです。`;
-  }
-}
 
 // ── チャプターステータス（localStorage 保存） ──
 const BLOCK_NAMES = {
@@ -5681,37 +4921,6 @@ function renderWeakHeatmap() {
 }
 
 // 2周目フォーカス：間違いが多い章を優先表示
-function renderReviewPriority() {
-  const card = document.getElementById('reviewPriorityCard');
-  const list = document.getElementById('reviewPriorityList');
-  if (!card || !list) return;
-
-  // 間違い数 = 「今の誤答数」（2周目に着手していれば2周目基準・3周目回収分を差し引く）
-  const items = [];
-  for (const ch of CHAPTERS) {
-    const st = state.subject_status[ch.id] || {};
-    if (!st.done || st.done <= 0) continue;
-    const wrong = chapterWrongNow(ch.id);
-    if (wrong > 0) items.push({ ch, wrong, done: st.done });
-  }
-  if (items.length === 0) { card.style.display = 'none'; return; }
-
-  items.sort((a, b) => b.wrong - a.wrong);
-  card.style.display = 'block';
-  list.innerHTML = '';
-  for (const { ch, wrong } of items.slice(0, 6)) {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;';
-    row.addEventListener('click', () => openChapterDetail(ch.id));
-    row.innerHTML = `
-      <span style="font-family:'JetBrains Mono',monospace;font-weight:900;color:${BLOCK_COLORS[ch.block]};flex-shrink:0;">${ch.id}</span>
-      <span style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ch.subj}</span>
-      <span style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--red);flex-shrink:0;">✗${wrong}</span>`;
-    list.appendChild(row);
-  }
-  // 最後の区切り線を消す
-  if (list.lastChild) list.lastChild.style.borderBottom = 'none';
-}
 
 // 周回パターン分析カードを描画（2周目以降のデータがある章のみ）
 function renderRoundAnalysis() {
@@ -5979,7 +5188,7 @@ function closeChapterDetail() {
 function detailRecordHere() {
   const id = _detailChapter;
   closeChapterDetail();
-  showPanel('home', document.querySelectorAll('.nb')[0]);
+  goPanel('home');
   setRound(nextRoundFor(id));
   const sel = document.getElementById('chapterSelect');
   if (sel) { sel.value = id; onChapterSelect(); }
@@ -6202,7 +5411,6 @@ function renderRoundPlan() {
 function renderSubjects() {
   renderRoundPlan();
   renderWeakHeatmap();
-  renderReviewPriority();
   renderRoundAnalysis();
   renderMix();
   renderPriority();
@@ -6907,24 +6115,6 @@ function renderAnalytics() {
     }
   }
 
-  // ── 完了予測 ──
-  const fp = document.getElementById('finishPredict');
-  if (fp) {
-    let recent = 0;
-    for (let i = 0; i < 7; i++) { const d=new Date(TODAY); d.setDate(d.getDate()-i); const e=state.daily_log.find(l=>l.date===toLocalDateStr(d)); recent += e?(e.n||0):0; }
-    const avg = recent / 7;
-    const remaining = QB - state.r1;
-    if (state.r1 >= QB) fp.innerHTML = '🎉 1周目完了！次は2周目へ。';
-    else if (avg <= 0) fp.innerHTML = '<span style="color:var(--dim);">直近7日のデータが貯まると予測します。</span>';
-    else {
-      const days = Math.ceil(remaining / avg);
-      const fin = new Date(TODAY); fin.setDate(fin.getDate()+days);
-      const finStr = `${fin.getFullYear()}/${fin.getMonth()+1}/${fin.getDate()}`;
-      const safe = fin < CBT;
-      fp.innerHTML = `直近の実ペース <strong>${avg.toFixed(0)}問/日</strong> なら、1周目完了は<br><strong style="color:${safe?'var(--green)':'var(--red)'};font-size:16px;">${finStr}</strong>（残り${remaining}問・約${days}日）<br><span style="font-size:11px;color:var(--dim);">${safe?'✅ CBT本番に間に合います':'⚠️ CBTに間に合いません。ペースUPを'}</span>`;
-    }
-  }
-
   // ── ブロック別達成率 ──
   const bp = document.getElementById('blockProgress');
   if (bp) {
@@ -6993,9 +6183,9 @@ function reorderHome() {
   const panel = document.getElementById('p-home');
   if (!panel) return;
   const order = [
-    'cheerBanner', 'sprintCard', 'todayCard', 'insightCard', 'recoCard', 'recordCard', 'questCard',
-    'examCard', 'debt-card', 'weekPlanCard', 'reviewCard',
-    'levelCard', 'ghostCard', 'timerCard', 'weekGoalCard',
+    'cheerBanner', 'sprintCard', 'insightCard', 'recordCard', 'questCard',
+    'examCard', 'reviewCard',
+    'levelCard', 'timerCard', 'weekGoalCard',
     'streakCard', 'ringsCard', 'statsGrid', 'homePrefsCard'
   ];
   for (const id of order) {
@@ -7013,7 +6203,6 @@ function setupCollapsibles() {
     { id: 'ringsCard',  collapsed: true },
     { id: 'roundAnalysisCard', collapsed: true },
     { id: 'priorityCard',      collapsed: false },
-    { id: 'reviewPriorityCard',collapsed: true },
     { id: 'volSummaryCard',    collapsed: true },
     { id: 'growthCard',        collapsed: true },
     { id: 'bulkEditCard',      collapsed: true },
@@ -7049,7 +6238,6 @@ function applyHomePrefs() {
   const p = loadHomePrefs();
   const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
   show('levelCard', p.motivation);
-  show('ghostCard', p.motivation);
   show('cheerBanner', p.cheer);
   show('timerCard', p.timer);
   show('weekGoalCard', p.weekgoal);
