@@ -4819,7 +4819,11 @@ const ROUND_TIERS = {
 function chapterRoundPlan(ch) {
   const st = qbSt(ch.id), base = plannedRounds(ch);
   let completed = 0;
-  for (const r of ROUNDS) { if (qbRoundDone(st, r) >= ch.n) completed = r; else break; }
+  for (const r of ROUNDS) {
+    // 旧チェックUIの完了フラグ（r2/r3）も isRoundDone と同じく完了とみなす
+    const legacy = r >= 2 && st['r' + r] && qbRoundDone(st, r) === 0;
+    if (qbRoundDone(st, r) >= ch.n || legacy) completed = r; else break;
+  }
   const cur = chapterCurrent(st, ch.n);
   const acc = cur.done > 0 ? cur.ok / cur.done * 100 : null;
   let tier, need, want;
@@ -4827,10 +4831,10 @@ function chapterRoundPlan(ch) {
   else if (acc < 80)           { tier = 'mid';  need = base.min; want = base.goal; }
   else if (acc < 90)           { tier = 'good'; need = Math.max(2, completed); want = Math.max(need, Math.min(base.min, completed + 1)); }
   else                         { tier = 'done'; need = Math.max(2, completed); want = need; }
-  const remTo = R => { let t = 0; for (let k = 1; k <= R; k++) t += Math.max(0, ch.n - Math.min(qbRoundDone(st, k), ch.n)); return t; };
+  const remTo = R => { let t = 0; for (let k = completed + 1; k <= R; k++) t += Math.max(0, ch.n - Math.min(qbRoundDone(st, k), ch.n)); return t; };
   const remNeed = remTo(need), remWant = remTo(want);
   let next = 0;                       // 次にやる周回（推奨まで）
-  for (let k = 1; k <= want; k++) if (qbRoundDone(st, k) < ch.n) { next = k; break; }
+  for (let k = completed + 1; k <= want; k++) if (qbRoundDone(st, k) < ch.n) { next = k; break; }
   return { ch, acc, tier, completed, need, want, remNeed, remWant, next,
            lapsNeed: remNeed / ch.n, lapsWant: remWant / ch.n };
 }
@@ -4909,10 +4913,19 @@ function sprintPlan() {
   const totalW = weights.reduce((a, b) => a + b, 0);
   const todayW = days.length && days[0].ds === TODAY_STR ? weights[0] : 0;
   const capacity = Math.round(days.reduce((a, d) => a + d.hours, 0) * h.speed);   // 今日を含む残りでこなせる問数
+  // 今日の記録を「計画内の周回」と「計画外（触れ直し等）」に分ける。
+  // 朝の時点の残りで割るために足し戻すが、計画外の分まで足すと記録するたびにノルマが増えてしまう
+  const plans = {};
+  for (const ch of CHAPTERS_QB) plans[ch.id] = chapterRoundPlan(ch);
+  const todayLog = (state.chapter_log || []).filter(e => e.d === TODAY_STR && e.b === 'qb');
+  const solvedIn = level => todayLog.reduce((a, e) => {
+    const pl = plans[e.c]; if (!pl) return a;
+    return a + (e.r <= (level === 'goal' ? pl.want : pl.need) ? (e.n || 0) : 0);
+  }, 0);
   const lv = {};
   for (const level of ['goal', 'min']) {
     const rem = sprintRemaining(level);
-    const remAtStart = rem + solvedToday;        // 今日の分を足し戻して「朝の時点の残り」で割る（記録するたびにノルマが減らないように）
+    const remAtStart = rem + solvedIn(level);    // 今日の分を足し戻して「朝の時点の残り」で割る（記録するたびにノルマが減らないように）
     const quota = totalW > 0 ? Math.ceil(remAtStart * todayW / totalW) : rem;
     const perDay = totalW > 0 ? Math.ceil(rem / Math.max(1, days.filter((d, i) => weights[i] > 0).length)) : rem;
     lv[level] = { rem, quota, perDay };
@@ -4920,10 +4933,17 @@ function sprintPlan() {
   // 記憶キープの触れ直し分は、記憶キープ期間の日だけに割り振る
   const fs = freshStartStr();
   const touchRem = touchNeeded().reduce((a, ch) => a + touchSize(ch), 0);
+  // 今日すでに触れ直した分（計画外の周回の記録）も朝の時点の残りに足し戻す
+  const touchedToday = todayLog.reduce((a, e) => {
+    const pl = plans[e.c]; if (!pl || e.r <= pl.want) return a;
+    return a + Math.min(e.n || 0, touchSize(pl.ch));
+  }, 0);
+  const touchAtStart = touchRem + touchedToday;
   const winW = days.reduce((a, d, i) => a + (d.ds >= fs ? weights[i] : 0), 0);
-  const touchQuota = TODAY_STR >= fs && winW > 0 ? Math.ceil(touchRem * todayW / winW) : 0;
-  // 推奨が時間的に無理なら、必須のペースを今日のノルマにする
-  const main = capacity >= lv.goal.rem + touchRem || lv.goal.rem === 0 ? 'goal' : 'min';
+  const touchQuota = TODAY_STR >= fs && winW > 0 ? Math.ceil(touchAtStart * todayW / winW) : 0;
+  // 推奨が時間的に無理なら、必須のペースを今日のノルマにする（朝の時点の量で判定して、日中に切り替わらないように）
+  const goalAtStart = lv.goal.rem + solvedIn('goal');
+  const main = capacity >= goalAtStart + touchAtStart || lv.goal.rem === 0 ? 'goal' : 'min';
   return {
     days, solvedToday, capacity, lv, main, touchRem, touchQuota,
     quota: lv[main].quota + touchQuota,
