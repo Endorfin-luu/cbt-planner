@@ -1423,7 +1423,7 @@ body.bank-orig .qb-only{display:none !important;}
       </div>
       <div class="wrong-hint" id="wrongHint">正答率は自動計算されます（任意・分からなければ0でOK）</div>
 
-      <!-- 周回の内訳（任意・2周目のみ表示）：回収数 -->
+      <!-- 周回の内訳（任意・2・3周目で表示）：回収数 -->
       <div class="round-extra" id="roundExtra" style="display:none;">
         <div class="wrong-row">
           <span class="wrong-label">前回間違えたうち今回正解した数<span style="font-size:9px;color:var(--dim);display:block;">任意・回収数</span></span>
@@ -1647,7 +1647,7 @@ body.bank-orig .qb-only{display:none !important;}
       <div style="font-size:10px;color:var(--dim);margin-top:5px;">目標完了: 9月末〜10月中</div>
     </div>
     <div class="ri">
-      <div class="ri-top"><span class="ri-name" style="color:var(--orange)">3周目（2周目の誤答）</span><span class="ri-count" id="r3stat">2周目完了後に確定</span></div>
+      <div class="ri-top"><span class="ri-name" style="color:var(--orange)">3周目（全問）</span><span class="ri-count" id="r3stat">0 / 3359問</span></div>
       <div class="pb-bg"><div class="pb-fill" style="background:var(--orange);" id="r3bar"></div></div>
       <div style="font-size:10px;color:var(--dim);margin-top:5px;">目標完了: 10月末</div>
     </div>
@@ -1670,11 +1670,6 @@ body.bank-orig .qb-only{display:none !important;}
         <div class="sr"><label>Phase2（7/11〜8/31）★</label><input class="ni" type="number" id="p2q" value="50" min="1" max="120" oninput="runSim()"><span class="unit">問/日</span></div>
         <div class="sr"><label>Phase3（9/1〜10/31）</label><input class="ni" type="number" id="p3q" value="20" min="1" max="80" oninput="runSim()"><span class="unit">問/日</span></div>
       </div>
-      <div class="ct" style="margin-top:4px;">精度設定</div>
-      <div class="sim-ctrl">
-        <div class="sr"><label>実質正答率（現在）</label><input class="ni" type="number" id="acc1" value="50" min="30" max="80" oninput="runSim()"><span class="unit">%</span></div>
-        <div class="sr"><label>2周目正答率</label><input class="ni" type="number" id="acc2" value="78" min="50" max="95" oninput="runSim()"><span class="unit">%</span></div>
-      </div>
     </div>
 
     <div class="card">
@@ -1690,11 +1685,11 @@ body.bank-orig .qb-only{display:none !important;}
         <div class="pb-bg"><div class="pb-fill" style="background:var(--blue);" id="sp1bar"></div></div>
       </div>
       <div class="pb">
-        <div class="ph"><span class="pl">2周目（<span id="sw1">—</span>問）</span><span class="pp" style="color:var(--purple)" id="sp2">未開始</span></div>
+        <div class="ph"><span class="pl">2周目（残り<span id="sw1">—</span>問）</span><span class="pp" style="color:var(--purple)" id="sp2">未開始</span></div>
         <div class="pb-bg"><div class="pb-fill" style="background:var(--purple);width:0%" id="sb2"></div></div>
       </div>
       <div class="pb" style="margin-bottom:0">
-        <div class="ph"><span class="pl">3周目（<span id="sw2">—</span>問）</span><span class="pp" style="color:var(--orange)" id="sp3">未開始</span></div>
+        <div class="ph"><span class="pl">3周目（残り<span id="sw2">—</span>問）</span><span class="pp" style="color:var(--orange)" id="sp3">未開始</span></div>
         <div class="pb-bg"><div class="pb-fill" style="background:var(--orange);width:0%" id="sb3"></div></div>
       </div>
     </div>
@@ -1852,7 +1847,7 @@ body.bank-orig .qb-only{display:none !important;}
     </div>
     <div class="tip-item">
       <div class="tip-num" style="background:var(--green)">③</div>
-      <div><div class="tip-title">3周目：さらに絞った〜370問</div><div class="tip-desc">10月末に終わらせれば直前期に余裕ができる。</div></div>
+      <div><div class="tip-title">3周目：もう一度全問</div><div class="tip-desc">10月末に終わらせれば直前期に余裕ができる。</div></div>
     </div>
   </div>
 
@@ -1876,7 +1871,7 @@ body.bank-orig .qb-only{display:none !important;}
       <div style="display:flex;gap:14px;font-size:11px;flex-wrap:wrap;align-items:center;">
         <span style="display:flex;align-items:center;gap:5px;"><span style="color:var(--blue);font-weight:800;font-family:'JetBrains Mono',monospace;">①</span>1周目（全問）</span>
         <span style="display:flex;align-items:center;gap:5px;"><span style="color:var(--purple);font-weight:800;font-family:'JetBrains Mono',monospace;">②</span>2周目（全問）</span>
-        <span style="display:flex;align-items:center;gap:5px;"><span style="color:var(--orange);font-weight:800;font-family:'JetBrains Mono',monospace;">③</span>3周目（2周目の誤答）</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="color:var(--orange);font-weight:800;font-family:'JetBrains Mono',monospace;">③</span>3周目（全問）</span>
       </div>
       <div style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.6;">
         💡 右側の <strong>①②③</strong> をタップ → その周回の「やった数・正解数」を記録（塗りが進捗、✓で完了）。<br>
@@ -2938,11 +2933,7 @@ function initChapterSelect() {
     const complete = isRoundDone(ch.id, selectedRound);
     const opt = document.createElement('option');
     opt.value = ch.id;
-    if (selectedRound === 3 && target === 0) {
-      opt.textContent = `${ch.id} ${ch.subj || ''}（2周目を先に）`;
-    } else {
-      opt.textContent = `${ch.id} ${ch.subj || ''}（${done}/${target}）${complete ? '✓' : ''}`;
-    }
+    opt.textContent = `${ch.id} ${ch.subj || ''}（${done}/${target}）${complete ? '✓' : ''}`;
     optgroup.appendChild(opt);
   }
 
@@ -3025,9 +3016,9 @@ function setRound(round) {
   if (card) card.style.setProperty('--round-accent', meta.color);
   const sub = document.getElementById('roundSub');
   if (sub) sub.textContent = meta.sub;
-  // 回収数の任意入力は2周目のときだけ表示（3周目は「正解＝回収」なので自動）
+  // 回収数の任意入力は2・3周目で表示（前周回の誤答のうち今回正解した数）
   const extra = document.getElementById('roundExtra');
-  if (extra) extra.style.display = (round === 2) ? 'block' : 'none';
+  if (extra) extra.style.display = (round >= 2) ? 'block' : 'none';
   initChapterSelect();       // ドロップダウンを選択周回の進捗に更新
   updateRoundTargetHint();   // 選択章の目標を表示
 }
@@ -3040,10 +3031,6 @@ function updateRoundTargetHint() {
   if (!ch) { el.textContent = ''; return; }
   const target = roundTarget(ch, selectedRound);
   const done = roundDone(ch.id, selectedRound);
-  if (selectedRound === 3 && target === 0) {
-    el.innerHTML = `<span style="color:var(--dim)">この章はまず2周目を完了すると、3周目の対象（2周目の誤答）が決まります</span>`;
-    return;
-  }
   const rem = Math.max(0, target - done);
   const meta = ROUND_META[selectedRound];
   el.innerHTML = `<strong style="color:${meta.color}">${meta.label}</strong> 残り <strong>${rem}</strong>問 <span style="color:var(--dim)">(${done}/${target})</span>`;
@@ -3158,7 +3145,7 @@ function clampWrong() {
   clampRec();
 }
 
-// ── 回収数ステッパー（任意・2周目の内訳） ──
+// ── 回収数ステッパー（任意・2・3周目の内訳） ──
 function stepRec(n) {
   todayRec = Math.max(0, todayRec + n);
   clampRec();
@@ -3328,10 +3315,6 @@ function addToday() {
     showToast(`先に ${_guardCh.id} の${ROUND_META[selectedRound - 1].label}を終わらせてね`);
     return;
   }
-  if (_guardCh && selectedRound === 3 && roundTarget(_guardCh, 3) === 0) {
-    showToast('2周目で間違えた問題がないので3周目は不要！🎉');
-    return;
-  }
 
   _overflow = 0;
   const RDATE = getRecordDate();     // 記録先の日付（過去日にも記録できる）
@@ -3371,13 +3354,10 @@ function addToday() {
     st[doneKey] = (st[doneKey] || 0) + chapterAdd;
     st[corrKey] = (st[corrKey] || 0) + chapterCorrect;
     // 周回の内訳：回収数（前周回で間違えた問題のうち、今回正解した数）を集計
-    if (round === 2) {
-      // 2周目は任意入力（今回の正解数を超えない範囲で加算）
+    if (round >= 2) {
+      // 2・3周目は任意入力（今回の正解数を超えない範囲で加算）
       const recAdd = Math.min(Math.max(0, todayRec), chapterCorrect);
-      if (recAdd > 0) st.rec2 = (st.rec2 || 0) + recAdd;
-    } else if (round === 3) {
-      // 3周目は対象が「2周目の誤答」なので、今回の正解はすべて回収
-      if (chapterCorrect > 0) st.rec3 = (st.rec3 || 0) + chapterCorrect;
+      if (recAdd > 0) st['rec' + round] = (st['rec' + round] || 0) + recAdd;
     }
     // その周回の完了に到達 → 完了日記録＋祝福
     if (!wasDone && target > 0 && st[doneKey] >= target) {
@@ -4012,7 +3992,7 @@ function updateAll() {
   const r3target = totalRound3Target();          // 現在バンクの3周目対象合計
   const p1 = Math.min(r1  / total * 100, 100);
   const p2 = Math.min(r2  / total * 100, 100);   // 2周目＝全問周回なので分母は総問題数
-  const p3 = r3target > 0 ? Math.min(r3 / r3target * 100, 100) : 0; // 3周目＝2周目の誤答
+  const p3 = r3target > 0 ? Math.min(r3 / r3target * 100, 100) : 0; // 3周目＝全問周回
   const pm = Math.min(m   / MONTE * 100, 100);
 
   // ヘッダー（バンク名つき）
@@ -4043,7 +4023,7 @@ function updateAll() {
   setEl('r2stat', `${r2} / ${QB}問`);
   document.getElementById('r2bar').style.width = p2 + '%';
 
-  setEl('r3stat', r3target > 0 ? `${r3} / ${r3target}問` : '2周目完了後に確定');
+  setEl('r3stat', `${r3} / ${r3target}問`);
   document.getElementById('r3bar').style.width = p3 + '%';
 
   setEl('mstat', `${m} / ${MONTE}問`);
@@ -4771,8 +4751,6 @@ function runSim() {
   const p1q  = +document.getElementById('p1q').value  || 10;
   const p2q  = +document.getElementById('p2q').value  || 50;
   const p3q  = +document.getElementById('p3q').value  || 20;
-  const acc1 = (+document.getElementById('acc1').value || 50) / 100;
-  const acc2 = (+document.getElementById('acc2').value || 78) / 100;
 
   const phases = [
     { start: new Date('2026-06-01'), days: 40, q: p1q },
@@ -4789,7 +4767,8 @@ function runSim() {
     }
   }
 
-  const w1 = Math.round(state.r1 * (1 - acc1)) + Math.round(need1 * (1 - acc1));
+  // 2・3周目も全問を解く（残り＝総問題数 − その周回で解いた数）
+  const w1 = Math.max(0, QB - state.r2);
   setEl('sw1', w1);
 
   let ac2 = 0, r2end = null;
@@ -4806,7 +4785,7 @@ function runSim() {
     }
   }
 
-  const w2 = Math.round(w1 * (1 - acc2));
+  const w2 = Math.max(0, QB - state.r3);
   setEl('sw2', w2);
 
   let ac3 = 0, r3end = null;
@@ -4877,16 +4856,12 @@ const BLOCK_COLORS = {
 const ROUND_META = {
   1: { label:'1周目', sub:'全問を解く',         done:'done',  correct:'correct',  date:'r1_date', color:'var(--blue)',   icon:'①' },
   2: { label:'2周目', sub:'全問を解き直す',     done:'done2', correct:'correct2', date:'r2_date', color:'var(--purple)', icon:'②' },
-  3: { label:'3周目', sub:'2周目で間違えた問題', done:'done3', correct:'correct3', date:'r3_date', color:'var(--orange)', icon:'③' },
+  3: { label:'3周目', sub:'全問をもう一度解く', done:'done3', correct:'correct3', date:'r3_date', color:'var(--orange)', icon:'③' },
 };
 
-// その周回の「目標問題数」。1・2周目は章の全問数 n。
-// 3周目 = 2周目で間違えた問題（done2 − correct2）。2周目が未完了なら 0（＝まだ3周目に入れない）。
+// その周回の「目標問題数」。1〜3周目とも章の全問数 n（前周回が未完了なら記録はガードで弾く）。
 function roundTarget(ch, round) {
-  if (round === 1 || round === 2) return ch.n;
-  if (!isRoundDone(ch.id, 2)) return 0;
-  const st = state.subject_status[ch.id] || {};
-  return Math.max(0, (st.done2 || 0) - (st.correct2 || 0));
+  return ch.n;
 }
 // その周回でその章を解いた数
 function roundDone(id, round) {
@@ -4943,9 +4918,13 @@ function roundStats(id) {
     out.bothCorrect = Math.max(0, c2 - out.recovered); // 連続正解（1・2周目どちらも○）
     out.bothExact = out.recExact;
   }
-  // 2→3周目（3周目は対象＝2周目誤答、正解がそのまま回収）
-  const d3 = roundDone(id, 3), c3 = roundCorrect(id, 3), t3 = roundTarget(ch, 3);
-  if (d3 > 0) { out.rec3 = st.rec3 != null ? st.rec3 : c3; out.r3target = t3; out.r3done = d3; }
+  // 2→3周目（3周目も全問。回収 = 2周目の誤答のうち3周目で正解した数）
+  const c3 = Math.min(st.correct3 || 0, ch.n), d3 = Math.min(st.done3 || 0, ch.n), w3 = Math.max(0, d3 - c3);
+  if (d2 > 0 && d3 > 0) {
+    out.rec3Total = w2;
+    if (st.rec3 != null) { out.rec3 = Math.min(st.rec3, w2); out.rec3Exact = true; }
+    else { out.rec3 = Math.max(0, w2 - w3); out.rec3Exact = false; }
+  }
   return out;
 }
 
@@ -5006,17 +4985,14 @@ function saveSubjectStatus() {
 function recomputeBank(bank) {
   const chapters = BANKS[bank].chapters, ss = BANK_SUBJ[bank];
   let d1 = 0, ok = 0, d2 = 0, d3 = 0;
-  // curDone/curOk = 「今の実力」の集計（2周目に着手した章は2周目＋3周目回収分で評価）
+  // curDone/curOk = 「今の実力」の集計（解き直した問題は最新周回の結果で評価）
   let curDone = 0, curOk = 0;
   for (const ch of chapters) {
     const st = ss[ch.id];
     if (!st) continue;
     if (st.done != null)  { d1 += Math.min(st.done, ch.n); ok += Math.min(st.correct || 0, st.done); }
     if (st.done2 != null) { d2 += Math.min(st.done2, ch.n); }
-    if (st.done3 != null) {
-      const w2 = Math.max(0, (st.done2 || 0) - (st.correct2 || 0));
-      d3 += Math.min(st.done3, w2);
-    }
+    if (st.done3 != null) { d3 += Math.min(st.done3, ch.n); }
     // Current ability (same blending as chapterAcc)
     const cur = chapterCurrent(st, ch.n);
     curDone += cur.done;
@@ -5034,7 +5010,7 @@ function recomputeTotalsFromChapters() {
   recomputeBank(currentBank);
 }
 
-// 全章の3周目目標数の合計（＝2周目誤答の総数）。ホームの3周目バーの分母に使う
+// 全章の3周目目標数の合計（＝総問題数）。ホームの3周目バーの分母に使う
 function totalRound3Target() {
   let t = 0;
   for (const ch of CHAPTERS) t += roundTarget(ch, 3);
@@ -5048,22 +5024,24 @@ function isChapterDone(id) {
   return ch && st.done != null && st.done >= ch.n;
 }
 // 章の「今の正答率（実力）」。null=未着手
-// 2周目に着手していれば2周目ベース（＋3周目で回収した分を加算）＝最新の実力を反映。
-// 2周目が未着手なら1周目の正答率。
-// Current ability of a chapter as {done, ok}.
-// Questions already re-solved in round 2 use the round-2 result (+ round-3 recoveries);
-// questions not yet re-solved still count with the round-1 accuracy.
-// Without this blending, a chapter with only 13/99 re-solved would be judged on 13 questions.
+// 解き直した問題は最新周回の結果を使い、まだ解き直していない分は前周回の正答率で補う。
+// （例：3周目を30問 → その30問は3周目の結果、残りは2周目、2周目未着手分は1周目）
+// Current ability of a chapter as {done, ok}, blending rounds newest-first so a chapter
+// with only a few questions re-solved isn't judged on that small sample alone.
 function chapterCurrent(st, n) {
   st = st || {};
   const d1 = Math.min(st.done || 0, n);
   const c1 = Math.min(st.correct || 0, d1);
   const d2 = Math.min(st.done2 || 0, n);
-  if (d2 <= 0) return { done: d1, ok: c1 };
-  const c2 = Math.min((st.correct2 || 0) + (st.correct3 || 0), d2);
-  const notRedone = Math.max(0, d1 - d2);
-  const notRedoneOk = d1 > 0 ? (c1 / d1) * notRedone : 0;
-  return { done: d2 + notRedone, ok: c2 + notRedoneOk };
+  const c2 = Math.min(st.correct2 || 0, d2);
+  const d3 = Math.min(st.done3 || 0, n);
+  const c3 = Math.min(st.correct3 || 0, d3);
+  let done = d3, ok = c3;
+  const from2 = Math.max(0, d2 - d3);
+  if (from2 > 0 && d2 > 0) { done += from2; ok += c2 / d2 * from2; }
+  const from1 = Math.max(0, d1 - Math.max(d2, d3));
+  if (from1 > 0 && d1 > 0) { done += from1; ok += c1 / d1 * from1; }
+  return { done, ok };
 }
 function chapterAcc(id) {
   const ch = CHAPTERS.find(c => c.id === id);
@@ -5078,7 +5056,7 @@ function chapterAccR1(id) {
   if (!st.done || st.done <= 0) return null;
   return (st.correct || 0) / st.done * 100;
 }
-// 章の「今の誤答数」。2周目に着手していれば2周目基準（3周目で回収した分を差し引く）
+// 章の「今の誤答数」。解き直した問題は最新周回の結果で数える
 function chapterWrongNow(id) {
   const ch = CHAPTERS.find(c => c.id === id);
   const cur = chapterCurrent(state.subject_status[id], ch ? ch.n : Infinity);
@@ -5262,7 +5240,7 @@ function renderRoundAnalysis() {
       detail += `<span class="ra-d">連続正解 <strong>${s.bothCorrect}</strong>${s.bothExact ? '' : '<span class="ra-est">推定</span>'}</span>`;
     }
     if (s.rec3 != null) {
-      detail += `<span class="ra-d" style="color:var(--orange)">3周目回収 <strong>${s.rec3}</strong>/${s.r3target}</span>`;
+      detail += `<span class="ra-d" style="color:var(--orange)">3周目回収 <strong>${s.rec3}</strong>/${s.rec3Total}${s.rec3Exact ? '' : '<span class="ra-est">推定</span>'}</span>`;
     }
     html += `
       <div class="ra-row" style="border-left:3px solid ${s.color}">
@@ -5851,7 +5829,6 @@ function makeChapterRow(ch) {
     const rdone    = roundDone(ch.id, r);
     const doneFlag = isRoundDone(ch.id, r);
     const locked   = r >= 2 && !isRoundDone(ch.id, r - 1);          // 前周回が未完了
-    const noTarget = r === 3 && target === 0 && isRoundDone(ch.id, 2); // 2周目満点→3周目不要
     const partial  = rdone > 0 && !doneFlag;
     const seg = document.createElement('div');
     seg.className = `round-seg-mini r${r}` + (doneFlag ? ' done' : '') + (locked ? ' locked' : '') + (partial ? ' active' : '');
@@ -5859,11 +5836,10 @@ function makeChapterRow(ch) {
     seg.style.setProperty('--p', pct + '%');
     let icon;
     if (doneFlag)       icon = '✓';
-    else if (noTarget)  icon = '✓';
     else if (locked)    icon = '🔒';
     else                icon = r;
     seg.innerHTML = `<span class="rsm-fill"></span><span class="rsm-ic">${icon}</span>`;
-    seg.title = noTarget ? `${ROUND_META[r].label}: 対象なし` : `${ROUND_META[r].label}: ${rdone}/${target}`;
+    seg.title = `${ROUND_META[r].label}: ${rdone}/${target}`;
     seg.addEventListener('click', (e) => { e.stopPropagation(); editRoundProgress(ch.id, r); });
     track.appendChild(seg);
   }
@@ -5884,10 +5860,6 @@ function editRoundProgress(id, round) {
     return;
   }
   const target = roundTarget(ch, round);
-  if (round === 3 && target === 0) {
-    showToast('2周目で間違えた問題がないので3周目は不要！🎉');
-    return;
-  }
 
   const st = state.subject_status[id] || {};
   const curDone = st[meta.done] || 0;
