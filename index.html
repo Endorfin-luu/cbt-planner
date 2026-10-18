@@ -1380,7 +1380,7 @@ body.bank-orig .qb-only{display:none !important;}
         <div class="sp-hint">各日の勉強時間は予定表から自動で計算：何もない日は「空き日」の時間、授業は内職で7割、移動（往復2時間）は半分、バイト・試験の時間は0、空き時間は何もない日と同じ割合で勉強（1日の上限は空き日の時間）。そこから研究室の作業を毎日差し引きます。日付をタップすると、その日の時間を手で変えられます（0で休み・空欄で自動に戻す）。✎＝手で変えた日。</div>
         <div class="sprint-sec">解く速さ（問/時間）</div>
         <table class="sp-speed" id="spSpeedTable"></table>
-        <div class="sp-hint">●実測 ◐実測からの推定 ○基準の速さからの仮の値。記録に「かかった時間」が付くと（タイマーを使うと自動）vol・周回ごとに実測し、20問以上たまると●になります。周回が進むほど速くなり、vol4は1問が重い前提で推定します。基準の速さ＝3周目・vol1〜3の目安。</div>
+        <div class="sp-hint">●実測 ◐実測からの推定 ○基準の速さからの仮の値。記録に「かかった時間」が付くと（タイマーを使うと自動）vol・周回ごとに実測し、20問以上たまると●になります。周回が進むほど速くなり、vol4は1問が重い前提で推定します。1周目は1問ずつ調べながら解く前提でかなり遅く見積もり、1周目の遅さは2周目以降の見積もりには使いません。基準の速さ＝3周目・vol1〜3の目安。</div>
       </details>
       </div>
     </div>
@@ -1790,7 +1790,7 @@ body.bank-orig .qb-only{display:none !important;}
     <div class="sec">周回戦略</div>
     <div class="tip-item">
       <div class="tip-num" style="background:var(--blue)">①</div>
-      <div><div class="tip-title">1周目：スピード重視で全問に触れる</div><div class="tip-desc">1問4分以内のテンポ。間違いは必ずフラグ。正答率より周回数。</div></div>
+      <div><div class="tip-title">1周目：1問ずつ調べて理解する</div><div class="tip-desc">時間がかかってOK（アプリも1周目は遅い前提で計画）。間違い・自信なしは必ずフラグ。</div></div>
     </div>
     <div class="tip-item">
       <div class="tip-num" style="background:var(--purple)">②</div>
@@ -4385,7 +4385,10 @@ function qbSolvedOn(ds) {
 // 記録に「かかった時間」が付いたもの（タイマー or 手入力）から実測する。
 // 実測が少ないうちは、近い周回・他のvolの実測から比率で推定し、それもなければ基準の速さ（設定値）を使う。
 // 周回が進むほど速く、vol4（多選択肢・4連問）は1問が重い、という前提の比率：
-const ROUND_SPEED_F = { 1: 0.55, 2: 0.8, 3: 1.0, 4: 1.1 };   // 3周目を1としたときの速さ
+// 1周目は1問ずつ調べながら解くので大幅に遅い前提。調べる時間は2周目以降には持ち越さないため、
+// 1周目の実測は2周目以降の推定に使わない（逆も同じ）。
+const ROUND_SPEED_F = { 1: 0.35, 2: 0.8, 3: 1.0, 4: 1.1 };   // 3周目を1としたときの速さ
+const sameMode = (r1, r2) => (r1 === 1) === (r2 === 1);       // 1周目（調べながら）と2周目以降は別扱い
 const BLOCK_SPEED_F = { 1: 1, 2: 1, 3: 1, 4: 0.7, 5: 0.9 };    // vol1〜3を1としたときの速さ
 const SPEED_MIN_Q = 20;                                        // これ以上の問題数を実測したら採用
 function measuredSpeeds() {
@@ -4410,14 +4413,14 @@ function speedFor(block, round, ms) {
   // 同じvolの近い周回の実測 → 周回の比で換算
   for (const d of [-1, 1, -2, 2, -3, 3]) {
     const r2 = round + d, x = ms[block + '-' + r2];
-    if (r2 >= 1 && r2 <= MAX_ROUND && ok(x)) return { v: qph(x) * ROUND_SPEED_F[round] / ROUND_SPEED_F[r2], src: 'scaled' };
+    if (r2 >= 1 && r2 <= MAX_ROUND && sameMode(round, r2) && ok(x)) return { v: qph(x) * ROUND_SPEED_F[round] / ROUND_SPEED_F[r2], src: 'scaled' };
   }
   // 他のvolの実測（同じ周回を優先）→ 基準（3周目・vol1〜3）に直して平均し、このvol・周回に換算
   for (const sameRound of [true, false]) {
     let n = 0, base = 0;
     for (const k in ms) {
       const [b, rr] = k.split('-').map(Number);
-      if (!ok(ms[k]) || (sameRound && rr !== round)) continue;
+      if (!ok(ms[k]) || !sameMode(round, rr) || (sameRound && rr !== round)) continue;
       base += qph(ms[k]) / (ROUND_SPEED_F[rr] * BLOCK_SPEED_F[b]) * ms[k].n; n += ms[k].n;
     }
     if (n > 0) return { v: base / n * ROUND_SPEED_F[round] * BLOCK_SPEED_F[block], src: 'scaled' };
