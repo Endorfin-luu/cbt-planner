@@ -789,6 +789,12 @@ body.sprint .sprint-hide{display:none !important;}
 .irt-table td{text-align:right;padding:5px 6px;border-bottom:1px solid var(--border);}
 .irt-table th:first-child,.irt-table td:first-child{text-align:left;}
 .irt-table tr.now td{background:rgba(127,127,127,.12);font-weight:800;}
+.irt-step{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border);}
+.irt-step .no{flex-shrink:0;width:18px;height:18px;border-radius:50%;font-size:10px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+.irt-step .bd{flex:1;min-width:0;}
+.irt-step .hd{display:flex;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;}
+.irt-step .val{font-family:'JetBrains Mono',monospace;font-weight:800;white-space:nowrap;}
+.irt-step .ex{font-size:10px;color:var(--dim);line-height:1.55;margin-top:2px;}
 .irt-gauge-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--dim);margin-top:3px;font-family:'JetBrains Mono',monospace;}
 
 /* 模試/ランキング行 */
@@ -1721,6 +1727,8 @@ body.bank-orig .qb-only{display:none !important;}
       <div class="irt-gauge" id="irtGauge"></div>
       <div class="irt-gauge-labels"><span>300</span><span>400</span><span>500</span><span>600</span><span>700</span></div>
       <div id="irtNote" style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.6;"></div>
+      <!-- スコアの出し方（計算の流れを図で） -->
+      <div id="irtCalc" style="margin-top:12px;"></div>
       <!-- 換算カーブ・換算表（初見正答率を上げるとIRTがどう伸びるか） -->
       <div id="irtCurve" style="margin-top:12px;"></div>
       <div id="irtTable" style="margin-top:8px;"></div>
@@ -6247,8 +6255,7 @@ function scoreFromIrt(irt) {
   const { c, a, b } = IRT_CURVE;
   return c + (1 - c) / (1 + Math.exp(-(a + b * (irt - 500) / 100)));
 }
-// ① 初見正答率は記憶の影響がない1周目で測る（直近90日に1周目を解いた章、少なければ全章）
-const IRT_FRESH_DAYS = 90;
+// ① 初見正答率は記憶の影響がない1周目で測る（全期間・全章。本番は全科目から出るため）
 const IRT_TRANSFER = 0.45;  // share of the round-2 gain on the same questions that carries over to new ones
 const IRT_QB_TO_REAL = 3.5; // QB/mock questions are harder than the real exam (+3.5 points on average)
 function normCdf(z) {
@@ -6258,21 +6265,20 @@ function normCdf(z) {
   return z >= 0 ? (1 + e) / 2 : (1 - e) / 2;
 }
 function estimateIRT() {
-  const ss = BANK_SUBJ.qb, cutoff = new Date(TODAY); cutoff.setDate(cutoff.getDate() - IRT_FRESH_DAYS);
-  let rn = 0, rok = 0, an = 0, aok = 0, curDone = 0, curOk = 0;
+  const ss = BANK_SUBJ.qb;
+  let n = 0, ok = 0, curOk = 0;
   for (const ch of CHAPTERS_QB) {
     const st = ss[ch.id];
     if (!st || !st.done) continue;
-    const d = Math.min(st.done, ch.n), c = Math.min(st.correct || 0, d);
-    an += d; aok += c;
-    if (st.r1_date && ymd(st.r1_date) >= cutoff) { rn += d; rok += c; }
-    const cur = chapterCurrent(st, ch.n); curDone += cur.done; curOk += cur.ok;
+    const d = Math.min(st.done, ch.n);
+    n += d; ok += Math.min(st.correct || 0, d);
+    curOk += chapterCurrent(st, ch.n).ok;
   }
-  if (an === 0) return null;
-  const useRecent = rn >= 300;
-  const n = useRecent ? rn : an;
-  const fresh = (useRecent ? rok / rn : aok / an) * 100;
-  const transfer = IRT_TRANSFER * Math.max(0, (curOk - aok) / an * 100);
+  if (n === 0) return null;
+  const fresh = ok / n * 100;
+  const nowAcc = curOk / n * 100;                   // 解き直しを反映した「今の正答率」（同じ問題で）
+  const r2Gain = Math.max(0, nowAcc - fresh);       // 解き直しで伸びた分（覚えた分も含む）
+  const transfer = IRT_TRANSFER * r2Gain;
   const score = fresh + transfer + IRT_QB_TO_REAL;   // 本番得点率（%）
   // Uncertainty (pct points): sampling of fresh accuracy, transfer, QB->real offset, exam-day form, curve residual
   const seFresh = Math.sqrt(fresh * (100 - fresh) / n);
@@ -6282,7 +6288,7 @@ function estimateIRT() {
     irt: Math.round(irtFromScore(score / 100)),
     lo: Math.round(irtFromScore((score - 1.2816 * sd) / 100)),  // 80% interval
     hi: Math.round(irtFromScore((score + 1.2816 * sd) / 100)),
-    score, fresh, n, useRecent, transfer, sd,
+    score, fresh, n, nowAcc, r2Gain, transfer, sd,
     pPass: normCdf((score - passScore) / sd),
   };
 }
@@ -6326,6 +6332,43 @@ function deleteMock(idx) {
   mocks.splice(idx, 1);
   localStorage.setItem('cbt_mocks', JSON.stringify(mocks));
   renderAnalytics();
+}
+
+// スコアの出し方：初見正答率 → 本番得点率 → IRT を1段ずつ見せる
+function renderIrtCalc(est, target) {
+  const el = document.getElementById('irtCalc');
+  if (!el) return;
+  if (!est) { el.innerHTML = ''; return; }
+  const f1 = v => v.toFixed(1);
+  // Stacked bar of the predicted real-exam score, zoomed to 40-85% so the small additions are visible
+  const B0 = 40, B1 = 85, bx = v => Math.max(0, Math.min(100, (v - B0) / (B1 - B0) * 100));
+  const passS = scoreFromIrt(IRT_PASS_LINE) * 100, targetS = scoreFromIrt(target) * 100;
+  const seg = (from, to, color) => `<div style="position:absolute;top:0;bottom:0;left:${bx(from)}%;width:${bx(to) - bx(from)}%;background:${color};"></div>`;
+  const tick = (v, color, label) => `<div style="position:absolute;top:-3px;height:22px;left:${bx(v)}%;border-left:2px dashed ${color};"></div>`
+    + `<div style="position:absolute;bottom:100%;margin-bottom:2px;left:${bx(v)}%;transform:translateX(-50%);font-size:8px;color:${color};white-space:nowrap;font-weight:700;">${label}</div>`;
+  const a = est.fresh, b = a + est.transfer, c = est.score;
+  let bar = `<div style="position:relative;margin:16px 0 18px;">`
+    + `<div style="position:relative;height:16px;border-radius:5px;overflow:hidden;background:var(--border);">`
+    + seg(B0, a, 'var(--blue)') + seg(a, b, 'var(--purple)') + seg(b, c, 'var(--teal)') + `</div>`
+    + tick(passS, 'var(--red)', `合格 ${passS.toFixed(0)}%`) + tick(targetS, 'var(--green)', `目標 ${targetS.toFixed(0)}%`)
+    + `<div style="display:flex;justify-content:space-between;font-size:8px;color:var(--dim);margin-top:3px;font-family:'JetBrains Mono',monospace;">`
+    + [50, 60, 70, 80].map(v => `<span style="position:absolute;left:${bx(v)}%;transform:translateX(-50%);">${v}%</span>`).join('') + `</div></div>`;
+  const step = (no, color, title, val, ex) => `<div class="irt-step"><div class="no" style="background:${color};">${no}</div><div class="bd">`
+    + `<div class="hd"><span>${title}</span><span class="val" style="color:${color};">${val}</span></div><div class="ex">${ex}</div></div></div>`;
+  let h = `<div style="font-size:11px;font-weight:700;margin-bottom:2px;">🧮 スコアの出し方</div>`;
+  h += step(1, 'var(--blue)', '初見正答率', `${f1(a)}%`,
+    `QBを<strong>1周目で初めて解いた</strong>全${est.n}問の正答率（全期間・全章）。本番も全部初めて見る問題なので、これが実力の土台。`);
+  h += step(2, 'var(--purple)', '＋ 解き直しの効果', `+${f1(est.transfer)}`,
+    `解き直しで同じ問題の正答率は ${f1(a)}% → ${f1(est.nowAcc)}%（+${f1(est.r2Gain)}）。ただ答えを覚えた分もあるので、本番に効くのはその${Math.round(IRT_TRANSFER * 100)}%と計算。`);
+  h += step(3, 'var(--teal)', '＋ QBと本番の難しさの差', `+${IRT_QB_TO_REAL}`,
+    `QB・模試は本番よりやや難しい（模試で61.4%の人が本番の合格ライン相当）。その差を足す。`);
+  h += `<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:800;padding:8px 0 0;"><span>＝ 本番得点率の予想</span><span class="val" style="font-family:'JetBrains Mono',monospace;">${f1(c)}%</span></div>`;
+  h += bar;
+  h += step(4, 'var(--orange)', '得点率をIRTに換算', `IRT ${est.irt}`,
+    `機構の公表値（2025年度：平均得点率76.5% ＝ 平均IRT519、396未満は6.6%）と合格体験記の実測値に合わせた曲線で換算。下のグラフ・表と同じ曲線。`);
+  h += step(5, 'var(--dim)', '予測のブレ', `${est.lo}〜${est.hi}`,
+    `本番の問題の当たり外れ、上の②③の見積もりの誤差を含めた80%の範囲。合格（IRT ${IRT_PASS_LINE}以上）の確率は約${Math.round(est.pPass * 100)}%。`);
+  el.innerHTML = h;
 }
 
 // 初見正答率 → IRT の換算カーブ（80%予測幅つき）と、正答率を上げたときの換算表
@@ -6425,7 +6468,6 @@ function renderAnalytics() {
     let note = '';
     if (est) {
       note += `80%の確率で <strong>IRT ${est.lo}〜${est.hi}</strong>（本番得点率 約${est.score.toFixed(0)}%）`;
-      note += `<br>内訳：初見正答率 ${est.fresh.toFixed(1)}%（${est.useRecent ? `直近${IRT_FRESH_DAYS}日の1周目 ` : '1周目 '}${est.n}問）＋ 2周目の伸びの転移 ${est.transfer.toFixed(1)} ＋ QB→本番の難易度差 ${IRT_QB_TO_REAL}`;
       const passGap = estIrt - IRT_PASS_LINE;
       note += `<br>🎯 合格基準 IRT ${IRT_PASS_LINE}：` + (passGap >= 0
         ? `<strong style="color:var(--green-ink);">+${passGap}</strong> 上回っています`
@@ -6439,6 +6481,7 @@ function renderAnalytics() {
       note += gap > 0 ? `<br>目標まで <strong style="color:var(--orange);">あと約${gap}</strong>（正答率を上げよう）` : `<br><strong style="color:var(--green);">✅ 目標到達ペース！</strong>`;
     }
     document.getElementById('irtNote').innerHTML = note;
+    renderIrtCalc(est, target);
     renderIrtCurve(est, target);
   }
 
