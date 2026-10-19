@@ -6221,18 +6221,58 @@ function checkStreakMilestone() {
 }
 
 // ════════ 分析（IRT・模試・予測・ランキング） ════════
-// QB正答率 → IRTスコア推定（アンカー間を線形補間。本番はQBより難しいため目安）
+// IRTスコア推定（2段階モデル）
+//   ① QBの初見正答率 → 本番得点率   ② 本番得点率 → IRT標準スコア
 const IRT_PASS_LINE = 396;   // nationwide CBT pass standard since public administration in 2023
-const IRT_ANCHORS = [[40,280],[50,340],[60,410],[65,440],[70,490],[75,550],[80,610],[85,670],[90,730],[95,790],[100,840]];
-function estimateIRT(accPct) {
-  if (accPct <= IRT_ANCHORS[0][0]) return IRT_ANCHORS[0][1];
-  for (let i = 1; i < IRT_ANCHORS.length; i++) {
-    if (accPct <= IRT_ANCHORS[i][0]) {
-      const [x0,y0] = IRT_ANCHORS[i-1], [x1,y1] = IRT_ANCHORS[i];
-      return Math.round(y0 + (y1 - y0) * (accPct - x0) / (x1 - x0));
-    }
+// ② 本番得点率p → IRT： p = c + (1-c)/(1+exp(-(a + b*(IRT-500)/100)))（c=5択の当て推量の床）
+//   Weighted fit to: CATO published means (2025: 76.5%/519, 2024: 75.8%/513), pass line 396 ≈ 64%
+//   (Medic Media mock 61.4% at 396 + mock-to-real offset), reported results 65.1%/422, 85.9%/599, 93%/710.
+//   Check: with IRT ~ N(519, 82) (82 = SD implied by 6.6%/7.8% below 396 in 2025/2024) it reproduces
+//   mean score 76.5% and score SD 8.9%. Residual RMSE ≈ 11 IRT (test forms differ in difficulty).
+const IRT_CURVE = { c: 0.2, a: 0.806, b: 0.685 };
+function irtFromScore(p) {
+  const { c, a, b } = IRT_CURVE;
+  const q = (Math.min(0.995, Math.max(c + 0.01, p)) - c) / (1 - c);
+  return 500 + 100 * (Math.log(q / (1 - q)) - a) / b;
+}
+// ① 初見正答率は記憶の影響がない1周目で測る（直近90日に1周目を解いた章、少なければ全章）
+const IRT_FRESH_DAYS = 90;
+const IRT_TRANSFER = 0.45;  // share of the round-2 gain on the same questions that carries over to new ones
+const IRT_QB_TO_REAL = 3.5; // QB/mock questions are harder than the real exam (+3.5 points on average)
+function normCdf(z) {
+  // Abramowitz–Stegun 7.1.26
+  const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2);
+  const e = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2);
+  return z >= 0 ? (1 + e) / 2 : (1 - e) / 2;
+}
+function estimateIRT() {
+  const ss = BANK_SUBJ.qb, cutoff = new Date(TODAY); cutoff.setDate(cutoff.getDate() - IRT_FRESH_DAYS);
+  let rn = 0, rok = 0, an = 0, aok = 0, curDone = 0, curOk = 0;
+  for (const ch of CHAPTERS_QB) {
+    const st = ss[ch.id];
+    if (!st || !st.done) continue;
+    const d = Math.min(st.done, ch.n), c = Math.min(st.correct || 0, d);
+    an += d; aok += c;
+    if (st.r1_date && ymd(st.r1_date) >= cutoff) { rn += d; rok += c; }
+    const cur = chapterCurrent(st, ch.n); curDone += cur.done; curOk += cur.ok;
   }
-  return IRT_ANCHORS[IRT_ANCHORS.length-1][1];
+  if (an === 0) return null;
+  const useRecent = rn >= 300;
+  const n = useRecent ? rn : an;
+  const fresh = (useRecent ? rok / rn : aok / an) * 100;
+  const transfer = IRT_TRANSFER * Math.max(0, (curOk - aok) / an * 100);
+  const score = fresh + transfer + IRT_QB_TO_REAL;   // 本番得点率（%）
+  // Uncertainty (pct points): sampling of fresh accuracy, transfer, QB->real offset, exam-day form, curve residual
+  const seFresh = Math.sqrt(fresh * (100 - fresh) / n);
+  const sd = Math.sqrt(seFresh ** 2 + 1.5 ** 2 + 2 ** 2 + 2.5 ** 2 + 1.1 ** 2);
+  const passScore = (IRT_CURVE.c + (1 - IRT_CURVE.c) / (1 + Math.exp(-(IRT_CURVE.a + IRT_CURVE.b * (IRT_PASS_LINE - 500) / 100)))) * 100;
+  return {
+    irt: Math.round(irtFromScore(score / 100)),
+    lo: Math.round(irtFromScore((score - 1.2816 * sd) / 100)),  // 80% interval
+    hi: Math.round(irtFromScore((score + 1.2816 * sd) / 100)),
+    score, fresh, n, useRecent, transfer,
+    pPass: normCdf((score - passScore) / sd),
+  };
 }
 function irtStage(irt) {
   if (irt < 300) return 1;
@@ -6277,14 +6317,12 @@ function deleteMock(idx) {
 }
 
 function renderAnalytics() {
-  // Use current ability (round 2/3 included), not round-1 only accuracy
-  const qbTotals = BANK_TOTALS.qb;
-  const acc = qbTotals.curDone > 0 ? (qbTotals.curOk / qbTotals.curDone * 100) : 0;
   const target = getIrtTarget();
   const mocks = getMocks();
 
   // ── IRT推定 ──
-  const estIrt = state.r1 > 0 ? estimateIRT(acc) : null;
+  const est = estimateIRT();
+  const estIrt = est ? est.irt : null;
   const irtEstEl = document.getElementById('irtEst');
   if (irtEstEl) {
     if (estIrt != null) {
@@ -6311,14 +6349,17 @@ function renderAnalytics() {
     gauge.appendChild(pl);
     // メモ
     const latestMock = mocks.length ? mocks[mocks.length-1].score : null;
-    // IRT_ANCHORS is a rule-of-thumb mapping, not an official conversion (real IRT weights item difficulty/discrimination)
-    let note = `⚠️ QBの「今の実力」正答率 ${acc.toFixed(1)}%（2周目以降を反映）を経験則の換算表に当てはめた<strong>ざっくり目安</strong>です。公式の換算はなく、本番IRTは問題の難しさ・識別力で決まります。模試の結果の方が信頼できます。`;
-    if (estIrt != null) {
+    let note = '';
+    if (est) {
+      note += `80%の確率で <strong>IRT ${est.lo}〜${est.hi}</strong>（本番得点率 約${est.score.toFixed(0)}%）`;
+      note += `<br>内訳：初見正答率 ${est.fresh.toFixed(1)}%（${est.useRecent ? `直近${IRT_FRESH_DAYS}日の1周目 ` : '1周目 '}${est.n}問）＋ 2周目の伸びの転移 ${est.transfer.toFixed(1)} ＋ QB→本番の難易度差 ${IRT_QB_TO_REAL}`;
       const passGap = estIrt - IRT_PASS_LINE;
       note += `<br>🎯 合格基準 IRT ${IRT_PASS_LINE}：` + (passGap >= 0
         ? `<strong style="color:var(--green-ink);">+${passGap}</strong> 上回っています`
-        : `<strong style="color:var(--red-ink);">あと${-passGap}</strong>`);
+        : `<strong style="color:var(--red-ink);">あと${-passGap}</strong>`)
+        + `（合格確率 約${Math.round(est.pPass * 100)}%）`;
     }
+    note += `<br>⚠️ 公式の換算表はありません。機構の公表値（2025年度 平均得点率76.5%・平均IRT519、基準未達6.6%）と合格体験記の実測値に合わせた推定です。模試の結果の方が信頼できます。`;
     if (latestMock != null) note += `<br>📝 最新の模試: <strong style="color:${STAGE_COLOR[irtStage(latestMock)]};">IRT ${latestMock}（段階${irtStage(latestMock)}）</strong>`;
     if (estIrt != null) {
       const gap = target - estIrt;
