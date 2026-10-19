@@ -784,6 +784,11 @@ body.sprint .sprint-hide{display:none !important;}
   position:absolute;top:-3px;width:0;height:20px;
   border-left:2px dashed #fff;transition:left 0.6s;
 }
+.irt-table{width:100%;border-collapse:collapse;font-size:11px;font-family:'JetBrains Mono',monospace;}
+.irt-table th{font-size:9px;color:var(--dim);font-weight:700;text-align:right;padding:4px 6px;border-bottom:1px solid var(--border);font-family:'Outfit',sans-serif;}
+.irt-table td{text-align:right;padding:5px 6px;border-bottom:1px solid var(--border);}
+.irt-table th:first-child,.irt-table td:first-child{text-align:left;}
+.irt-table tr.now td{background:rgba(127,127,127,.12);font-weight:800;}
 .irt-gauge-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--dim);margin-top:3px;font-family:'JetBrains Mono',monospace;}
 
 /* 模試/ランキング行 */
@@ -1716,6 +1721,9 @@ body.bank-orig .qb-only{display:none !important;}
       <div class="irt-gauge" id="irtGauge"></div>
       <div class="irt-gauge-labels"><span>300</span><span>400</span><span>500</span><span>600</span><span>700</span></div>
       <div id="irtNote" style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.6;"></div>
+      <!-- 換算カーブ・換算表（初見正答率を上げるとIRTがどう伸びるか） -->
+      <div id="irtCurve" style="margin-top:12px;"></div>
+      <div id="irtTable" style="margin-top:8px;"></div>
     </div>
 
     <!-- 模試スコア記録 -->
@@ -6235,6 +6243,10 @@ function irtFromScore(p) {
   const q = (Math.min(0.995, Math.max(c + 0.01, p)) - c) / (1 - c);
   return 500 + 100 * (Math.log(q / (1 - q)) - a) / b;
 }
+function scoreFromIrt(irt) {
+  const { c, a, b } = IRT_CURVE;
+  return c + (1 - c) / (1 + Math.exp(-(a + b * (irt - 500) / 100)));
+}
 // ① 初見正答率は記憶の影響がない1周目で測る（直近90日に1周目を解いた章、少なければ全章）
 const IRT_FRESH_DAYS = 90;
 const IRT_TRANSFER = 0.45;  // share of the round-2 gain on the same questions that carries over to new ones
@@ -6265,12 +6277,12 @@ function estimateIRT() {
   // Uncertainty (pct points): sampling of fresh accuracy, transfer, QB->real offset, exam-day form, curve residual
   const seFresh = Math.sqrt(fresh * (100 - fresh) / n);
   const sd = Math.sqrt(seFresh ** 2 + 1.5 ** 2 + 2 ** 2 + 2.5 ** 2 + 1.1 ** 2);
-  const passScore = (IRT_CURVE.c + (1 - IRT_CURVE.c) / (1 + Math.exp(-(IRT_CURVE.a + IRT_CURVE.b * (IRT_PASS_LINE - 500) / 100)))) * 100;
+  const passScore = scoreFromIrt(IRT_PASS_LINE) * 100;
   return {
     irt: Math.round(irtFromScore(score / 100)),
     lo: Math.round(irtFromScore((score - 1.2816 * sd) / 100)),  // 80% interval
     hi: Math.round(irtFromScore((score + 1.2816 * sd) / 100)),
-    score, fresh, n, useRecent, transfer,
+    score, fresh, n, useRecent, transfer, sd,
     pPass: normCdf((score - passScore) / sd),
   };
 }
@@ -6314,6 +6326,67 @@ function deleteMock(idx) {
   mocks.splice(idx, 1);
   localStorage.setItem('cbt_mocks', JSON.stringify(mocks));
   renderAnalytics();
+}
+
+// 初見正答率 → IRT の換算カーブ（80%予測幅つき）と、正答率を上げたときの換算表
+function renderIrtCurve(est, target) {
+  const curveEl = document.getElementById('irtCurve'), tableEl = document.getElementById('irtTable');
+  if (!curveEl || !tableEl) return;
+  if (!est) { curveEl.innerHTML = ''; tableEl.innerHTML = ''; return; }
+  // Same model as estimateIRT, with the current transfer gain held fixed
+  const toScore = f => f + est.transfer + IRT_QB_TO_REAL;
+  const irtAt = (f, k = 0) => irtFromScore((toScore(f) + k * 1.2816 * est.sd) / 100);
+  const freshFor = irt => scoreFromIrt(irt) * 100 - est.transfer - IRT_QB_TO_REAL;
+
+  const X0 = 45, X1 = 85, Y0 = 300, Y1 = 800;
+  const W = 300, H = 170, L = 30, R = 8, T = 8, B = 22;
+  const xs = f => L + (f - X0) / (X1 - X0) * (W - L - R);
+  const ys = v => T + (1 - (Math.max(Y0, Math.min(Y1, v)) - Y0) / (Y1 - Y0)) * (H - T - B);
+  const pts = k => { const a = []; for (let f = X0; f <= X1 + 1e-9; f += 0.5) a.push([xs(f), ys(irtAt(f, k))]); return a; };
+  const line = a => a.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const hi = pts(1), lo = pts(-1);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;overflow:visible;font-family:'JetBrains Mono',monospace;">`;
+  for (let v = Y0; v <= Y1; v += 100) {
+    svg += `<line x1="${L}" y1="${ys(v)}" x2="${W - R}" y2="${ys(v)}" stroke="var(--border)" stroke-width="1"/>`;
+    svg += `<text x="${L - 4}" y="${ys(v) + 3}" font-size="8" fill="var(--dim)" text-anchor="end">${v}</text>`;
+  }
+  for (let f = 50; f <= X1; f += 10) svg += `<text x="${xs(f)}" y="${H - 8}" font-size="8" fill="var(--dim)" text-anchor="middle">${f}%</text>`;
+  // 80% band + curve
+  svg += `<path d="${line(hi)} ${line([...lo].reverse()).replace('M', 'L')} Z" fill="var(--blue)" opacity="0.13"/>`;
+  svg += `<path d="${line(pts(0))}" fill="none" stroke="var(--blue)" stroke-width="2.2" stroke-linejoin="round"/>`;
+  // Pass line and target
+  svg += `<line x1="${L}" y1="${ys(IRT_PASS_LINE)}" x2="${W - R}" y2="${ys(IRT_PASS_LINE)}" stroke="var(--red)" stroke-width="1" stroke-dasharray="3,3"/>`;
+  svg += `<text x="${W - R}" y="${ys(IRT_PASS_LINE) + 10}" font-size="8" fill="var(--red)" text-anchor="end">合格 ${IRT_PASS_LINE}</text>`;
+  svg += `<line x1="${L}" y1="${ys(target)}" x2="${W - R}" y2="${ys(target)}" stroke="var(--teal)" stroke-width="1" stroke-dasharray="5,3"/>`;
+  svg += `<text x="${W - R}" y="${ys(target) - 3}" font-size="8" fill="var(--teal)" text-anchor="end">目標 ${target}</text>`;
+  // Current position
+  const cx = xs(Math.max(X0, Math.min(X1, est.fresh))), cy = ys(est.irt);
+  svg += `<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${H - B}" stroke="var(--text)" stroke-width="1" stroke-dasharray="2,2" opacity="0.5"/>`;
+  svg += `<circle cx="${cx}" cy="${cy}" r="4.5" fill="var(--text)" stroke="var(--blue)" stroke-width="2"/>`;
+  svg += `<text x="${cx + 7}" y="${cy + 12}" font-size="9" font-weight="800" fill="var(--text)">今 ${est.irt}</text>`;
+  svg += '</svg>';
+  curveEl.innerHTML = `<div style="font-size:11px;font-weight:700;margin-bottom:4px;">📈 初見正答率を上げるとIRTはこう伸びる</div>` + svg
+    + `<div style="font-size:9px;color:var(--dim);margin-top:2px;">横軸：QBの初見正答率（1周目）　帯：80%予測幅</div>`;
+
+  // Table: current fresh accuracy and +2..+12 points
+  let rows = '';
+  for (const d of [0, 2, 4, 6, 8, 10, 12]) {
+    const f = est.fresh + d; if (f > 95) break;
+    const v = d === 0 ? est.irt : Math.round(irtAt(f)), stg = irtStage(v), gain = v - est.irt;
+    rows += `<tr class="${d === 0 ? 'now' : ''}"><td>${d === 0 ? '今 ' : '+' + d + '% '}<span style="color:var(--dim);">${f.toFixed(1)}%</span></td>`
+      + `<td style="color:var(--dim);">${toScore(f).toFixed(0)}%</td>`
+      + `<td style="color:${STAGE_COLOR[stg]};font-weight:800;">${v}</td>`
+      + `<td style="color:${gain > 0 ? 'var(--green)' : 'var(--dim)'};">${gain > 0 ? '+' + gain : '—'}</td>`
+      + `<td>${v >= target ? '🎯' : v >= IRT_PASS_LINE ? '✅' : ''}</td></tr>`;
+  }
+  let msg = '';
+  const need = freshFor(target) - est.fresh;
+  if (need > 0) msg = `🎯 目標 IRT ${target} まで：初見正答率を<strong style="color:var(--orange);">あと +${need.toFixed(1)}%</strong>（${freshFor(target).toFixed(1)}%）`;
+  else msg = `<strong style="color:var(--green);">✅ 目標 IRT ${target} の水準に到達しています</strong>`;
+  const per1 = Math.round(irtAt(est.fresh + 1) - est.irt);
+  msg += `<br>今の位置では、初見正答率 +1% ≒ IRT <strong>+${per1}</strong>`;
+  tableEl.innerHTML = `<table class="irt-table"><tr><th>初見正答率</th><th>本番得点率</th><th>IRT</th><th>伸び</th><th></th></tr>${rows}</table>`
+    + `<div style="font-size:10px;color:var(--dim);margin-top:6px;line-height:1.6;">${msg}</div>`;
 }
 
 function renderAnalytics() {
@@ -6366,6 +6439,7 @@ function renderAnalytics() {
       note += gap > 0 ? `<br>目標まで <strong style="color:var(--orange);">あと約${gap}</strong>（正答率を上げよう）` : `<br><strong style="color:var(--green);">✅ 目標到達ペース！</strong>`;
     }
     document.getElementById('irtNote').innerHTML = note;
+    renderIrtCurve(est, target);
   }
 
   // ── 模試スコア推移＋一覧 ──
