@@ -6256,7 +6256,7 @@ function scoreFromIrt(irt) {
   return c + (1 - c) / (1 + Math.exp(-(a + b * (irt - 500) / 100)));
 }
 // ① 初見正答率は記憶の影響がない1周目で測る（全期間・全章。本番は全科目から出るため）
-const IRT_TRANSFER = 0.45;  // share of the round-2 gain on the same questions that carries over to new ones
+const IRT_TRANSFER = 0.75;  // share of the re-solve gain that carries over to the real exam (reported case: QB 62%→80%, real IRT 535 ⇒ 0.7–0.8)
 const IRT_QB_TO_REAL = 3.5; // QB/mock questions are harder than the real exam (+3.5 points on average)
 function normCdf(z) {
   // Abramowitz–Stegun 7.1.26
@@ -6424,10 +6424,12 @@ function renderIrtCurve(est, target) {
   }
   let msg = '';
   const need = freshFor(target) - est.fresh;
-  if (need > 0) msg = `🎯 目標 IRT ${target} まで：初見正答率を<strong style="color:var(--orange);">あと +${need.toFixed(1)}%</strong>（${freshFor(target).toFixed(1)}%）`;
+  if (need > 0) msg = `🎯 目標 IRT ${target} まで：初見正答率を<strong style="color:var(--orange);">あと +${need.toFixed(1)}%</strong>（${freshFor(target).toFixed(1)}%）`
+    + `、または解き直しで今の正答率を<strong style="color:var(--orange);">あと +${(need / IRT_TRANSFER).toFixed(1)}%</strong>（${(est.nowAcc + need / IRT_TRANSFER).toFixed(1)}%）`;
   else msg = `<strong style="color:var(--green);">✅ 目標 IRT ${target} の水準に到達しています</strong>`;
   const per1 = Math.round(irtAt(est.fresh + 1) - est.irt);
-  msg += `<br>今の位置では、初見正答率 +1% ≒ IRT <strong>+${per1}</strong>`;
+  const perRe = Math.round(irtFromScore((est.score + IRT_TRANSFER) / 100) - est.irt);
+  msg += `<br>今の位置では、初見正答率 +1% ≒ IRT <strong>+${per1}</strong>／解き直しで今の正答率 +1% ≒ IRT <strong>+${perRe}</strong>`;
   tableEl.innerHTML = `<table class="irt-table"><tr><th>初見正答率</th><th>本番得点率</th><th>IRT</th><th>伸び</th><th></th></tr>${rows}</table>`
     + `<div style="font-size:10px;color:var(--dim);margin-top:6px;line-height:1.6;">${msg}</div>`;
 }
