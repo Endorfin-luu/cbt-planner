@@ -2537,6 +2537,10 @@ async function tryCloudRecover() {
         if (currentBank === 'qb') state.subject_status = BANK_SUBJ.qb;
       }
       if (data.misc) applyMisc(data.misc);
+      // Original/モントレも取り込んだ値に差し替える（古いメモリ上の値で次の保存時に上書きしないように）
+      try { BANK_SUBJ.orig  = JSON.parse(localStorage.getItem('cbt_subj_orig')  || '{}'); } catch(e) {}
+      try { BANK_SUBJ.monte = JSON.parse(localStorage.getItem('cbt_subj_monte') || '{}'); } catch(e) {}
+      if (currentBank !== 'qb') state.subject_status = BANK_SUBJ[currentBank];
       recomputeBank('qb'); recomputeBank('orig'); recomputeBank('monte');
       updateAll(); initChapterSelect(); renderSubjects();
       showToast('☁️ クラウドから最新データを復元しました');
@@ -2719,7 +2723,7 @@ function getFrozenDates() {
 
 // ── カウントダウン ──
 function updateCountdown() {
-  const d = Math.ceil((CBT - TODAY) / 86400000);
+  const d = Math.max(0, Math.ceil((CBT - TODAY) / 86400000));   // CBT後にマイナス表示にならないように
   document.getElementById('dLeft').textContent = d;
   // 今日の日付を表示（例: 6/3(火)）
   const days = ['日','月','火','水','木','金','土'];
@@ -2741,6 +2745,7 @@ function refreshDate() {
   // 全UIを再計算（ターゲット・カウントダウン・ストリーク・試験日数など）
   updateCountdown();
   updateAll();
+  setRecordDate(recordDate);   // 日付ピッカーの上限・「今日の記録」一覧を新しい日付に合わせる
   showToast('📅 日付が変わりました。今日も頑張ろう！');
 }
 
@@ -3120,6 +3125,11 @@ function addToday() {
     showToast(`先に ${_guardCh.id} の${ROUND_META[selectedRound - 1].label}を終わらせてね`);
     return;
   }
+  // 終わっている周回には記録できない（全部が切り捨てになり、記録0問のログだけが残るため）
+  if (_guardCh && roundDone(_guardCh.id, selectedRound) >= roundTarget(_guardCh, selectedRound)) {
+    showToast(`${_guardCh.id} の${ROUND_META[selectedRound].label}はもう終わっています。次の周回を選んでね`);
+    return;
+  }
 
   _overflow = 0;
   const RDATE = getRecordDate();     // 記録先の日付（過去日にも記録できる）
@@ -3142,8 +3152,8 @@ function addToday() {
   const round = selectedRound;                  // 記録対象の周回（1/2/3）
   const meta  = ROUND_META[round];
   const added = todayStep;                       // 今日の努力量
-  const wrongToday   = Math.min(todayWrong, added);
-  const correctToday = added - wrongToday;
+  let wrongToday   = Math.min(todayWrong, added);
+  let correctToday = added - wrongToday;
 
   // 選択中の章に、選択中の周回として記録（目標問題数でキャップ）
   const ch = CHAPTERS.find(c => c.id === selectedChapter);
@@ -3161,10 +3171,16 @@ function addToday() {
     st[corrKey] = (st[corrKey] || 0) + chapterCorrect;
     // 周回の内訳：回収数（前周回で間違えた問題のうち、今回正解した数）を集計
     if (round >= 2) {
-      // 2周目以降は任意入力（今回の正解数を超えない範囲で加算）
-      const recAdd = Math.min(Math.max(0, todayRec), chapterCorrect);
+      // 2周目以降は任意入力（今回の正解数と、前の周回の誤答のうち未回収の数を超えない範囲で加算）
+      const pm = ROUND_META[round - 1];
+      const prevWrong = Math.max(0, (st[pm.done] || 0) - (st[pm.correct] || 0));
+      const recLeft = Math.max(0, prevWrong - (st['rec' + round] || 0));
+      const recAdd = Math.min(Math.max(0, todayRec), chapterCorrect, recLeft);
       if (recAdd > 0) st['rec' + round] = (st['rec' + round] || 0) + recAdd;
     }
+    // 章の残りを超えて切り捨てた分は、日別ログ・章別ログにも数えない（「記録されていません」の表示と合わせる）
+    correctToday = chapterCorrect;
+    wrongToday = chapterAdd - chapterCorrect;
     // その周回の完了に到達 → 完了日記録＋祝福
     if (!wasDone && target > 0 && st[doneKey] >= target) {
       st[dateKey] = RDATE;
@@ -3181,25 +3197,26 @@ function addToday() {
     saveSubjectStatus();
   }
 
+  const logged = Math.max(0, added - _overflow);   // 実際に章に記録された数
   // 章別合計から全体r1/okを再集計（真実の源）
   recomputeTotalsFromChapters();
 
   // daily_log に記録（同じ日の分は加算、なければ追加）
   const logIdx = state.daily_log.findIndex(l => l.date === RDATE);
   if (logIdx >= 0) {
-    state.daily_log[logIdx].n  += added;
+    state.daily_log[logIdx].n  += logged;
     state.daily_log[logIdx].ok += correctToday;
   } else {
-    state.daily_log.push({ date: RDATE, n: added, ok: correctToday });
+    state.daily_log.push({ date: RDATE, n: logged, ok: correctToday });
     state.daily_log.sort((a, b) => a.date < b.date ? -1 : 1);   // 過去日を入れても順序を保つ
   }
 
   // streak（後方互換 — 最大60件保持）
   const sIdx = state.streak.findIndex(s => s.date === RDATE);
   if (sIdx >= 0) {
-    state.streak[sIdx].n += added;
+    state.streak[sIdx].n += logged;
   } else {
-    state.streak.push({ date: RDATE, n: added });
+    state.streak.push({ date: RDATE, n: logged });
     state.streak.sort((a, b) => a.date < b.date ? -1 : 1);
     if (state.streak.length > 60) state.streak.shift();
   }
@@ -3210,7 +3227,7 @@ function addToday() {
   const recMinEl = document.getElementById('recMin');
   const manualMin = recMinEl ? parseFloat(recMinEl.value) : NaN;
   const spentMin = manualMin > 0 ? manualMin : Math.round(timerSinceRecord / 60);
-  const logEntry = { d: RDATE, b: currentBank, c: selectedChapter, r: round, n: added, w: wrongToday };
+  const logEntry = { d: RDATE, b: currentBank, c: selectedChapter, r: round, n: logged, w: wrongToday };
   if (spentMin > 0) logEntry.m = Math.round(spentMin * 10) / 10;
   state.chapter_log.push(logEntry);
   timerSinceRecord = 0;
@@ -3242,9 +3259,9 @@ function addToday() {
   scheduleSave();
   updateAll();
   initChapterSelect();  // done数の表示更新＋完了したら次の章へ
-  const accMsg = added > 0 ? `（正答率${(correctToday/added*100).toFixed(0)}%）` : '';
+  const accMsg = logged > 0 ? `（正答率${(correctToday/logged*100).toFixed(0)}%）` : '';
   const dayMsg = isToday ? '' : `【${RDATE.slice(5).replace('-','/')}】`;
-  showToast(`${dayMsg}+${added}問 追加！${accMsg} 🎉`);
+  showToast(`${dayMsg}+${logged}問 追加！${accMsg} 🎉`);
   // 章の残りを超えて入力された分は切り捨てられるので、黙って消さずに知らせる
   if (_overflow > 0) {
     setTimeout(() => showToast(`⚠️ ${_overflow}問は章の残りを超えたため記録されていません`), 1400);
@@ -3451,24 +3468,8 @@ function renderStreak() {
     row.appendChild(div);
   }
 
-  // 連続日数をdaily_logから正確に計算（日付ギャップを検出）
-  let streak = 0;
-  for (let i = 0; ; i++) {
-    const d = new Date(TODAY);
-    d.setDate(d.getDate() - i);
-    const ds = toLocalDateStr(d);
-    const entry = state.daily_log.find(l => l.date === ds)
-                  || state.streak.find(s => s.date === ds);
-    if (entry && entry.n > 0) {
-      streak++;
-    } else if (i === 0) {
-      // 今日まだ記録していない場合は昨日から数える
-      continue;
-    } else {
-      break;
-    }
-    if (streak > 365) break; // 安全ストップ
-  }
+  // 連続日数（バッジ・マイルストーンと同じ計算。🛡フリーズ日も連続として数える）
+  const streak = getStreakCount();
   document.getElementById('streakCount').textContent = streak;
 
   // 最長記録（daily_log全体を走査して連続区間の最大を求める）
@@ -3869,7 +3870,7 @@ function renderAccChart() {
     d.setDate(d.getDate() - i);
     const ds = toLocalDateStr(d);
     const entry = state.daily_log.find(l => l.date === ds);
-    if (entry && entry.n > 0 && entry.ok != null && entry.ok > 0) {
+    if (entry && entry.n > 0 && entry.ok != null) {   // 全問不正解（0%）の日も点として出す
       const acc = entry.ok / entry.n * 100;
       points.push({ idx: 29 - i, acc, ds });
     }
@@ -3917,7 +3918,7 @@ const BADGES = [
   { id:'q100',     icon:'💯', name:'100問突破',       desc:'1周目100問達成',         check:s => s.r1 >= 100 },
   { id:'q500',     icon:'🔥', name:'500問の壁',       desc:'1周目500問達成',         check:s => s.r1 >= 500 },
   { id:'q1000',    icon:'⚡', name:'1000問クラブ',    desc:'1周目1000問達成',        check:s => s.r1 >= 1000 },
-  { id:'half',     icon:'🌗', name:'折り返し地点',     desc:'1周目の半分(1682問)達成', check:s => s.r1 >= Math.floor(QB/2) },
+  { id:'half',     icon:'🌗', name:'折り返し地点',     desc:`1周目の半分(${Math.floor(QB/2)}問)達成`, check:s => s.r1 >= Math.floor(QB/2) },
   { id:'q2500',    icon:'🚀', name:'ラストスパート',   desc:'1周目2500問達成',        check:s => s.r1 >= 2500 },
   { id:'r1done',   icon:'🏆', name:'1周目完走',       desc:'QB1周目を完了',          check:s => s.r1 >= QB },
   { id:'r2start',  icon:'🔁', name:'2周目スタート',    desc:'2周目を開始',            check:s => s.r2 >= 1 },
@@ -4241,6 +4242,7 @@ function renderReviewReminder() {
       localStorage.setItem(curChapterKey(), ch.id);
       const sel = document.getElementById('chapterSelect');
       if (sel) sel.value = ch.id;
+      updateRoundTargetHint();
       showToast(`${ch.id} を記録対象にセット`);
     });
     const btn = document.createElement('button');
@@ -4934,14 +4936,16 @@ function roundStats(id) {
     const done = roundDone(id, r);
     if (done <= 0) continue;
     const correct = roundCorrect(id, r);
-    out.rounds.push({ r, done, correct, wrong: done - correct, acc: correct / done * 100 });
+    out.rounds.push({ r, done, correct, wrong: done - correct, acc: correct / done * 100, partial: done < ch.n });
   }
   const c1 = Math.min(st.correct || 0, ch.n), d1 = Math.min(st.done || 0, ch.n), w1 = Math.max(0, d1 - c1);
   const c2 = Math.min(st.correct2 || 0, ch.n), d2 = Math.min(st.done2 || 0, ch.n), w2 = Math.max(0, d2 - c2);
+  // 伸び = 1周目 → 最新の周回（3・4周目に着手していればそこまで）
+  const first = out.rounds[0], latest = out.rounds[out.rounds.length - 1];
+  if (first && first.r === 1 && latest.r > 1) { out.improvement = latest.acc - first.acc; out.latestRound = latest.r; }
   if (d1 > 0 && d2 > 0) {
     out.acc1 = c1 / d1 * 100;
     out.acc2 = c2 / d2 * 100;
-    out.improvement = out.acc2 - out.acc1;
     out.recoverableTotal = w1;                       // 回収対象（1周目で間違えた数）
     if (st.rec2 != null) { out.recovered = Math.min(st.rec2, w1); out.recExact = true; }
     else { out.recovered = Math.max(0, w1 - w2); out.recExact = false; } // 推定：誤答が減った数
@@ -5203,10 +5207,19 @@ function renderRoundAnalysis() {
 
   // 全体サマリー：1周目の誤答を2周目で何問つぶしたか／平均の伸び
   let totalRecover = 0, totalRecoverable = 0, impSum = 0, impCnt = 0, anyEstimate = false;
+  const laterSum = {};   // 3周目以降の回収の合計（周回ごと）
   for (const s of targets) {
     if (s.recovered != null) { totalRecover += s.recovered; totalRecoverable += s.recoverableTotal; if (!s.recExact) anyEstimate = true; }
     if (s.improvement != null) { impSum += s.improvement; impCnt++; }
+    for (const x of s.laterRecs) {
+      const a = laterSum[x.r] || (laterSum[x.r] = { rec: 0, total: 0, est: false });
+      a.rec += x.rec; a.total += x.total; if (!x.exact) a.est = true;
+    }
   }
+  const laterNote = Object.keys(laterSum).map(r => {
+    const a = laterSum[r];
+    return `${ROUND_META[r].label}は前の周回の誤答 ${a.total}問のうち ${a.rec}問を回収${a.est ? '（推定）' : ''}`;
+  }).join('、');
   const avgImp = impCnt > 0 ? impSum / impCnt : 0;
   const recRate = totalRecoverable > 0 ? (totalRecover / totalRecoverable * 100) : 0;
 
@@ -5222,18 +5235,23 @@ function renderRoundAnalysis() {
       </div>
       <div class="ra-sum-box">
         <div class="ra-sum-v" style="color:${avgImp >= 0 ? 'var(--blue)' : 'var(--red)'}">${avgImp >= 0 ? '+' : ''}${avgImp.toFixed(0)}<span class="ra-sum-u">pt</span></div>
-        <div class="ra-sum-l">平均の伸び</div>
+        <div class="ra-sum-l">平均の伸び（1周目→最新）</div>
       </div>
     </div>
-    <div class="ra-note">1周目で間違えた問題を、2周目でどれだけ正解に変えられたか</div>`;
+    <div class="ra-note">回収＝1周目で間違えた問題を、2周目でどれだけ正解に変えられたか${laterNote ? `<br>${laterNote}` : ''}</div>`;
 
-  // 章ごとの内訳
+  // 章ごとの内訳（矢印の上は前の周回からの増減、途中の周回は解いた数も表示）
   for (const s of targets) {
-    const accChips = s.rounds.map(r =>
-      `<span class="ra-acc r${r.r}">${ROUND_META[r.r].icon}${r.acc.toFixed(0)}%</span>`
-    ).join('<span class="ra-arrow">→</span>');
+    const accChips = s.rounds.map((r, i) => {
+      const prev = s.rounds[i - 1];
+      const d = prev ? r.acc - prev.acc : 0;
+      const arrow = prev
+        ? `<span class="ra-arrow">→<span style="color:${d >= 0 ? 'var(--green)' : 'var(--red)'};font-size:9px;">${d >= 0 ? '+' : ''}${d.toFixed(0)}</span></span>`
+        : '';
+      return `${arrow}<span class="ra-acc r${r.r}">${ROUND_META[r.r].icon}${r.acc.toFixed(0)}%${r.partial ? `<span style="font-size:8.5px;font-weight:600;opacity:0.8;">（${r.done}問）</span>` : ''}</span>`;
+    }).join('');
     const imp = s.improvement != null
-      ? `<span class="ra-imp" style="color:${s.improvement >= 0 ? 'var(--green)' : 'var(--red)'}">${s.improvement >= 0 ? '▲' : '▼'}${Math.abs(s.improvement).toFixed(0)}pt</span>`
+      ? `<span class="ra-imp" style="color:${s.improvement >= 0 ? 'var(--green)' : 'var(--red)'}" title="1周目→${ROUND_META[s.latestRound].label}">${s.improvement >= 0 ? '▲' : '▼'}${Math.abs(s.improvement).toFixed(0)}pt<span style="font-size:8.5px;color:var(--dim);font-weight:600;">（①→${ROUND_META[s.latestRound].icon}）</span></span>`
       : '';
     let detail = '';
     if (s.recovered != null) {
@@ -5974,7 +5992,8 @@ if ('serviceWorker' in navigator) {
 }
 
 // ── データのバックアップ（エクスポート/インポート） ──
-const BACKUP_KEYS = ['cbt_subj','cbt_subj_orig','cbt_subj_monte','cbt_cur_bank','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter_qb','cbt_cur_chapter_orig','cbt_cur_chapter_monte','cbt_week_seen','cbt_mocks','cbt_irt_target','cbt_home_prefs'];
+// クラウド同期する設定（MISC_KEYS）は全部含める（直前期の勉強時間・速さなどが復元で消えないように）
+const BACKUP_KEYS = [...new Set(['cbt_subj','cbt_cur_bank','cbt_theme','cbt_cur_chapter_qb','cbt_cur_chapter_orig','cbt_cur_chapter_monte', ...MISC_KEYS])];
 
 function exportData() {
   const ls = {};
@@ -6528,7 +6547,9 @@ function renderAnalytics() {
   const bp = document.getElementById('blockProgress');
   if (bp) {
     bp.innerHTML = '';
-    for (let b = 1; b <= 5; b++) {
+    // 現在の問題集にある分野だけ（モントレは3分野）を、その問題集の分野名で表示
+    const blocks = [...new Set(CHAPTERS.map(c => c.block))].sort();
+    for (const b of blocks) {
       const chs = CHAPTERS.filter(c => c.block === b);
       const total = chs.reduce((s,c)=>s+c.n,0);
       let done = 0; chs.forEach(c => { const st=state.subject_status[c.id]; if(st&&st.done) done += Math.min(st.done,c.n); });
@@ -6536,7 +6557,7 @@ function renderAnalytics() {
       const row = document.createElement('div'); row.style.marginBottom = '8px';
       row.innerHTML = `
         <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
-          <span style="color:${BLOCK_COLORS[b]};font-weight:700;">${BLOCK_NAMES[b]}</span>
+          <span style="color:${BLOCK_COLORS[b]};font-weight:700;">${bankBlockName(b)}</span>
           <span style="font-family:'JetBrains Mono',monospace;color:var(--dim);">${done}/${total}（${pct.toFixed(0)}%）</span>
         </div>
         <div class="pb-bg"><div class="pb-fill" style="width:${pct}%;background:${BLOCK_COLORS[b]};"></div></div>`;
