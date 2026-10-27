@@ -2180,8 +2180,40 @@ const WEEKLY_PLAN = [
   { start:'2026-10-12', chapters:['2R','2X'],            note:'10/23 眼科/放射線科' },
   { start:'2026-10-19', chapters:['2R','2X'],            note:'眼科/放射線 誤答周回' },
   { start:'2026-10-26', chapters:['2V','2W'],            note:'10/30 皮膚科/泌尿器科' },
-  { start:'2026-11-02', chapters:['4A','4B','5A'],       note:'直前期：全誤答の最終確認' },
+  { start:'2026-11-02', chapters:['4B','2C','2J'],       note:'直前期：誤答の解き直し（5Aは余裕があれば）' },
 ];
+
+// ── 直前期の手動計画（10/27に組み直し）──
+// 新規が重い（1問約2.4分）ので、5Aは基本やらず、4Bを11/1までに終わらせて残りは誤答の解き直しに回す。
+// q: その日の目標問題数（誤答の解き直しは、その章の前回の誤答数）。この日付は自動の割り振りより優先する
+const FIXED_PLAN = {
+  '2026-10-27': { memo:'10/30の試験用に2Wを1周', items:[
+    { c:'4B', r:1, q:44, note:'新規' }, { c:'2W', r:2, q:36, note:'10/30試験・全問' } ] },
+  '2026-10-28': { items:[
+    { c:'4B', r:1, q:44, note:'新規' }, { c:'2V', r:3, q:14, note:'10/30試験・誤答' },
+    { c:'2W', r:3, q:14, note:'10/30試験・誤答' }, { c:'3D', r:2, q:50, note:'誤答 前半' } ] },
+  '2026-10-29': { memo:'2V・2Wの最終確認（試験前日）', items:[
+    { c:'4B', r:1, q:40, note:'新規' }, { c:'3D', r:2, q:47, note:'誤答 後半' } ] },
+  '2026-10-30': { memo:'試験のあと', items:[
+    { c:'4B', r:1, q:40, note:'新規' }, { c:'2T', r:2, q:32, note:'誤答' } ] },
+  '2026-10-31': { items:[
+    { c:'4B', r:1, q:52, note:'新規' }, { c:'4A', r:2, q:70, note:'誤答 前半' }, { c:'2H', r:3, q:47, note:'誤答' } ] },
+  '2026-11-01': { memo:'4Bの1周目を完了', items:[
+    { c:'4B', r:1, q:52, note:'新規・ラスト' }, { c:'4A', r:2, q:71, note:'誤答 後半' },
+    { c:'1G', r:3, q:32, note:'誤答' }, { c:'1I', r:3, q:33, note:'誤答' } ] },
+  '2026-11-02': { items:[
+    { c:'4B', r:2, q:170, note:'誤答（約170問）' }, { c:'2C', r:3, q:39, note:'誤答' } ] },
+  '2026-11-03': { memo:'正答率60%台前半の章の誤答', items:[
+    { c:'2J', r:3, q:48, note:'誤答' }, { c:'1F', r:3, q:29, note:'誤答' }, { c:'2A', r:3, q:25, note:'誤答' },
+    { c:'3A', r:3, q:21, note:'誤答' }, { c:'1H', r:3, q:22, note:'誤答' }, { c:'3C', r:3, q:11, note:'誤答' },
+    { c:'2L', r:3, q:9,  note:'誤答' }, { c:'2K', r:3, q:10, note:'誤答' } ] },
+  '2026-11-04': { memo:'余裕があれば5Aを少し', items:[
+    { c:'1E', r:3, q:17, note:'誤答' }, { c:'2P', r:3, q:21, note:'誤答' }, { c:'2R', r:3, q:17, note:'誤答' },
+    { c:'2Q', r:3, q:19, note:'誤答' }, { c:'1J', r:3, q:26, note:'誤答' }, { c:'2N', r:3, q:7,  note:'誤答' },
+    { c:'2B', r:3, q:17, note:'誤答' }, { c:'3B', r:3, q:19, note:'誤答' }, { c:'2D', r:3, q:18, note:'誤答' } ] },
+  '2026-11-05': { memo:'2回以上間違えた問題・公衆衛生の数値と法規だけ。早く寝る', items:[
+    { c:'3D', r:3, q:35, note:'誤答の誤答' } ] },
+};
 
 const CBT = ymd('2026-11-06');
 
@@ -2823,6 +2855,9 @@ function pickDefaultChapter() {
     for (const ch of CHAPTERS) if (!isChapterDone(ch.id)) return ch.id;
     return CHAPTERS[0].id;
   }
+  // 手動計画の今日の分から、まだ周回が終わっていない章
+  const fixed = FIXED_PLAN[TODAY_STR];
+  if (fixed) for (const it of fixed.items) if (!isChapterDone(it.c)) return it.c;
   // 今週の計画から未完了を探す
   for (let i = 0; i < WEEKLY_PLAN.length; i++) {
     const start = ymd(WEEKLY_PLAN[i].start);
@@ -4530,6 +4565,24 @@ function sprintPlan() {
     let minutes = day.hours * 60;
     if (day.ds === TODAY_STR) minutes = Math.max(0, minutes - usedToday);
     day.cap = minutes;
+    const fixed = FIXED_PLAN[day.ds];
+    if (fixed) {
+      // 手動計画の日：決めた章・問題数をそのまま入れる（今日の分は、今日すでに記録した分を引く）
+      day.fixed = true; day.memo = fixed.memo || '';
+      for (const f of fixed.items) {
+        const s = sim[f.c];
+        if (!s) continue;
+        const logged = day.ds === TODAY_STR ? todayLog.filter(e => e.c === f.c && e.r === f.r).reduce((a, e) => a + (e.n || 0), 0) : 0;
+        const q = Math.max(0, Math.min(f.q - logged, s.ch.n - s.done[f.r]));
+        if (q <= 0) continue;
+        const perQ = 60 / speedFor(s.ch.block, f.r, ms).v;
+        day.alloc.push({ ch: s.ch, r: f.r, q, min: q * perQ, perQ, left: q, fixed: f.note, plan: s.pl, acc: s.pl.acc,
+                         belowMin: false, stale: false, examSoon: null, partial: s.done[f.r] > 0 });
+        s.done[f.r] += q; s.last = day.ds;
+        day.q += q; day.min += q * perQ;
+      }
+      continue;
+    }
     // 1章に使うのはその日の約4割まで（最低45分）→ 1日に数章を混ぜる（vol1〜3とvol4・5を交互に）
     const chunk = Math.max(45, day.cap * 0.4);
     const usedCh = new Set();
@@ -4629,7 +4682,10 @@ function renderSprint() {
     box('🛟 必須', plan.remNeed, plan.leftNeed, plan.leftNeed > 0);
 
   const v = document.getElementById('spVerdict');
-  if (plan.remWant === 0 && plan.touchLeft === 0) {
+  if (plan.cal.some(d => d.fixed)) {
+    v.style.color = 'var(--blue)';
+    v.textContent = '📌 10/27に組み直した計画で表示中：4Bは11/1までに1周、5Aは余裕があれば。残りは誤答の解き直し（正答率の低い章から）';
+  } else if (plan.remWant === 0 && plan.touchLeft === 0) {
     v.style.color = 'var(--green-ink)'; v.textContent = '🎉 推奨の周回も記憶キープもすべて完了！苦手章の見直しと模試へ';
   } else if (plan.leftNeed > 0) {
     v.style.color = 'var(--red-ink)';
@@ -4678,7 +4734,8 @@ function renderSprint() {
       if (x.examSoon) why.push(`試験「${x.examSoon.name}」まで${Math.round((ymd(x.examSoon.ds) - TODAY) / 86400000)}日`);
       const t = ROUND_TIERS[x.plan.tier];
       const lt = qbLastTouch(x.ch.id);
-      if (x.touch) why.push(`🧊記憶キープ（最後: ${lt ? mdLabel(lt) : 'なし'}）`);
+      if (x.fixed) why.push(`📌${x.fixed}`);
+      else if (x.touch) why.push(`🧊記憶キープ（最後: ${lt ? mdLabel(lt) : 'なし'}）`);
       else {
         why.push(`${t.icon}${x.belowMin ? '必須' : '推奨'} あと${fmtLaps(x.belowMin ? x.plan.lapsNeed : x.plan.lapsWant)}周`);
         if (x.stale) why.push('🧊期間内に未接触');
@@ -4702,7 +4759,8 @@ function renderSprint() {
     const head = `<div class="cal-head"><b>${d.date.getMonth() + 1}/${d.date.getDate()}(${youbi[d.date.getDay()]})</b>` +
       `${d.ds === TODAY_STR ? '<span class="cal-tag today">今日</span>' : ''}${d.window ? '<span class="cal-tag win">🧊</span>' : ''}` +
       `<span class="cal-sum">${d.off ? '休み' : `${d.hours}h · ${d.q}問${d.ds === TODAY_STR && plan.solvedToday ? `（済${plan.solvedToday}問）` : ''}`}</span></div>` +
-      (d.note ? `<div class="cal-note">${d.events.map(e => ({ class: '🏫', work: '💼', lab: '🔬', exam: '📝' })[e.t] + e.name + ' ' + e.s + '-' + e.e).join('　')}</div>` : '');
+      (d.note ? `<div class="cal-note">${d.events.map(e => ({ class: '🏫', work: '💼', lab: '🔬', exam: '📝' })[e.t] + e.name + ' ' + e.s + '-' + e.e).join('　')}</div>` : '') +
+      (d.memo ? `<div class="cal-note">📌 ${d.memo}</div>` : '');
     const chips = d.alloc.map(a => {
       const c = BLOCK_COLORS[a.ch.block];
       return `<span class="cal-chip" style="border-color:${c}"><b style="color:${c}">${a.ch.id}</b>${ROUND_META[a.r].icon}${a.reviewOnly ? '見直し' : a.q}${a.touch ? '🧊' : ''}</span>`;
