@@ -2180,8 +2180,34 @@ const WEEKLY_PLAN = [
   { start:'2026-10-12', chapters:['2R','2X'],            note:'10/23 眼科/放射線科' },
   { start:'2026-10-19', chapters:['2R','2X'],            note:'眼科/放射線 誤答周回' },
   { start:'2026-10-26', chapters:['2V','2W'],            note:'10/30 皮膚科/泌尿器科' },
-  { start:'2026-11-02', chapters:['4A','4B','5A'],       note:'直前期：全誤答の最終確認' },
+  { start:'2026-11-02', chapters:['4B','5A','4A'],       note:'直前期：4B・5Aの1周目と誤答の解き直し' },
 ];
+
+// ── 直前期の手動計画（10/30に組み直し：研究室なし・予定は11/4のカテキョだけ）──
+// 4Bを11/2までに、5Aを11/3までに1周。残りは誤答の解き直し（正答率の低い章から）。11/5は軽め
+// q: その日の目標問題数（誤答の解き直しは、その章の前回の誤答数）。この日付は自動の割り振りより優先する
+const wrongOf = (c, r, q) => ({ c, r, q, note:'誤答' });
+const FIXED_PLAN = {
+  '2026-10-30': { memo:'3D②は済。夜は4Bだけ', items:[
+    { c:'4B', r:1, q:40, note:'新規' } ] },
+  '2026-10-31': { items:[
+    { c:'4B', r:1, q:80, note:'新規' }, { c:'4A', r:2, q:141, note:'誤答 全部' },
+    wrongOf('1I', 3, 33), wrongOf('1G', 3, 32), wrongOf('1F', 3, 29) ] },
+  '2026-11-01': { items:[
+    { c:'4B', r:1, q:80, note:'新規' }, wrongOf('2H', 3, 47), wrongOf('2C', 3, 39), wrongOf('2J', 3, 48), wrongOf('2A', 3, 25),
+    wrongOf('2L', 3, 9), wrongOf('2K', 3, 10), wrongOf('3A', 3, 21), wrongOf('1H', 3, 22), wrongOf('3C', 3, 11) ] },
+  '2026-11-02': { memo:'4Bの1周目を完了', items:[
+    { c:'4B', r:1, q:64, note:'新規・ラスト' }, { c:'5A', r:1, q:80, note:'新規 前半' },
+    wrongOf('1E', 3, 17), wrongOf('2P', 3, 21), wrongOf('2R', 3, 17), wrongOf('2Q', 3, 19), wrongOf('1J', 3, 26), wrongOf('2N', 3, 7), wrongOf('2B', 3, 17) ] },
+  '2026-11-03': { memo:'5Aの1周目を完了', items:[
+    { c:'5A', r:1, q:80, note:'新規 後半' }, { c:'4B', r:2, q:170, note:'誤答（約170問）' },
+    wrongOf('3B', 3, 19), wrongOf('2D', 3, 18), wrongOf('2O', 3, 20) ] },
+  '2026-11-04': { memo:'カテキョ 18-21', items:[
+    { c:'5A', r:2, q:56, note:'誤答（約56問）' }, wrongOf('3D', 3, 53), wrongOf('2E', 3, 15), wrongOf('2G', 3, 14), wrongOf('1D', 4, 21),
+    wrongOf('2V', 3, 14), wrongOf('2M', 3, 7), wrongOf('2I', 3, 15), wrongOf('2T', 3, 17), wrongOf('2S', 3, 12), wrongOf('2F', 3, 12), wrongOf('2X', 3, 9) ] },
+  '2026-11-05': { memo:'2回以上間違えた問題・公衆衛生の数値と法規だけ。早く寝る', items:[
+    { c:'4A', r:3, q:55, note:'誤答の誤答（約55問）' } ] },
+};
 
 const CBT = ymd('2026-11-06');
 
@@ -2823,6 +2849,9 @@ function pickDefaultChapter() {
     for (const ch of CHAPTERS) if (!isChapterDone(ch.id)) return ch.id;
     return CHAPTERS[0].id;
   }
+  // 手動計画の今日の分から、まだ周回が終わっていない章
+  const fixed = FIXED_PLAN[TODAY_STR];
+  if (fixed) for (const it of fixed.items) if (!isChapterDone(it.c)) return it.c;
   // 今週の計画から未完了を探す
   for (let i = 0; i < WEEKLY_PLAN.length; i++) {
     const start = ymd(WEEKLY_PLAN[i].start);
@@ -4348,9 +4377,8 @@ const SCHEDULE = {
                  { t: 'class', s: 13, e: 16, name: '感染制御', place: 'univ' }],
   '2026-10-29': [{ t: 'class', s: 9,  e: 12, name: '感染制御', place: 'univ' },
                  { t: 'class', s: 15, e: 16, name: '病理実習', place: 'univ' }],
-  '2026-10-30': [{ t: 'exam',  s: 9,  e: 12, name: '皮膚科・泌尿器科試験', place: 'univ' },
-                 { t: 'class', s: 13, e: 16, name: '感染制御', place: 'univ' }],
-  '2026-11-03': [{ t: 'work',  s: 18, e: 21, name: 'カテキョ', place: 'tutor' }],
+  '2026-10-30': [{ t: 'exam',  s: 9,  e: 12, name: '皮膚科・泌尿器科試験', place: 'univ' }],
+  '2026-11-04': [{ t: 'work',  s: 18, e: 21, name: 'カテキョ', place: 'tutor' }],
 };
 // 1日の勉強時間の見積もり（あなたの回答から）
 //   何もない日：FREE_H 時間（＝起きている WINDOW_H 時間のうち FREE_H/WINDOW_H の割合で勉強）
@@ -4358,6 +4386,7 @@ const SCHEDULE = {
 //   それ以外の空き時間：何もない日と同じ割合。合計は何もない日の FREE_H まで
 //   研究室の作業：毎日平均 LAB_H 時間を差し引く（予定表の研究室の時間はここに含める）
 const WINDOW_H = 14, NAISHOKU = 0.7, COMMUTE_H = 2, COMMUTE_STUDY = 0.5;
+const LAB_OFF_FROM = '2026-10-30';
 function sprintHours() {
   const num = (k, d) => { const v = parseFloat(localStorage.getItem(k)); return isNaN(v) ? d : Math.max(0, v); };
   return { free: num('cbt_free_h', 8), lab: num('cbt_lab_h', 1.5), speed: Math.max(1, num('cbt_solve_speed', 16)) };
@@ -4376,7 +4405,9 @@ function dayStudyHours(ds) {
   const freeH = Math.max(0, WINDOW_H - classH - workH - examH - labH - commute);
   const rate = Math.min(1, h.free / WINDOW_H);
   const raw = classH * NAISHOKU + commute * COMMUTE_STUDY + freeH * rate;
-  const auto = Math.max(0, Math.round((Math.min(h.free, raw) - Math.max(0, h.lab - labH)) * 2) / 2);
+  // 10/30からCBTまでは研究室なし
+  const labDaily = ds >= LAB_OFF_FROM ? 0 : h.lab;
+  const auto = Math.max(0, Math.round((Math.min(h.free, raw) - Math.max(0, labDaily - labH)) * 2) / 2);
   const o = getDayHoursOverride();
   const override = ds in o ? Math.max(0, +o[ds] || 0) : null;
   const note = events.map(e => `${e.name} ${e.s}-${e.e}`).join(' / ');
@@ -4530,6 +4561,24 @@ function sprintPlan() {
     let minutes = day.hours * 60;
     if (day.ds === TODAY_STR) minutes = Math.max(0, minutes - usedToday);
     day.cap = minutes;
+    const fixed = FIXED_PLAN[day.ds];
+    if (fixed) {
+      // 手動計画の日：決めた章・問題数をそのまま入れる（今日の分は、今日すでに記録した分を引く）
+      day.fixed = true; day.memo = fixed.memo || '';
+      for (const f of fixed.items) {
+        const s = sim[f.c];
+        if (!s) continue;
+        const logged = day.ds === TODAY_STR ? todayLog.filter(e => e.c === f.c && e.r === f.r).reduce((a, e) => a + (e.n || 0), 0) : 0;
+        const q = Math.max(0, Math.min(f.q - logged, s.ch.n - s.done[f.r]));
+        if (q <= 0) continue;
+        const perQ = 60 / speedFor(s.ch.block, f.r, ms).v;
+        day.alloc.push({ ch: s.ch, r: f.r, q, min: q * perQ, perQ, left: q, fixed: f.note, plan: s.pl, acc: s.pl.acc,
+                         belowMin: false, stale: false, examSoon: null, partial: s.done[f.r] > 0 });
+        s.done[f.r] += q; s.last = day.ds;
+        day.q += q; day.min += q * perQ;
+      }
+      continue;
+    }
     // 1章に使うのはその日の約4割まで（最低45分）→ 1日に数章を混ぜる（vol1〜3とvol4・5を交互に）
     const chunk = Math.max(45, day.cap * 0.4);
     const usedCh = new Set();
@@ -4629,7 +4678,10 @@ function renderSprint() {
     box('🛟 必須', plan.remNeed, plan.leftNeed, plan.leftNeed > 0);
 
   const v = document.getElementById('spVerdict');
-  if (plan.remWant === 0 && plan.touchLeft === 0) {
+  if (plan.cal.some(d => d.fixed)) {
+    v.style.color = 'var(--blue)';
+    v.textContent = '📌 10/30に組み直した計画で表示中：4Bは11/2・5Aは11/3までに1周。残りは誤答の解き直し（正答率の低い章から）';
+  } else if (plan.remWant === 0 && plan.touchLeft === 0) {
     v.style.color = 'var(--green-ink)'; v.textContent = '🎉 推奨の周回も記憶キープもすべて完了！苦手章の見直しと模試へ';
   } else if (plan.leftNeed > 0) {
     v.style.color = 'var(--red-ink)';
@@ -4678,7 +4730,8 @@ function renderSprint() {
       if (x.examSoon) why.push(`試験「${x.examSoon.name}」まで${Math.round((ymd(x.examSoon.ds) - TODAY) / 86400000)}日`);
       const t = ROUND_TIERS[x.plan.tier];
       const lt = qbLastTouch(x.ch.id);
-      if (x.touch) why.push(`🧊記憶キープ（最後: ${lt ? mdLabel(lt) : 'なし'}）`);
+      if (x.fixed) why.push(`📌${x.fixed}`);
+      else if (x.touch) why.push(`🧊記憶キープ（最後: ${lt ? mdLabel(lt) : 'なし'}）`);
       else {
         why.push(`${t.icon}${x.belowMin ? '必須' : '推奨'} あと${fmtLaps(x.belowMin ? x.plan.lapsNeed : x.plan.lapsWant)}周`);
         if (x.stale) why.push('🧊期間内に未接触');
@@ -4702,7 +4755,8 @@ function renderSprint() {
     const head = `<div class="cal-head"><b>${d.date.getMonth() + 1}/${d.date.getDate()}(${youbi[d.date.getDay()]})</b>` +
       `${d.ds === TODAY_STR ? '<span class="cal-tag today">今日</span>' : ''}${d.window ? '<span class="cal-tag win">🧊</span>' : ''}` +
       `<span class="cal-sum">${d.off ? '休み' : `${d.hours}h · ${d.q}問${d.ds === TODAY_STR && plan.solvedToday ? `（済${plan.solvedToday}問）` : ''}`}</span></div>` +
-      (d.note ? `<div class="cal-note">${d.events.map(e => ({ class: '🏫', work: '💼', lab: '🔬', exam: '📝' })[e.t] + e.name + ' ' + e.s + '-' + e.e).join('　')}</div>` : '');
+      (d.note ? `<div class="cal-note">${d.events.map(e => ({ class: '🏫', work: '💼', lab: '🔬', exam: '📝' })[e.t] + e.name + ' ' + e.s + '-' + e.e).join('　')}</div>` : '') +
+      (d.memo ? `<div class="cal-note">📌 ${d.memo}</div>` : '');
     const chips = d.alloc.map(a => {
       const c = BLOCK_COLORS[a.ch.block];
       return `<span class="cal-chip" style="border-color:${c}"><b style="color:${c}">${a.ch.id}</b>${ROUND_META[a.r].icon}${a.reviewOnly ? '見直し' : a.q}${a.touch ? '🧊' : ''}</span>`;
