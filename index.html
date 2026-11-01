@@ -1064,6 +1064,8 @@ body.bank-orig .qb-only{display:none !important;}
   border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;
 }
 .round-target-hint{font-size:11.5px;color:var(--text);margin:9px 2px 0;text-align:center;min-height:14px;}
+.wo-row{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;color:var(--dim);margin:6px 0 0;cursor:pointer;}
+.wo-row input{width:16px;height:16px;accent-color:var(--purple);}
 
 /* ── 記録日の選択 ── */
 .recdate-row{display:flex;align-items:center;gap:6px;margin:10px 0 0;flex-wrap:wrap;}
@@ -1446,6 +1448,7 @@ body.bank-orig .qb-only{display:none !important;}
         <select id="chapterSelect" class="chapter-select" onchange="onChapterSelect()"></select>
       </div>
       <div class="round-target-hint" id="roundTargetHint"></div>
+      <label class="wo-row" id="woRow" style="display:none;"><input type="checkbox" id="woChk" onchange="toggleWrongOnly(this.checked)"> 前回の誤答だけ解き直す</label>
 
       <!-- 記録日（未入力の日に後から記録できる） -->
       <div class="recdate-row">
@@ -2824,9 +2827,9 @@ function initChapterSelect() {
       optgroup.label = bankBlockName(ch.block);
       sel.appendChild(optgroup);
     }
-    const target = roundTarget(ch, selectedRound);
+    const target = recordTarget(ch, selectedRound);
     const done = Math.min(roundDone(ch.id, selectedRound), target || ch.n);
-    const complete = isRoundDone(ch.id, selectedRound);
+    const complete = isRoundDone(ch.id, selectedRound) || (target > 0 && done >= target);
     const opt = document.createElement('option');
     opt.value = ch.id;
     opt.textContent = `${ch.id} ${ch.subj || ''}（${done}/${target}）${complete ? '✓' : ''}`;
@@ -2927,12 +2930,34 @@ function updateRoundTargetHint() {
   const el = document.getElementById('roundTargetHint');
   if (!el) return;
   const ch = CHAPTERS.find(c => c.id === selectedChapter);
+  const wo = document.getElementById('woRow'), woChk = document.getElementById('woChk');
+  if (wo) wo.style.display = ch && selectedRound >= 2 ? '' : 'none';
   if (!ch) { el.textContent = ''; return; }
-  const target = roundTarget(ch, selectedRound);
+  const isWo = isWrongOnly(state.subject_status[ch.id], selectedRound);
+  if (woChk) woChk.checked = isWo;
+  const target = recordTarget(ch, selectedRound);
   const done = roundDone(ch.id, selectedRound);
   const rem = Math.max(0, target - done);
   const meta = ROUND_META[selectedRound];
-  el.innerHTML = `<strong style="color:${meta.color}">${meta.label}</strong> 残り <strong>${rem}</strong>問 <span style="color:var(--dim)">(${done}/${target})</span>`;
+  el.innerHTML = `<strong style="color:${meta.color}">${meta.label}${isWo ? '（誤答だけ）' : ''}</strong> 残り <strong>${rem}</strong>問 <span style="color:var(--dim)">(${done}/${target})</span>`;
+}
+// 選択中の章・周回を「前回の誤答だけ解き直す」周回にする／戻す
+function toggleWrongOnly(on) {
+  const ch = CHAPTERS.find(c => c.id === selectedChapter);
+  if (!ch || selectedRound < 2) return;
+  if (!state.subject_status[ch.id]) state.subject_status[ch.id] = {};
+  const st = state.subject_status[ch.id], done = roundDone(ch.id, selectedRound);
+  if (on && done > wrongOnlyTarget(st, selectedRound, ch.n)) {
+    showToast(`この周回はすでに前回の誤答数より多く記録しているので、全問の周回として扱います`);
+    updateRoundTargetHint();
+    return;
+  }
+  if (on) st['wo' + selectedRound] = true; else delete st['wo' + selectedRound];
+  saveSubjectStatus();
+  scheduleSave();
+  updateAll();
+  updateRoundTargetHint();
+  showToast(on ? `${ch.id} ${ROUND_META[selectedRound].label}：前回の誤答だけ解き直す` : `${ch.id} ${ROUND_META[selectedRound].label}：全問を解く`);
 }
 
 
@@ -3043,7 +3068,7 @@ function setRecDateYesterday() {
 function fillRemaining() {
   const ch = CHAPTERS.find(c => c.id === selectedChapter);
   if (!ch) { showToast('章を選んでね'); return; }
-  const rem = Math.max(0, roundTarget(ch, selectedRound) - roundDone(ch.id, selectedRound));
+  const rem = Math.max(0, recordTarget(ch, selectedRound) - roundDone(ch.id, selectedRound));
   if (rem <= 0) { showToast('この章・周回はもう終わっています🎉'); return; }
   setStep(rem);
   showToast(`残り${rem}問をセット`);
@@ -3143,7 +3168,7 @@ function addToday() {
 
   // 周回モードのガード：前の周回が未完了なら次の周回は記録できない
   const _guardCh = CHAPTERS.find(c => c.id === selectedChapter);
-  if (_guardCh && selectedRound >= 2 && !isRoundDone(_guardCh.id, selectedRound - 1)) {
+  if (_guardCh && selectedRound >= 2 && !prevRoundReady(_guardCh, selectedRound)) {
     showToast(`先に ${_guardCh.id} の${ROUND_META[selectedRound - 1].label}を終わらせてね`);
     return;
   }
@@ -3152,7 +3177,8 @@ function addToday() {
   const RDATE = getRecordDate();     // 記録先の日付（過去日にも記録できる）
   const isToday = RDATE === TODAY_STR;
 
-  // アンドゥ用に記録前の状態を保存
+  // アンドゥ用に記録前の状態を保存（記録できなかったときは1つ前の取り消しを残す）
+  const prevUndo = _undoSnapshot;
   _undoSnapshot = {
     bank: currentBank,
     chapter: selectedChapter,
@@ -3171,6 +3197,8 @@ function addToday() {
   const added = todayStep;                       // 今日の努力量
   const wrongToday   = Math.min(todayWrong, added);
   const correctToday = added - wrongToday;
+  // 実際に記録する数（章の残りを超えた分は、章にも日別の記録にも入れない）
+  let logN = added, logOk = correctToday;
 
   // 選択中の章に、選択中の周回として記録（目標問題数でキャップ）
   const ch = CHAPTERS.find(c => c.id === selectedChapter);
@@ -3178,12 +3206,18 @@ function addToday() {
     if (!state.subject_status[ch.id]) state.subject_status[ch.id] = {};
     const st = state.subject_status[ch.id];
     const doneKey = meta.done, corrKey = meta.correct, dateKey = meta.date;
-    const target  = roundTarget(ch, round);
-    const wasDone = isRoundDone(ch.id, round);
+    const target  = recordTarget(ch, round);
+    const wasDone = target > 0 && (st[doneKey] || 0) >= target;
     const remaining = Math.max(0, target - (st[doneKey] || 0));
     const chapterAdd = Math.min(added, remaining);
     _overflow = added - chapterAdd;      // 残りを超えて切り捨てられた数（後で警告する）
     const chapterCorrect = added > 0 ? Math.round(chapterAdd * (correctToday / added)) : 0;
+    if (chapterAdd <= 0) {
+      _undoSnapshot = prevUndo;
+      showToast('この章・周回はもう終わっています🎉 別の章か周回を選んでね');
+      return;
+    }
+    logN = chapterAdd; logOk = chapterCorrect;
     st[doneKey] = (st[doneKey] || 0) + chapterAdd;
     st[corrKey] = (st[corrKey] || 0) + chapterCorrect;
     // 周回の内訳：回収数（前周回で間違えた問題のうち、今回正解した数）を集計
@@ -3196,7 +3230,8 @@ function addToday() {
     if (!wasDone && target > 0 && st[doneKey] >= target) {
       st[dateKey] = RDATE;
       if (round >= 2) st['r' + round] = true;    // 旧チェックUIとの互換フラグ
-      setTimeout(() => { confetti(); showToast(`🎉 ${ch.id} ${ch.subj} ${meta.label}完了！`); }, 600);
+      const what = isWrongOnly(st, round) ? `${meta.label}（誤答の解き直し）` : meta.label;
+      setTimeout(() => { confetti(); showToast(`🎉 ${ch.id} ${ch.subj} ${what}完了！`); }, 600);
     }
     // 2周目以降の再演習は「復習」とみなして忘却曲線スケジュールを前進
     if (round >= 2) touchReview(ch.id, RDATE);
@@ -3214,19 +3249,19 @@ function addToday() {
   // daily_log に記録（同じ日の分は加算、なければ追加）
   const logIdx = state.daily_log.findIndex(l => l.date === RDATE);
   if (logIdx >= 0) {
-    state.daily_log[logIdx].n  += added;
-    state.daily_log[logIdx].ok += correctToday;
+    state.daily_log[logIdx].n  += logN;
+    state.daily_log[logIdx].ok += logOk;
   } else {
-    state.daily_log.push({ date: RDATE, n: added, ok: correctToday });
+    state.daily_log.push({ date: RDATE, n: logN, ok: logOk });
     state.daily_log.sort((a, b) => a.date < b.date ? -1 : 1);   // 過去日を入れても順序を保つ
   }
 
   // streak（後方互換 — 最大60件保持）
   const sIdx = state.streak.findIndex(s => s.date === RDATE);
   if (sIdx >= 0) {
-    state.streak[sIdx].n += added;
+    state.streak[sIdx].n += logN;
   } else {
-    state.streak.push({ date: RDATE, n: added });
+    state.streak.push({ date: RDATE, n: logN });
     state.streak.sort((a, b) => a.date < b.date ? -1 : 1);
     if (state.streak.length > 60) state.streak.shift();
   }
@@ -3237,7 +3272,7 @@ function addToday() {
   const recMinEl = document.getElementById('recMin');
   const manualMin = recMinEl ? parseFloat(recMinEl.value) : NaN;
   const spentMin = manualMin > 0 ? manualMin : Math.round(timerSinceRecord / 60);
-  const logEntry = { d: RDATE, b: currentBank, c: selectedChapter, r: round, n: added, w: wrongToday };
+  const logEntry = { d: RDATE, b: currentBank, c: selectedChapter, r: round, n: logN, w: logN - logOk };
   if (spentMin > 0) logEntry.m = Math.round(spentMin * 10) / 10;
   state.chapter_log.push(logEntry);
   timerSinceRecord = 0;
@@ -3269,9 +3304,10 @@ function addToday() {
   scheduleSave();
   updateAll();
   initChapterSelect();  // done数の表示更新＋完了したら次の章へ
-  const accMsg = added > 0 ? `（正答率${(correctToday/added*100).toFixed(0)}%）` : '';
+  updateRoundTargetHint();
+  const accMsg = logN > 0 ? `（正答率${(logOk/logN*100).toFixed(0)}%）` : '';
   const dayMsg = isToday ? '' : `【${RDATE.slice(5).replace('-','/')}】`;
-  showToast(`${dayMsg}+${added}問 追加！${accMsg} 🎉`);
+  showToast(`${dayMsg}+${logN}問 追加！${accMsg} 🎉`);
   // 章の残りを超えて入力された分は切り捨てられるので、黙って消さずに知らせる
   if (_overflow > 0) {
     setTimeout(() => showToast(`⚠️ ${_overflow}問は章の残りを超えたため記録されていません`), 1400);
@@ -3303,6 +3339,7 @@ function undoLastRecord() {
   scheduleSave();
   updateAll();
   initChapterSelect();
+  updateRoundTargetHint();
   _undoSnapshot = null;
   document.getElementById('undoBtn').style.display = 'none';
   showToast('↩︎ 直前の記録を取り消しました');
@@ -3478,24 +3515,8 @@ function renderStreak() {
     row.appendChild(div);
   }
 
-  // 連続日数をdaily_logから正確に計算（日付ギャップを検出）
-  let streak = 0;
-  for (let i = 0; ; i++) {
-    const d = new Date(TODAY);
-    d.setDate(d.getDate() - i);
-    const ds = toLocalDateStr(d);
-    const entry = state.daily_log.find(l => l.date === ds)
-                  || state.streak.find(s => s.date === ds);
-    if (entry && entry.n > 0) {
-      streak++;
-    } else if (i === 0) {
-      // 今日まだ記録していない場合は昨日から数える
-      continue;
-    } else {
-      break;
-    }
-    if (streak > 365) break; // 安全ストップ
-  }
+  // 連続日数（フリーズで守った日も連続として数える）
+  const streak = getStreakCount();
   document.getElementById('streakCount').textContent = streak;
 
   // 最長記録（daily_log全体を走査して連続区間の最大を求める）
@@ -4834,6 +4855,13 @@ function applySprintRow(i) {
   const x = _sprintRows[i];
   if (!x) return;
   if (currentBank !== 'qb') switchBank('qb');
+  // 計画の「誤答」の行は、まだ手をつけていなければ「前回の誤答だけ解き直す」周回にする
+  const st = state.subject_status[x.ch.id] || (state.subject_status[x.ch.id] = {});
+  if (x.fixed && x.fixed.includes('誤答') && x.r >= 2 && roundDone(x.ch.id, x.r) === 0 && !isWrongOnly(st, x.r)) {
+    st['wo' + x.r] = true;
+    saveSubjectStatus();
+    scheduleSave();
+  }
   setRound(x.r);
   selectedChapter = x.ch.id;
   localStorage.setItem(curChapterKey(), selectedChapter);
@@ -4963,6 +4991,30 @@ const ROUNDS = [1, 2, 3, 4];
 function roundTarget(ch, round) {
   return ch.n;
 }
+// 「前回の誤答だけ」を解き直す周回か（st['wo2'] など。記録カードのチェックで切り替え）
+function isWrongOnly(st, round) { return round >= 2 && !!(st && st['wo' + round]); }
+// 周回の実質的な {d: 解いた数, c: 正解数}。誤答だけの周回は「前の周回で正解した分＋今回正解した分」として、
+// 前の周回と同じ問題数を解いたものとみなす（解いていない問題を前の周回の正答率で埋めると低く出るため）
+function effRound(st, round, n) {
+  st = st || {};
+  const d = Math.min(st[ROUND_META[round].done] || 0, n), c = Math.min(st[ROUND_META[round].correct] || 0, d);
+  if (!isWrongOnly(st, round) || d === 0) return { d, c };
+  const p = effRound(st, round - 1, n);
+  return { d: p.d, c: Math.min(p.d, p.c + c) };
+}
+// 誤答だけの周回で解く数（＝前の周回の誤答数）
+function wrongOnlyTarget(st, round, n) { const p = effRound(st, round - 1, n); return Math.max(0, p.d - p.c); }
+// 記録できる上限：通常は章の全問、誤答だけの周回は前の周回の誤答数
+function recordTarget(ch, round) {
+  const st = state.subject_status[ch.id] || {};
+  return isWrongOnly(st, round) ? wrongOnlyTarget(st, round, ch.n) : roundTarget(ch, round);
+}
+// 次の周回を記録できるか：前の周回が全問終わっているか、誤答だけの周回なら誤答を解き終えているか
+function prevRoundReady(ch, round) {
+  if (round < 2 || isRoundDone(ch.id, round - 1)) return true;
+  const st = state.subject_status[ch.id] || {};
+  return isWrongOnly(st, round - 1) && roundDone(ch.id, round - 1) >= wrongOnlyTarget(st, round - 1, ch.n);
+}
 // その周回でその章を解いた数
 function roundDone(id, round) {
   const st = state.subject_status[id] || {};
@@ -5010,29 +5062,32 @@ function roundStats(id) {
   if (d1 > 0 && d2 > 0) {
     out.acc1 = c1 / d1 * 100;
     out.acc2 = c2 / d2 * 100;
-    // 伸び＝1周目 → 最新の周回（1周目と同じ数を解き終えた周回だけ。誤答だけの解き直しは比べない）
+    // 伸び＝1周目 → 最新の周回（1周目と同じ数を解き終えた周回。誤答だけの周回は前の周回の正解と合わせて数える）
     let lastR = 1;
-    for (const r of ROUNDS) if (r > 1 && Math.min(st[ROUND_META[r].done] || 0, ch.n) >= d1) lastR = r;
+    for (const r of ROUNDS) if (r > 1 && effRound(st, r, ch.n).d >= d1) lastR = r;
     if (lastR > 1) {
-      const cl = Math.min(st[ROUND_META[lastR].correct] || 0, ch.n);
+      const cl = effRound(st, lastR, ch.n).c;
       out.improveTo = lastR;
       out.improvement = cl / d1 * 100 - out.acc1;
     }
     out.recoverableTotal = w1;                       // 回収対象（1周目で間違えた数）
     if (st.rec2 != null) { out.recovered = Math.min(st.rec2, w1); out.recExact = true; }
-    else { out.recovered = Math.max(0, w1 - w2); out.recExact = false; } // 推定：誤答が減った数
+    else if (isWrongOnly(st, 2)) { out.recovered = Math.min(c2, w1); out.recExact = true; }   // 誤答だけ解いた周回の正解＝回収
+    else { out.recovered = Math.max(0, Math.round(w1 * Math.min(1, d2 / d1)) - w2); out.recExact = false; } // 推定：解いた範囲で誤答が減った数
     out.bothCorrect = Math.max(0, c2 - out.recovered); // 連続正解（1・2周目どちらも○）
     out.bothExact = out.recExact;
   }
   // 3周目以降の回収 = 前の周回の誤答のうち、その周回で正解した数（入力なしなら誤答の減少から推定）
   out.laterRecs = [];
   for (let r = 3; r <= MAX_ROUND; r++) {
-    const pd = Math.min(st['done' + (r - 1)] || 0, ch.n), pc = Math.min(st['correct' + (r - 1)] || 0, ch.n);
+    const { d: pd, c: pc } = effRound(st, r - 1, ch.n);   // 前の周回（誤答だけの周回は前の正解と合わせて）
     const d = Math.min(st['done' + r] || 0, ch.n), c = Math.min(st['correct' + r] || 0, ch.n);
     if (pd <= 0 || d <= 0) continue;
     const pw = Math.max(0, pd - pc), w = Math.max(0, d - c);
-    const exact = st['rec' + r] != null;
-    out.laterRecs.push({ r, total: pw, rec: exact ? Math.min(st['rec' + r], pw) : Math.max(0, pw - w), exact });
+    const wo = isWrongOnly(st, r), exact = st['rec' + r] != null || wo;
+    const rec = st['rec' + r] != null ? Math.min(st['rec' + r], pw)
+      : wo ? Math.min(c, pw) : Math.max(0, Math.round(pw * Math.min(1, d / pd)) - w);
+    out.laterRecs.push({ r, total: pw, rec, exact });
   }
   return out;
 }
@@ -5142,9 +5197,7 @@ function chapterCurrent(st, n) {
   st = st || {};
   let done = 0, ok = 0, covered = 0;     // covered = 新しい周回で解き直し済みの問題数
   for (let r = MAX_ROUND; r >= 1; r--) {
-    const key = r === 1 ? '' : String(r);
-    const d = Math.min(st['done' + key] || 0, n);
-    const c = Math.min(st['correct' + key] || 0, d);
+    const { d, c } = effRound(st, r, n);
     const use = Math.max(0, d - covered);  // この周回の結果で評価する分
     if (use > 0 && d > 0) { done += use; ok += c / d * use; }
     covered = Math.max(covered, d);
@@ -5306,7 +5359,7 @@ function renderRoundAnalysis() {
   // 章ごとの内訳
   for (const s of targets) {
     const accChips = s.rounds.map(r =>
-      `<span class="ra-acc r${r.r}">${ROUND_META[r.r].icon}${r.acc.toFixed(0)}%</span>`
+      `<span class="ra-acc r${r.r}">${ROUND_META[r.r].icon}${isWrongOnly(state.subject_status[s.id], r.r) ? '誤答' : ''}${r.acc.toFixed(0)}%</span>`
     ).join('<span class="ra-arrow">→</span>');
     const imp = s.improvement != null
       ? `<span class="ra-imp" style="color:${s.improvement >= 0 ? 'var(--green)' : 'var(--red)'}">${ROUND_META[1].icon}→${ROUND_META[s.improveTo].icon} ${s.improvement >= 0 ? '▲' : '▼'}${Math.abs(s.improvement).toFixed(0)}pt</span>`
@@ -5968,17 +6021,18 @@ function editRoundProgress(id, round) {
   const meta = ROUND_META[round];
 
   // 前周回ガード
-  if (round >= 2 && !isRoundDone(id, round - 1)) {
+  if (round >= 2 && !prevRoundReady(ch, round)) {
     showToast(`先に ${id} の${ROUND_META[round - 1].label}を終わらせてね`);
     return;
   }
-  const target = roundTarget(ch, round);
+  const target = recordTarget(ch, round);
 
   const st = state.subject_status[id] || {};
+  const wo = isWrongOnly(st, round);
   const curDone = st[meta.done] || 0;
   const curCorrect = st[meta.correct] || 0;
 
-  const doneInput = prompt(`【${id} ${ch.subj}・${meta.label}】\nやった問題数を入力（最大${target}）`, curDone);
+  const doneInput = prompt(`【${id} ${ch.subj}・${meta.label}${wo ? '（誤答だけ）' : ''}】\nやった問題数を入力（最大${target}）`, curDone);
   if (doneInput === null) return;
   let done = parseInt(doneInput, 10);
   if (isNaN(done)) return;
@@ -5991,13 +6045,13 @@ function editRoundProgress(id, round) {
   correct = Math.max(0, Math.min(done, correct));
 
   if (!state.subject_status[id]) state.subject_status[id] = {};
-  const wasDone = isRoundDone(id, round);
+  const wasDone = target > 0 && curDone >= target;
   state.subject_status[id][meta.done] = done;
   state.subject_status[id][meta.correct] = correct;
   // その周回の完了状態に応じて完了日・互換フラグを更新
   if (target > 0 && done >= target) {
     if (!state.subject_status[id][meta.date]) state.subject_status[id][meta.date] = TODAY_STR;
-    if (round >= 2) state.subject_status[id]['r' + round] = true;
+    if (round >= 2 && !wo) state.subject_status[id]['r' + round] = true;
     if (!wasDone) setTimeout(() => { confetti(); showToast(`🎉 ${id} ${meta.label}完了！`); }, 200);
   } else {
     delete state.subject_status[id][meta.date];
