@@ -4995,7 +4995,14 @@ function roundStats(id) {
   if (d1 > 0 && d2 > 0) {
     out.acc1 = c1 / d1 * 100;
     out.acc2 = c2 / d2 * 100;
-    out.improvement = out.acc2 - out.acc1;
+    // 伸び＝1周目 → 最新の周回（1周目と同じ数を解き終えた周回だけ。誤答だけの解き直しは比べない）
+    let lastR = 1;
+    for (const r of ROUNDS) if (r > 1 && Math.min(st[ROUND_META[r].done] || 0, ch.n) >= d1) lastR = r;
+    if (lastR > 1) {
+      const cl = Math.min(st[ROUND_META[lastR].correct] || 0, ch.n);
+      out.improveTo = lastR;
+      out.improvement = cl / d1 * 100 - out.acc1;
+    }
     out.recoverableTotal = w1;                       // 回収対象（1周目で間違えた数）
     if (st.rec2 != null) { out.recovered = Math.min(st.rec2, w1); out.recExact = true; }
     else { out.recovered = Math.max(0, w1 - w2); out.recExact = false; } // 推定：誤答が減った数
@@ -5276,7 +5283,7 @@ function renderRoundAnalysis() {
       </div>
       <div class="ra-sum-box">
         <div class="ra-sum-v" style="color:${avgImp >= 0 ? 'var(--blue)' : 'var(--red)'}">${avgImp >= 0 ? '+' : ''}${avgImp.toFixed(0)}<span class="ra-sum-u">pt</span></div>
-        <div class="ra-sum-l">平均の伸び</div>
+        <div class="ra-sum-l">平均の伸び（1周目→最新）</div>
       </div>
     </div>
     <div class="ra-note">1周目で間違えた問題を、2周目でどれだけ正解に変えられたか</div>`;
@@ -5287,7 +5294,7 @@ function renderRoundAnalysis() {
       `<span class="ra-acc r${r.r}">${ROUND_META[r.r].icon}${r.acc.toFixed(0)}%</span>`
     ).join('<span class="ra-arrow">→</span>');
     const imp = s.improvement != null
-      ? `<span class="ra-imp" style="color:${s.improvement >= 0 ? 'var(--green)' : 'var(--red)'}">${s.improvement >= 0 ? '▲' : '▼'}${Math.abs(s.improvement).toFixed(0)}pt</span>`
+      ? `<span class="ra-imp" style="color:${s.improvement >= 0 ? 'var(--green)' : 'var(--red)'}">${ROUND_META[1].icon}→${ROUND_META[s.improveTo].icon} ${s.improvement >= 0 ? '▲' : '▼'}${Math.abs(s.improvement).toFixed(0)}pt</span>`
       : '';
     let detail = '';
     if (s.recovered != null) {
