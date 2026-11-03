@@ -2197,17 +2197,19 @@ const FIXED_PLAN = {
   '2026-11-02': { memo:'4Bの1周目を完了', items:[
     { c:'4A', r:2, q:71, note:'誤答 後半' }, { c:'4B', r:1, q:'rest', note:'新規・ラスト' },
     wrongOf('2H', 3, 47), wrongOf('2C', 3, 39), wrongOf('2J', 3, 48) ] },
-  '2026-11-03': { memo:'5Aの1周目を完了', items:[
-    { c:'5A', r:1, q:'rest', note:'新規' },
-    wrongOf('2A', 3, 25), wrongOf('2L', 3, 9), wrongOf('2K', 3, 10), wrongOf('3A', 3, 21), wrongOf('3C', 3, 11),
+  // 11/3：MM模試の結果で並べ替え。一番弱いコアカリF（診療の基本 50%・偏差値39.8）＝3A・3B・3Cを最優先、
+  // 次に4連問（60%・偏差値43.6）＝4B。強いコアカリC（基礎医学 69%・偏差値55.9）の1Dは最後に回す
+  '2026-11-03': { memo:'MM模試で一番弱かった「診療の基本」(3A・3B・3C)から', items:[
+    wrongOf('3A', 3, 21), wrongOf('3B', 3, 19), wrongOf('3C', 3, 11), { c:'5A', r:1, q:'rest', note:'新規' },
+    wrongOf('2A', 3, 25), wrongOf('2L', 3, 9), wrongOf('2K', 3, 10),
     wrongOf('2P', 3, 21), wrongOf('2R', 3, 17), wrongOf('2Q', 3, 19), wrongOf('2N', 3, 7), wrongOf('2B', 3, 17) ] },
-  '2026-11-04': { memo:'カテキョ 18-21', items:[
-    { c:'4B', r:2, q:190, note:'誤答（約190問）' }, wrongOf('3D', 3, 53), wrongOf('3B', 3, 19), wrongOf('2D', 3, 18) ] },
-  '2026-11-05': { memo:'正答率の高い章は誤答だけさっと。早く寝る', items:[
+  '2026-11-04': { memo:'カテキョ 18-21。模試で弱かった4連問(4B)の誤答を先に', items:[
+    { c:'4B', r:2, q:190, note:'誤答（約190問）' }, wrongOf('3D', 3, 53), wrongOf('2D', 3, 18) ] },
+  '2026-11-05': { memo:'正答率の高い章は誤答だけさっと。基礎(1D)は模試で強かったので最後。早く寝る', items:[
     { c:'5A', r:2, q:75, note:'誤答（約75問）' },
-    wrongOf('2O', 3, 20), wrongOf('2E', 3, 15), wrongOf('2G', 3, 14), wrongOf('1D', 4, 21), wrongOf('2V', 3, 14),
+    wrongOf('2O', 3, 20), wrongOf('2E', 3, 15), wrongOf('2G', 3, 14), wrongOf('2V', 3, 14),
     wrongOf('2M', 3, 7), wrongOf('2I', 3, 15), wrongOf('2T', 3, 17), wrongOf('2S', 3, 12), wrongOf('2F', 3, 12),
-    wrongOf('2X', 3, 9) ] },
+    wrongOf('2X', 3, 9), wrongOf('1D', 4, 21) ] },
 };
 
 const CBT = ymd('2026-11-06');
@@ -2490,7 +2492,7 @@ let _noMiscCol = false;      // miscカラムが無い場合true（フォール�
 // クラウド同期するlocalStorageキー（端末固有のUI設定は除外）
 const MISC_KEYS = [
   'cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak',
-  'cbt_mocks','cbt_irt_target','cbt_home_prefs','cbt_week_seen','streak_milestones','cbt_level',
+  'cbt_mocks','cbt_mock_removed','cbt_irt_target','cbt_home_prefs','cbt_week_seen','streak_milestones','cbt_level',
   'cbt_subj_orig',   // Originalバンクの進捗（misc経由でクラウド同期）
   'cbt_subj_monte',  // モントレバンクの進捗
   'cbt_day_hours',   // 直前期：日ごとの勉強時間を手で変えた分
@@ -2510,7 +2512,9 @@ function applyMisc(misc) {
   for (const k of MISC_KEYS) {
     if (misc[k] != null) localStorage.setItem(k, misc[k]);
   }
-  _lastMiscJson = JSON.stringify(buildMisc());
+  // クラウドの古い模試記録でMM模試が消えたら入れ直す（入れ直したらクラウドにも保存されるよう、_lastMiscJsonは更新前のまま）
+  const reseeded = typeof seedMocks === 'function' && seedMocks();
+  _lastMiscJson = JSON.stringify(reseeded ? misc : buildMisc());
 }
 
 // misc（localStorage設定群）に変更があればクラウド保存をトリガー
@@ -4716,7 +4720,7 @@ function renderSprint() {
     v.textContent = `⚠️ 今の勉強時間だと計画のうち約${overQ}問（${plan.overflow.map(x => x.c).join('・')}）がCBT前日までに入りません。自由時間を増やすか、解き直しを誤答だけに絞ろう`;
   } else if (plan.cal.some(d => d.fixed)) {
     v.style.color = 'var(--blue)';
-    v.textContent = '📌 11/1に組み直した計画で表示中：4Bは11/2・5Aは11/3までに1周。残りは誤答の解き直し（正答率の低い章から）';
+    v.textContent = '📌 11/3にMM模試の結果で並べ替えた計画で表示中：弱かった「診療の基本」(3A・3B・3C)と4連問(4B)の誤答を先に。5Aは11/3までに1周';
   } else if (plan.remWant === 0 && plan.touchLeft === 0) {
     v.style.color = 'var(--green-ink)'; v.textContent = '🎉 推奨の周回も記憶キープもすべて完了！苦手章の見直しと模試へ';
   } else if (plan.leftNeed > 0) {
@@ -6104,7 +6108,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ── データのバックアップ（エクスポート/インポート） ──
-const BACKUP_KEYS = ['cbt_subj','cbt_subj_orig','cbt_subj_monte','cbt_cur_bank','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter_qb','cbt_cur_chapter_orig','cbt_cur_chapter_monte','cbt_week_seen','cbt_mocks','cbt_irt_target','cbt_home_prefs'];
+const BACKUP_KEYS = ['cbt_subj','cbt_subj_orig','cbt_subj_monte','cbt_cur_bank','cbt_commit','cbt_freeze','cbt_freeze_dates','cbt_badges','cbt_best_streak','cbt_theme','cbt_cur_chapter_qb','cbt_cur_chapter_orig','cbt_cur_chapter_monte','cbt_week_seen','cbt_mocks','cbt_mock_removed','cbt_irt_target','cbt_home_prefs'];
 
 function exportData() {
   const ls = {};
@@ -6409,16 +6413,30 @@ function estimateIRT() {
   const nowAcc = curOk / n * 100;                   // 解き直しを反映した「今の正答率」（同じ問題で）
   const r2Gain = Math.max(0, nowAcc - fresh);       // 解き直しで伸びた分（覚えた分も含む）
   const transfer = IRT_TRANSFER * r2Gain;
-  const score = fresh + transfer + IRT_QB_TO_REAL;   // 本番得点率（%）
-  // Uncertainty (pct points): sampling of fresh accuracy, transfer, QB->real offset, exam-day form, curve residual
+  const qbScore = fresh + transfer + IRT_QB_TO_REAL;   // QBからの本番得点率（%）
+  // Uncertainty (pct points): sampling of fresh accuracy, transfer, QB->real offset | exam-day form, curve residual
   const seFresh = Math.sqrt(fresh * (100 - fresh) / n);
-  const sd = Math.sqrt(seFresh ** 2 + 1.5 ** 2 + 2 ** 2 + 2.5 ** 2 + 1.1 ** 2);
+  const sdQb = Math.sqrt(seFresh ** 2 + 1.5 ** 2 + 2 ** 2);
+  // MM模試があれば、QBからの見積もりと模試からの見積もりをブレの小さい方を重く平均する
+  let score = qbScore, sdAbility = sdQb, mock = null;
+  const m = latestPctMock();
+  if (m) {
+    const passPct = m.passPct || MOCK_PASS_PCT;
+    const mockScore = mockToReal(m.pct, passPct);
+    // 模試側のブレ：320問の標本誤差、合格基準の読み取りと模試→本番の換算（2.5）、受けてからの伸び（1.5）
+    const sdMock = Math.sqrt(m.pct * (100 - m.pct) / 320 + 2.5 ** 2 + 1.5 ** 2);
+    const wQb = sdMock ** 2 / (sdQb ** 2 + sdMock ** 2);
+    score = wQb * qbScore + (1 - wQb) * mockScore;
+    sdAbility = Math.sqrt(1 / (1 / sdQb ** 2 + 1 / sdMock ** 2));
+    mock = { m, passPct, mockScore, wQb, adj: score - qbScore };
+  }
+  const sd = Math.sqrt(sdAbility ** 2 + 2.5 ** 2 + 1.1 ** 2);
   const passScore = scoreFromIrt(IRT_PASS_LINE) * 100;
   return {
     irt: Math.round(irtFromScore(score / 100)),
     lo: Math.round(irtFromScore((score - 1.2816 * sd) / 100)),  // 80% interval
     hi: Math.round(irtFromScore((score + 1.2816 * sd) / 100)),
-    score, fresh, n, nowAcc, r2Gain, transfer, sd,
+    score, qbScore, mock, fresh, n, nowAcc, r2Gain, transfer, sd,
     pPass: normCdf((score - passScore) / sd),
   };
 }
@@ -6432,7 +6450,42 @@ function irtStage(irt) {
 }
 const STAGE_COLOR = { 1:'var(--red)', 2:'var(--orange)', 3:'var(--yellow)', 4:'var(--blue)', 5:'var(--green)', 6:'var(--teal)' };
 
+// MM（メディックメディア）CBT模試：成績表の「想定合格基準」＝その模試で標準IRT 396になる得点率。
+// 模試の得点率を「合格基準からの差」のまま本番の得点率に直し、同じ曲線でIRTにする
+// 受けた回の想定合格基準は、レーダーチャートのピンクの線から読み取ると全8分野とも約53.5%（±1）
+const MOCK_PASS_PCT = 53.5;
+function mockToReal(pct, passPct = MOCK_PASS_PCT) { return pct + (scoreFromIrt(IRT_PASS_LINE) * 100 - passPct); }
+function mockIrt(pct, passPct = MOCK_PASS_PCT) { return Math.round(irtFromScore(mockToReal(pct, passPct) / 100)); }
+// 受けたMM模試の結果（成績表から転記）。アプリを開いたときに一度だけ模試の記録へ入れる
+const MM_MOCK_SEED = {
+  id:'mm-cbt-1', date:'2026-11-03', name:'MM CBT模試', pct:61.9, passPct:MOCK_PASS_PCT, score:mockIrt(61.9),
+  pts:'198/320点', natAvg:62.6, dev:49.3, rank:'全国3293位/6157人・学内42位/57人',
+  fields:[
+    { k:'コアカリA', pct:66.7, avg:68.1, dev:49.2 }, { k:'コアカリB', pct:62.5, avg:59.5, dev:52.1 },
+    { k:'コアカリC', pct:69.1, avg:61.4, dev:55.9 }, { k:'コアカリD', pct:61.6, avg:61.4, dev:50.1 },
+    { k:'コアカリE', pct:63.9, avg:61.3, dev:52.4 }, { k:'コアカリF', pct:50.0, avg:62.3, dev:39.8 },
+    { k:'多選択肢', pct:60.0, avg:63.3, dev:47.4 }, { k:'4連問', pct:60.0, avg:68.1, dev:43.6 },
+  ],
+};
 function getMocks() { try { return JSON.parse(localStorage.getItem('cbt_mocks') || '[]'); } catch(e) { return []; } }
+// 起動時とクラウドから読み込んだ後（applyMisc）に呼ぶ。クラウドの古い記録で消えても入れ直す。
+// ×で消した場合は cbt_mock_removed（クラウド同期）に残して、入れ直さない
+function seedMocks() {
+  try {
+    const removed = JSON.parse(localStorage.getItem('cbt_mock_removed') || '[]');
+    if (removed.includes(MM_MOCK_SEED.id)) return false;
+    const mocks = getMocks();
+    const i = mocks.findIndex(m => m.id === MM_MOCK_SEED.id);
+    if (i >= 0 && JSON.stringify(mocks[i]) === JSON.stringify(MM_MOCK_SEED)) return false;
+    if (i >= 0) mocks[i] = { ...MM_MOCK_SEED }; else mocks.push({ ...MM_MOCK_SEED });
+    mocks.sort((x, y) => (x.date || '').localeCompare(y.date || ''));
+    localStorage.setItem('cbt_mocks', JSON.stringify(mocks));
+    return true;
+  } catch(e) { return false; }
+}
+seedMocks();
+// 得点率のある一番新しい模試
+function latestPctMock() { const ms = getMocks().filter(m => typeof m.pct === 'number'); return ms.length ? ms[ms.length - 1] : null; }
 function getIrtTarget() { return parseInt(localStorage.getItem('cbt_irt_target') || '650', 10); }
 
 function setIrtTarget() {
@@ -6446,19 +6499,34 @@ function setIrtTarget() {
 }
 
 function addMockScore() {
-  const v = prompt('模試/本番形式のIRTスコアを入力（例: 620）');
+  const v = prompt('MM模試の総合得点率（%）を入力（例: 61.9）\nIRTスコアがわかる場合は 620 のように100より大きい数で');
   if (v === null) return;
-  const score = parseInt(v, 10);
-  if (isNaN(score)) return;
-  const name = prompt('模試名（任意・例: QB模試①）', '') || '';
+  const x = parseFloat(v);
+  if (isNaN(x) || x <= 0) return;
+  const pct = x <= 100 ? x : null;          // 100以下は得点率、それより大きければIRT
+  const score = pct != null ? mockIrt(pct) : Math.round(x);
+  let passPct = MOCK_PASS_PCT;
+  if (pct != null) {
+    const pv = prompt('成績表の「想定合格基準」（IRT 396になる得点率%）。わからなければそのままOK', String(MOCK_PASS_PCT));
+    const px = parseFloat(pv);
+    if (!isNaN(px) && px > 20 && px < 95) passPct = px;
+  }
+  const name = prompt('模試名（任意・例: MM CBT模試②）', '') || '';
   const mocks = getMocks();
-  mocks.push({ date: TODAY_STR, score, name });
+  mocks.push(pct != null ? { date: TODAY_STR, score: mockIrt(pct, passPct), name, pct, passPct } : { date: TODAY_STR, score, name });
   localStorage.setItem('cbt_mocks', JSON.stringify(mocks));
   renderAnalytics();
   showToast(`📝 IRT ${score} を記録（段階${irtStage(score)}）`);
 }
 function deleteMock(idx) {
   const mocks = getMocks();
+  if (mocks[idx] && mocks[idx].id) {
+    try {
+      const removed = JSON.parse(localStorage.getItem('cbt_mock_removed') || '[]');
+      if (!removed.includes(mocks[idx].id)) removed.push(mocks[idx].id);
+      localStorage.setItem('cbt_mock_removed', JSON.stringify(removed));
+    } catch(e) {}
+  }
   mocks.splice(idx, 1);
   localStorage.setItem('cbt_mocks', JSON.stringify(mocks));
   renderAnalytics();
@@ -6476,10 +6544,11 @@ function renderIrtCalc(est, target) {
   const seg = (from, to, color) => `<div style="position:absolute;top:0;bottom:0;left:${bx(from)}%;width:${bx(to) - bx(from)}%;background:${color};"></div>`;
   const tick = (v, color, label) => `<div style="position:absolute;top:-3px;height:22px;left:${bx(v)}%;border-left:2px dashed ${color};"></div>`
     + `<div style="position:absolute;bottom:100%;margin-bottom:2px;left:${bx(v)}%;transform:translateX(-50%);font-size:8px;color:${color};white-space:nowrap;font-weight:700;">${label}</div>`;
-  const a = est.fresh, b = a + est.transfer, c = est.score;
+  const a = est.fresh, b = a + est.transfer, q = est.qbScore, c = est.score;
   let bar = `<div style="position:relative;margin:16px 0 18px;">`
     + `<div style="position:relative;height:16px;border-radius:5px;overflow:hidden;background:var(--border);">`
-    + seg(B0, a, 'var(--blue)') + seg(a, b, 'var(--purple)') + seg(b, c, 'var(--teal)') + `</div>`
+    + seg(B0, a, 'var(--blue)') + seg(a, b, 'var(--purple)') + seg(b, Math.min(q, c), 'var(--teal)')
+    + (c > q ? seg(q, c, 'var(--pink, #e05a8a)') : '') + `</div>`
     + tick(passS, 'var(--red)', `合格 ${passS.toFixed(0)}%`) + tick(targetS, 'var(--green)', `目標 ${targetS.toFixed(0)}%`)
     + `<div style="display:flex;justify-content:space-between;font-size:8px;color:var(--dim);margin-top:3px;font-family:'JetBrains Mono',monospace;">`
     + [50, 60, 70, 80].map(v => `<span style="position:absolute;left:${bx(v)}%;transform:translateX(-50%);">${v}%</span>`).join('') + `</div></div>`;
@@ -6491,7 +6560,14 @@ function renderIrtCalc(est, target) {
   h += step(2, 'var(--purple)', '＋ 解き直しの効果', `+${f1(est.transfer)}`,
     `解き直しで同じ問題の正答率は ${f1(a)}% → ${f1(est.nowAcc)}%（+${f1(est.r2Gain)}）。ただ答えを覚えた分もあるので、本番に効くのはその${Math.round(IRT_TRANSFER * 100)}%と計算。`);
   h += step(3, 'var(--teal)', '＋ QBと本番の難しさの差', `+${IRT_QB_TO_REAL}`,
-    `QB・模試は本番よりやや難しい（模試で61.4%の人が本番の合格ライン相当）。その差を足す。`);
+    `QBは本番よりやや難しい。その差を足す。`);
+  if (est.mock) {
+    const mk = est.mock, sign = mk.adj >= 0 ? '+' : '−';
+    h += `<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;padding:6px 0 0;color:var(--dim);"><span>QBだけの予想</span><span class="val" style="font-family:'JetBrains Mono',monospace;">${f1(q)}%</span></div>`;
+    h += step('模', 'var(--pink, #e05a8a)', '＋ 模試で補正', `${sign}${f1(Math.abs(mk.adj))}`,
+      `${mk.m.name || '模試'}の得点率 ${f1(mk.m.pct)}%は、その模試の想定合格基準（IRT ${IRT_PASS_LINE}）${f1(mk.passPct)}%より${f1(Math.abs(mk.m.pct - mk.passPct))}点${mk.m.pct >= mk.passPct ? '上' : '下'}。本番の得点率にすると約${f1(mk.mockScore)}%。`
+      + `QBの予想（${f1(q)}%）と、ブレの小さい方を重く平均（QB ${Math.round(mk.wQb * 100)}%：模試 ${Math.round((1 - mk.wQb) * 100)}%）。`);
+  }
   h += `<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:800;padding:8px 0 0;"><span>＝ 本番得点率の予想</span><span class="val" style="font-family:'JetBrains Mono',monospace;">${f1(c)}%</span></div>`;
   h += bar;
   h += step(4, 'var(--orange)', '得点率をIRTに換算', `IRT ${est.irt}`,
@@ -6507,9 +6583,10 @@ function renderIrtCurve(est, target) {
   if (!curveEl || !tableEl) return;
   if (!est) { curveEl.innerHTML = ''; tableEl.innerHTML = ''; return; }
   // Same model as estimateIRT, with the current transfer gain held fixed
-  const toScore = f => f + est.transfer + IRT_QB_TO_REAL;
+  const adj = est.mock ? est.mock.adj : 0;   // 模試での補正分（そのまま足す）
+  const toScore = f => f + est.transfer + IRT_QB_TO_REAL + adj;
   const irtAt = (f, k = 0) => irtFromScore((toScore(f) + k * 1.2816 * est.sd) / 100);
-  const freshFor = irt => scoreFromIrt(irt) * 100 - est.transfer - IRT_QB_TO_REAL;
+  const freshFor = irt => scoreFromIrt(irt) * 100 - est.transfer - IRT_QB_TO_REAL - adj;
 
   const X0 = 45, X1 = 85, Y0 = 300, Y1 = 800;
   const W = 300, H = 170, L = 30, R = 8, T = 8, B = 22;
@@ -6607,7 +6684,11 @@ function renderAnalytics() {
         + `（合格確率 約${Math.round(est.pPass * 100)}%）`;
     }
     note += `<br>⚠️ 公式の換算表はありません。機構の公表値（2025年度 平均得点率76.5%・平均IRT519、基準未達6.6%）と合格体験記の実測値に合わせた推定です。模試の結果の方が信頼できます。`;
-    if (latestMock != null) note += `<br>📝 最新の模試: <strong style="color:${STAGE_COLOR[irtStage(latestMock)]};">IRT ${latestMock}（段階${irtStage(latestMock)}）</strong>`;
+    if (latestMock != null) {
+      const lm = mocks[mocks.length-1];
+      note += `<br>📝 最新の模試: <strong style="color:${STAGE_COLOR[irtStage(latestMock)]};">IRT 約${latestMock}（段階${irtStage(latestMock)}）</strong>`
+        + (typeof lm.pct === 'number' ? `（得点率${lm.pct.toFixed(1)}%・この模試の想定合格基準${(lm.passPct || MOCK_PASS_PCT).toFixed(1)}%）。上の推定はこの模試も入れて計算しています` : '');
+    }
     if (estIrt != null) {
       const gap = target - estIrt;
       note += gap > 0 ? `<br>目標まで <strong style="color:var(--orange);">あと約${gap}</strong>（正答率を上げよう）` : `<br><strong style="color:var(--green);">✅ 目標到達ペース！</strong>`;
@@ -6647,9 +6728,26 @@ function renderAnalytics() {
         row.innerHTML = `
           <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);flex-shrink:0;">${m.date.slice(5)}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.name || '模試'}</span>
+          ${typeof m.pct === 'number' ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);flex-shrink:0;">${m.pct.toFixed(1)}%</span>` : ''}
           <span style="font-family:'JetBrains Mono',monospace;font-weight:800;color:${STAGE_COLOR[stg]};">${m.score}<span style="font-size:9px;color:var(--dim);">（段${stg}）</span></span>
           <span onclick="deleteMock(${idx})" style="cursor:pointer;color:var(--dim);font-size:14px;flex-shrink:0;">×</span>`;
         mockList.appendChild(row);
+        if (m.fields || m.rank) {
+          // 成績表の中身：全国平均・偏差値・順位と、偏差値の低い分野
+          const det = document.createElement('div');
+          det.style.cssText = 'font-size:10px;color:var(--dim);line-height:1.6;padding:2px 0 8px;border-bottom:1px solid var(--border);';
+          let t = '';
+          if (m.pts) t += `${m.pts}（全国平均 ${m.natAvg}%・偏差値 ${m.dev}）`;
+          if (m.rank) t += `<br>${m.rank}`;
+          if (m.fields) {
+            const weak = [...m.fields].sort((x, y) => x.dev - y.dev).slice(0, 3);
+            t += '<br>⚠️ 弱い分野：' + weak.map(f => `<strong style="color:${f.dev < 45 ? 'var(--red-ink)' : 'var(--orange)'};">${f.k} ${f.pct.toFixed(1)}%</strong>（平均${f.avg}%・偏差値${f.dev}）`).join('、');
+            const strong = [...m.fields].sort((x, y) => y.dev - x.dev)[0];
+            t += `<br>💪 強い分野：${strong.k} ${strong.pct.toFixed(1)}%（偏差値${strong.dev}）`;
+          }
+          det.innerHTML = t;
+          mockList.appendChild(det);
+        }
       });
     }
   }
