@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="96" fill="#080a0f"/>
+  <!-- インナーカード -->
+  <rect x="40" y="40" width="432" height="432" rx="72" fill="#0e1118"/>
+  <!-- QB テキスト（青） -->
+  <text x="256" y="230" font-family="Arial Black,Arial,sans-serif" font-weight="900"
+        font-size="176" fill="#5b8fff" text-anchor="middle" dominant-baseline="middle">QB</text>
+  <!-- 区切りライン -->
+  <rect x="96" y="290" width="320" height="3" rx="2" fill="#232840"/>
+  <!-- CBT テキスト（赤） -->
+  <text x="256" y="390" font-family="Arial Black,Arial,sans-serif" font-weight="900"
+        font-size="100" fill="#ff4060" text-anchor="middle" dominant-baseline="middle">CBT</text>
+</svg>
