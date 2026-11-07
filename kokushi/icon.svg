@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#080a0f"/>
+  <rect x="40" y="40" width="432" height="432" rx="72" fill="#0e1118"/>
+  <text x="256" y="215" font-family="Arial Black,Arial,sans-serif" font-weight="900"
+        font-size="160" fill="#5b8fff" text-anchor="middle" dominant-baseline="middle">QB</text>
+  <rect x="96" y="290" width="320" height="3" rx="2" fill="#232840"/>
+  <text x="256" y="385" font-family="Noto Sans CJK JP,Hiragino Sans,sans-serif" font-weight="900"
+        font-size="104" fill="#34e8a0" text-anchor="middle" dominant-baseline="middle">国試</text>
+</svg>

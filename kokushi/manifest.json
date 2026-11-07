@@ -1,0 +1,16 @@
+{
+  "name": "国試 Planner",
+  "short_name": "国試",
+  "description": "医師国家試験（QB・モントレ）を毎日コツコツ続けるための学習管理アプリ",
+  "start_url": "/cbt-planner/kokushi/",
+  "scope": "/cbt-planner/kokushi/",
+  "display": "standalone",
+  "background_color": "#080a0f",
+  "theme_color": "#080a0f",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg",     "sizes": "any",      "type": "image/svg+xml" }
+  ]
+}
