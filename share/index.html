@@ -2406,11 +2406,16 @@ setInterval(syncMiscIfChanged, 4000);
 let _saveTimer = null;
 let _pendingSave = false;   // 未同期の変更があるか（接続復帰時に自動リトライ）
 function scheduleSave() {
+  // 端末内保存なので待たずにすぐ書く（記録直後にアプリを閉じても消えないように）
   _pendingSave = true;
-  setSyncState('saving');
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(doSave, 500);
+  _saveTimer = null;
+  doSave();
 }
+// アプリを閉じる・切り替えるときに、まだ保存していない設定を書き込む
+function flushSave() { syncMiscIfChanged(); }
+window.addEventListener('pagehide', flushSave);
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
 
 // 接続が戻ったら自動で回復（まず読み込み → その後に未同期分を送信）
 async function retrySaveIfPending() {
@@ -2472,8 +2477,9 @@ async function doSave() {
 
   // ── ガード2：進捗が大きく減る保存をブロック ──
   // クラウド上の量より著しく少ないデータを書こうとしたら異常とみなす
+  // （端末内保存の版では、進捗を減らす修正もそのまま保存する）
   const nextDone = sumSubjectDone(BANK_SUBJ.qb);
-  if (_cloudBaselineDone > 0 && nextDone < _cloudBaselineDone * 0.7) {
+  if (false) {
     console.warn('[Safety] 進捗が激減する保存をブロック', { nextDone, baseline: _cloudBaselineDone });
     localStorage.setItem('cbt_cache', JSON.stringify(state));
     _pendingSave = false;
