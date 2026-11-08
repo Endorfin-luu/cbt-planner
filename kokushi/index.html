@@ -520,6 +520,7 @@ function defaultState() {
     logs: [],      // { id, d:日付, b:バンク, c:科目ID, r:周回, n:問題数, w:誤答数|null, m:分|null, t:記録時刻 }
     tomb: [],      // 削除した記録のID（同期で復活させないため）
     weekGoals: {}, // { '週の月曜': 'ひとこと目標' }
+    kxOff: {},     // Kioku の記録のうち、ここで消した分 { 記録ID: { n, w } }（tomb と違い、あとから増えた分は入る）
     updatedAt: '',
   };
 }
@@ -557,6 +558,7 @@ function normalize(s) {
     s.chv = CH_VER;
   }
   s.weekGoals = s.weekGoals || {};
+  s.kxOff = s.kxOff && typeof s.kxOff === 'object' ? s.kxOff : {};
   s.v = 1;
   return s;
 }
@@ -603,9 +605,18 @@ async function importKioku() {
   if (!snap.exists) return false;
   const data = snap.data() || {};
   const tomb = new Set(S.tomb);
-  const incoming = (Array.isArray(data.logs) ? data.logs : [])
-    .filter(l => l && typeof l.id === 'string' && l.id.startsWith('kx-') && l.n > 0 && !tomb.has(l.id) && S.banks[l.b])
-    .map(l => ({ id: l.id, d: l.d, b: l.b, c: l.c, r: Math.max(1, Math.min(plan(l.b).length, l.r || 1)), n: l.n, w: l.w == null ? null : l.w, m: null, t: l.t || 0 }));
+  // v2: recs = { id: record }（端末ごとに足していく形）。v1: logs = [record]
+  const raw = data.recs && typeof data.recs === 'object' ? Object.values(data.recs) : (Array.isArray(data.logs) ? data.logs : []);
+  const incoming = [];
+  for (const l of raw) {
+    if (!l || typeof l.id !== 'string' || !l.id.startsWith('kx-') || tomb.has(l.id) || !S.banks[l.b]) continue;
+    // ここで消した分を引く。消したあとに Kioku で解いた分だけが残る
+    const off = S.kxOff[l.id] || { n: 0, w: 0 };
+    const n = (l.n || 0) - off.n;
+    if (n <= 0) continue;
+    const w = l.w == null ? null : Math.max(0, Math.min(n, l.w - (off.w || 0)));
+    incoming.push({ id: l.id, d: l.d, b: l.b, c: l.c, r: Math.max(1, Math.min(plan(l.b).length, l.r || 1)), n, w, m: null, t: l.t || 0 });
+  }
   const isK = l => String(l.id).startsWith('kx-');
   const key = arr => JSON.stringify(arr.map(l => [l.id, l.d, l.b, l.c, l.r, l.n, l.w]).sort());
   if (key(S.logs.filter(isK)) === key(incoming)) return false;
@@ -637,9 +648,14 @@ function mergeStates(a, b) {
   out.logs = [...map.values()].sort((x, y) => (x.t || 0) - (y.t || 0));
   out.tomb = [...tomb].slice(-2000);
   out.weekGoals = Object.assign({}, (newer === a ? b : a).weekGoals || {}, newer.weekGoals || {});
+  out.kxOff = {};
+  for (const src of [a.kxOff || {}, b.kxOff || {}]) for (const [id, o] of Object.entries(src)) {
+    const cur = out.kxOff[id];
+    if (!cur || o.n > cur.n) out.kxOff[id] = { n: o.n, w: o.w || 0 };
+  }
   return out;
 }
-const stateSig = s => JSON.stringify([s.logs.map(l => l.id), s.settings, s.banks, s.weekGoals]);
+const stateSig = s => JSON.stringify([s.logs.map(l => l.id), s.settings, s.banks, s.weekGoals, s.kxOff]);
 
 async function cloudRead() {
   if (!fsDoc) { setSync('err', 'オフライン'); return; }
@@ -1003,7 +1019,14 @@ function deleteLog(id) {
   const l = S.logs.find(x => x.id === id); if (!l) return;
   if (!confirm(`${fmtMDW(l.d)} の ${l.n}問 の記録を消しますか？`)) return;
   S.logs = S.logs.filter(x => x.id !== id);
-  S.tomb.push(id);
+  if (String(id).startsWith('kx-')) {
+    // Kioku の記録は「その日・科目・周回」ごとに1件にまとまっていて、あとから同じ記録に問題数が足される。
+    // ID ごと消すと後で解いた分まで入らなくなるので、消した時点の数だけを差し引く。
+    const off = S.kxOff[id] || { n: 0, w: 0 };
+    S.kxOff[id] = { n: off.n + l.n, w: (off.w || 0) + (l.w || 0) };
+  } else {
+    S.tomb.push(id);
+  }
   commit();
   toast('記録を消しました');
 }

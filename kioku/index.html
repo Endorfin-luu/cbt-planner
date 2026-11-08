@@ -304,6 +304,9 @@ function migrate(s){
   const d = defaultState();
   s.decks ||= d.decks; s.notes ||= {}; s.cards ||= {}; s.revlog ||= []; s.media ||= {}; s.models ||= {}; s.today ||= d.today; s.conf = Object.assign(d.conf, s.conf||{});
   s.nextPos ||= 1;
+  // del: deleted ids (cards / notes / decks / revlog) -> deletion time.
+  // Needed so that merging with another device does not bring deleted items back.
+  s.del ||= {};
   if (!Object.keys(s.decks).length) s.decks = d.decks;
   for (const dk of Object.values(s.decks)) { dk.opts ||= {}; }
   return s;
@@ -363,7 +366,7 @@ function syncCards(note, did){
   const want = new Set(cardOrds(note));
   const have = Object.values(S.cards).filter(c => c.nid === note.id);
   const removable = note.type !== "anki" || S.models[note.mid]?.cloze;
-  if (removable) for (const c of have) if (!want.has(c.ord)) delete S.cards[c.id];
+  if (removable) for (const c of have) if (!want.has(c.ord)) { markDeleted(c.id); delete S.cards[c.id]; }
   const haveOrds = new Set(have.map(c => c.ord));
   const deck = did || have[0]?.did || S.conf.lastDeck;
   for (const o of want) if (!haveOrds.has(o)) { const c = newCard(note.id, o, deck); S.cards[c.id] = c; }
@@ -375,9 +378,11 @@ function addNote(type, fields, tags, did, extra){
 }
 function deleteNotes(nids){
   const set = new Set(nids);
-  for (const nid of set) delete S.notes[nid];
-  for (const c of Object.values(S.cards)) if (set.has(c.nid)) delete S.cards[c.id];
+  for (const nid of set) { markDeleted(nid); delete S.notes[nid]; }
+  for (const c of Object.values(S.cards)) if (set.has(c.nid)) { markDeleted(c.id); delete S.cards[c.id]; }
 }
+/** Remember a deletion so a merge with another device's data does not resurrect it. */
+function markDeleted(id){ (S.del ||= {})[id] = Date.now(); }
 function cardsOfNote(nid){ return Object.values(S.cards).filter(c => c.nid === nid); }
 
 /* ---------- 表示 ---------- */
@@ -718,8 +723,12 @@ function answerCard(card, ease, timeMs){
 }
 function undoLast(){
   const u = session.undo.pop(); if (!u){ toast("元に戻す操作はありません"); return null; }
-  S.cards[u.card.id] = u.card;
-  if (u.noteTags && S.notes[u.card.nid]) S.notes[u.card.nid].tags = u.noteTags;
+  // Give the restored card a fresh mod time so that, when merged with a copy saved before the undo,
+  // the restored (older) state wins over the undone review.
+  S.cards[u.card.id] = { ...u.card, mod: Date.now() };
+  if (u.noteTags && S.notes[u.card.nid]) { S.notes[u.card.nid].tags = u.noteTags; S.notes[u.card.nid].mod = Date.now(); }
+  // Mark the undone review log entries as deleted for the same reason.
+  for (const r of S.revlog.slice(u.revlogLen)) markDeleted("r" + r.id + r.cid);
   S.today = u.today; S.revlog.length = u.revlogLen; session.revSinceNew = u.revSinceNew;
   if ("game" in u){ if (u.game) S.game = u.game; else delete S.game; if (window.Game && u.gsess) Game.sessRestore(u.gsess); }
   for (const b of u.buried) if (S.cards[b.id]) { S.cards[b.id].queue = b.queue; delete S.cards[b.id].buriedDay; }
@@ -758,14 +767,150 @@ function toB64(buf){ const u = new Uint8Array(buf); let s = ""; for (let i=0;i<u
 function fromB64(b){ const s = atob(b), u = new Uint8Array(s.length); for (let i=0;i<s.length;i++) u[i] = s.charCodeAt(i); return u; }
 async function gz(str){ const st = new Blob([str]).stream().pipeThrough(new CompressionStream("gzip")); return toB64(await new Response(st).arrayBuffer()); }
 async function gunz(b){ const st = new Blob([fromB64(b)]).stream().pipeThrough(new DecompressionStream("gzip")); return await new Response(st).text(); }
+/* ---------- 2台以上の端末のデータを合わせる ----------
+   Before this, the whole state was "last save wins": if two devices recorded at about the same time
+   (or one was offline), one device's records disappeared. Now the two copies are merged item by item:
+   - cards / notes: the one with the newer `mod` (a review or edit updates mod)
+   - decks / models / media / review log: union
+   - deleted items: remembered in `del` so the merge does not bring them back
+   - 問題演習 (S.qx): merged per question in qbank.js (qxMerge)
+   - settings, the pet game etc.: taken from the copy saved last */
+const TOMB_KEEP_MS = 180 * DAY; // forget deletion marks after ~6 months
+const clone = x => x === undefined ? undefined : JSON.parse(JSON.stringify(x));
+function mergeKioku(local, remote){
+  const newer = (remote.savedAt || 0) > (local.savedAt || 0) ? remote : local;
+  const older = newer === local ? remote : local;
+  const out = clone(newer);
+
+  // deletion marks from both sides
+  const del = Object.assign({}, older.del || {}, newer.del || {});
+  const cutoff = Date.now() - TOMB_KEEP_MS;
+  for (const [k, t] of Object.entries(del)) if (t < cutoff) delete del[k];
+  out.del = del;
+
+  // cards and notes: keep the newer version of each (ties: the copy saved last)
+  for (const kind of ["cards", "notes"]){
+    const merged = {};
+    const ids = new Set([...Object.keys(newer[kind] || {}), ...Object.keys(older[kind] || {})]);
+    for (const id of ids){
+      if (del[id]) continue;
+      const a = newer[kind]?.[id], b = older[kind]?.[id];
+      merged[id] = clone(!a ? b : !b ? a : (b.mod || 0) > (a.mod || 0) ? b : a);
+    }
+    out[kind] = merged;
+  }
+
+  // decks: union. A deck created on both devices with the same name is treated as one deck.
+  const decks = {};
+  for (const [id, d] of Object.entries(newer.decks || {})) if (!del[id]) decks[id] = clone(d);
+  const deckRemap = {};
+  for (const [id, d] of Object.entries(older.decks || {})){
+    if (del[id] || decks[id]) continue;
+    const same = Object.values(decks).find(x => x.name === d.name);
+    if (same) deckRemap[id] = same.id; else decks[id] = clone(d);
+  }
+  if (!Object.keys(decks).length) Object.assign(decks, defaultState().decks);
+  out.decks = decks;
+  for (const c of Object.values(out.cards)) {
+    if (deckRemap[c.did]) c.did = deckRemap[c.did];
+    if (!decks[c.did]) c.did = out.conf?.lastDeck && decks[out.conf.lastDeck] ? out.conf.lastDeck : Object.keys(decks)[0];
+  }
+  if (out.conf && !decks[out.conf.lastDeck]) out.conf.lastDeck = Object.keys(decks)[0];
+
+  // review log: union (undone reviews are marked in del)
+  const seen = new Set(), revlog = [];
+  for (const r of [...(newer.revlog || []), ...(older.revlog || [])]){
+    const k = "r" + r.id + r.cid;
+    if (seen.has(k) || del[k]) continue;
+    seen.add(k); revlog.push(clone(r));
+  }
+  revlog.sort((x, y) => x.id - y.id || String(x.cid).localeCompare(String(y.cid)));
+  out.revlog = revlog;
+
+  // note types and images: union (prefer the image entry that is already uploaded)
+  out.models = Object.assign({}, clone(older.models || {}), clone(newer.models || {}));
+  const media = clone(newer.media || {});
+  for (const [k, m] of Object.entries(older.media || {})) if (!media[k] || (!media[k].id && m.id)) media[k] = clone(m);
+  out.media = media;
+
+  out.nextPos = Math.max(newer.nextPos || 1, older.nextPos || 1);
+
+  // today's counters (new / review per deck): on the same day, take the larger count
+  if (older.today && out.today && older.today.day === out.today.day){
+    for (const [did, d] of Object.entries(older.today.decks || {})){
+      const o = out.today.decks[did] ||= { n: 0, r: 0 };
+      o.n = Math.max(o.n || 0, d.n || 0); o.r = Math.max(o.r || 0, d.r || 0);
+    }
+  }
+
+  if (typeof qxMerge === "function"){
+    out.qx = qxMerge(newer.qx, older.qx);
+    // The record panel's position (subject / start number) is this device's screen state:
+    // keep ours, otherwise the start number jumps back to the other device's value.
+    if (out.qx && local.qx?.rec) out.qx.rec = clone(local.qx.rec);
+  }
+  out.savedAt = Math.max(newer.savedAt || 0, older.savedAt || 0);
+  return migrate(out);
+}
+/** JSON with sorted keys, so two states with the same content compare equal regardless of key order. */
+function stableJson(x){
+  if (Array.isArray(x)) return "[" + x.map(v => stableJson(v === undefined ? null : v)).join(",") + "]";
+  if (x && typeof x === "object") return "{" + Object.keys(x).sort().filter(k => x[k] !== undefined).map(k => JSON.stringify(k) + ":" + stableJson(x[k])).join(",") + "}";
+  return JSON.stringify(x === undefined ? null : x);
+}
+// savedAt and the per-device record-panel state (qx.rec) are not "content": if they counted,
+// two devices would keep finding a difference and re-saving each other forever.
+const contentKey = s => stableJson({ ...s, savedAt: 0, qx: s.qx ? { ...s.qx, rec: null } : s.qx });
+// gen = id of the cloud version this device's data already contains (survives reloads)
+Store.syncedGen = (() => { try { return localStorage.getItem("kioku-synced-gen") || ""; } catch(e){ return ""; } })();
+function setSyncedGen(gen){ Store.syncedGen = gen; try { localStorage.setItem("kioku-synced-gen", gen); } catch(e){} }
+/**
+ * Merge a copy loaded from the cloud into S.
+ * @returns {boolean} true if S has something the cloud copy does not (so it must be saved)
+ */
+function absorbRemote(remote, meta){
+  remote = migrate(remote);
+  const merged = mergeKioku(S, remote);
+  const localExtra = contentKey(merged) !== contentKey(remote);
+  S = merged;
+  setSyncedGen(meta.gen);
+  if (localExtra) S.savedAt = Date.now();                 // newer than the cloud copy -> others will load it
+  else { S.savedAt = meta.savedAt; Store.lastRemote = meta.savedAt; }
+  rollover(); saveLocal();
+  if (typeof qxScheduleExport === "function") qxScheduleExport();
+  return localExtra;
+}
+/** Redraw after data from another device came in, without moving the page (not during card study). */
+function rerenderKeepScroll(){ if (currentView === "study") return; const y = window.scrollY; route(true); window.scrollTo(0, y); }
+/** Read a document from the server (Firestore on GitHub Pages). The claude.ai storage has no offline cache. */
+function serverGet(ref){ return Store.db ? ref.get() : ref.get({ source: "server" }); }
 async function remoteSave(){
   clearTimeout(Store.timer); clearTimeout(Store.maxTimer); Store.maxTimer = null;
   if (!Store.base || !Store.ready) return;
   if (Store.saving){ Store.again = true; return; }
+  if (Store.loadingRemote){ clearTimeout(Store.timer); Store.timer = setTimeout(remoteSave, 1000); return; } // wait for the merge in progress
   Store.saving = true;
-  const savedAt = S.savedAt;
   try {
     Store.setStatus("busy", "同期中…");
+    // First take in anything another device saved since our last sync, so we don't overwrite it.
+    // Ask the server itself (not the offline cache): when offline this fails and we retry later,
+    // instead of queueing a write that would overwrite newer data when the connection comes back.
+    const m = await serverGet(Store.base.doc("meta"));
+    if (m.exists && m.data().gen !== Store.syncedGen){
+      const meta = m.data();
+      absorbRemote(await remoteLoad(meta), meta);
+      rerenderKeepScroll();
+    }
+  } catch(e){
+    console.warn("pre-save check failed", e);
+    Store.saving = false;
+    Store.setStatus("err", "クラウドの確認に失敗（このブラウザには保存済み）");
+    setTimeout(remoteSave, 8000 + Math.random()*4000);
+    return;
+  }
+  const savedAt = S.savedAt;
+  if (savedAt <= Store.lastRemote){ Store.saving = false; Store.setStatus("ok", "クラウドに保存済み"); return; } // nothing new after the merge
+  try {
     const json = JSON.stringify(S);
     const enc = hasCS ? "gz" : "raw";
     const data = enc === "gz" ? await gz(json) : json;
@@ -775,6 +920,7 @@ async function remoteSave(){
     const gen = rid();
     for (let i=0;i<parts.length;i++) await Store.base.doc("c" + i).set({ gen, i, s: parts[i] });
     await Store.base.doc("meta").set({ v: 1, n: parts.length, enc, gen, savedAt, dev: Store.deviceId });
+    setSyncedGen(gen);
     const prev = Store.prevChunks; Store.prevChunks = parts.length;
     for (let i=parts.length;i<prev;i++) { try { await Store.base.doc("c" + i).delete(); } catch(e){} }
     Store.lastRemote = savedAt;
@@ -786,6 +932,7 @@ async function remoteSave(){
   } finally {
     Store.saving = false;
     if (Store.again || S.savedAt > Store.lastRemote){ Store.again = false; if (S.savedAt > savedAt) { clearTimeout(Store.timer); Store.timer = setTimeout(remoteSave, 1500); } }
+    if (Store.pullAgain){ Store.pullAgain = false; setTimeout(pullRemote, 500); } // another device saved while we were saving
   }
 }
 async function remoteLoad(meta){
@@ -853,30 +1000,49 @@ async function startCloud(base){
     if (m.exists){
       const meta = m.data();
       Store.prevChunks = meta.n;
-      if ((meta.savedAt || 0) > (S.savedAt || 0)){
-        const remote = await remoteLoad(meta);
-        S = migrate(remote); rollover(); Store.lastRemote = S.savedAt; saveLocal(); route(true);
-        Store.ready = true; Store.setStatus("ok", "クラウドと同期済み"); pumpUploads();
-      } else if ((S.savedAt || 0) > (meta.savedAt || 0)){
-        Store.lastRemote = meta.savedAt; Store.ready = true; await remoteSave();
-      } else { Store.lastRemote = S.savedAt; Store.ready = true; Store.setStatus("ok", "クラウドと同期済み"); }
+      if (meta.gen === Store.syncedGen){
+        // The cloud copy is one this device already has. Save only if we changed something since.
+        Store.lastRemote = meta.savedAt || 0; Store.ready = true;
+        if ((S.savedAt || 0) > Store.lastRemote) await remoteSave(); else Store.setStatus("ok", "クラウドと同期済み");
+      } else {
+        // Another device saved (or this browser has never synced): merge instead of overwriting either side.
+        const extra = absorbRemote(await remoteLoad(meta), meta);
+        Store.ready = true; route(true);
+        if (extra) await remoteSave(); else Store.setStatus("ok", "クラウドと同期済み");
+      }
     } else {
       Store.ready = true;
       if (S.savedAt) await remoteSave(); else Store.setStatus("ok", "クラウド保存オン");
     }
     pumpUploads();
-    Store.unsub = base.doc("meta").onSnapshot(async snap => {
+    if (typeof qxExport === "function") qxExport(); // send 問題演習 records to 国試 Planner once the data is up to date
+    Store.unsub = base.doc("meta").onSnapshot(snap => {
       if (!snap.exists || snap.metadata.hasPendingWrites) return;
-      const meta = snap.data();
-      if (meta.dev === Store.deviceId || (meta.savedAt||0) <= (S.savedAt||0) || Store.saving || Store.loadingRemote) return;
-      if (S.savedAt > Store.lastRemote) return; // 未送信の変更があるときは上書きしない
-      Store.loadingRemote = true;
-      try { const remote = await remoteLoad(meta); S = migrate(remote); rollover(); Store.lastRemote = S.savedAt; saveLocal(); if (currentView !== "study") route(true); toast("別の端末の変更を読み込みました"); }
-      catch(e){} finally { Store.loadingRemote = false; }
+      if (snap.data().gen === Store.syncedGen) return; // our own save, or already merged
+      pullRemote();
     }, () => {});
   } catch(e){
     clearTimeout(timeout); console.warn(e);
     Store.base = null; Store.ready = false; Store.setStatus("err", "クラウドに接続できません（このブラウザには保存）");
+  }
+}
+/** Another device saved: merge its data into ours (our unsaved changes are kept and then saved). */
+async function pullRemote(){
+  if (!Store.base || !Store.ready) return;
+  if (Store.saving || Store.loadingRemote){ Store.pullAgain = true; return; }
+  Store.loadingRemote = true;
+  try {
+    const m = await serverGet(Store.base.doc("meta"));
+    if (!m.exists || m.data().gen === Store.syncedGen) return;
+    const meta = m.data();
+    const extra = absorbRemote(await remoteLoad(meta), meta);
+    rerenderKeepScroll();
+    toast("別の端末の変更を読み込みました");
+    if (extra) markDirty(); else Store.setStatus("ok", "クラウドと同期済み");
+  } catch(e){ console.warn("pull failed", e); }
+  finally {
+    Store.loadingRemote = false;
+    if (Store.pullAgain){ Store.pullAgain = false; setTimeout(pullRemote, 500); }
   }
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSave(); });
@@ -1124,9 +1290,9 @@ async function deleteDeck(d){
   const ok = await confirmDlg(`「${d.name}」${ids.size > 1 ? "とサブデッキ" : ""}を削除します。含まれるカード ${cards.length} 枚も削除されます。`, "削除", true);
   if (!ok) return;
   const nids = new Set(cards.map(c => c.nid));
-  for (const c of cards) delete S.cards[c.id];
-  for (const nid of nids) if (!cardsOfNote(nid).length) delete S.notes[nid];
-  for (const id of ids) delete S.decks[id];
+  for (const c of cards) { markDeleted(c.id); delete S.cards[c.id]; }
+  for (const nid of nids) if (!cardsOfNote(nid).length) { markDeleted(nid); delete S.notes[nid]; }
+  for (const id of ids) { markDeleted(id); delete S.decks[id]; }
   if (!Object.keys(S.decks).length) S.decks = defaultState().decks;
   if (!S.decks[S.conf.lastDeck]) S.conf.lastDeck = Object.keys(S.decks)[0];
   markDirty(); route(true); toast("削除しました");
@@ -1964,7 +2130,14 @@ async function importBackup(){
   const mode = await modal({ title: "バックアップから復元", body: h("p", {}, `カード ${Object.keys(data.cards).length} 枚を含むバックアップです。どう取り込みますか？`), buttons: [{ label: "キャンセル", value: null }, { label: "今のデータに追加", value: "merge" }, { label: "置き換える", value: "replace", danger: true }] });
   if (!mode) return;
   const mediaData = data.mediaData || {}; delete data.mediaData;
-  if (mode === "replace"){ const keep = S.conf; S = migrate(data); S.conf = Object.assign(S.conf, { theme: keep.theme }); for (const m of Object.values(S.media)) { if (mediaData && Object.keys(mediaData).length) delete m.id; } }
+  if (mode === "replace"){
+    // Everything that is not in the backup counts as deleted, so other devices' copies don't bring it back.
+    const keepDel = { ...(S.del || {}), ...(data.del || {}) }, now = Date.now();
+    for (const kind of ["cards", "notes", "decks"]) for (const id of Object.keys(S[kind])) if (!(data[kind] || {})[id]) keepDel[id] = now;
+    const inBackup = new Set((data.revlog || []).map(r => "r" + r.id + r.cid));
+    for (const r of S.revlog) if (!inBackup.has("r" + r.id + r.cid)) keepDel["r" + r.id + r.cid] = now;
+    data.del = keepDel;
+    const keep = S.conf; S = migrate(data); S.conf = Object.assign(S.conf, { theme: keep.theme }); for (const m of Object.values(S.media)) { if (mediaData && Object.keys(mediaData).length) delete m.id; } }
   else {
     for (const d of Object.values(data.decks || {})){ const ex = deckByName(d.name); if (!ex){ const id = S.decks[d.id] ? rid() : d.id; S.decks[id] = { ...d, id }; } }
     const deckMap = {}; for (const d of Object.values(data.decks || {})) deckMap[d.id] = deckByName(d.name).id;
