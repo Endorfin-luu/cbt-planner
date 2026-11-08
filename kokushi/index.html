@@ -426,7 +426,8 @@ input,select{font-family:inherit;}
       <div class="set-row"><div class="lab">バックアップを保存<small>記録をファイル（JSON）に書き出します</small></div><button class="btn ghost sm" style="width:auto;margin:0;padding:7px 12px" onclick="exportData()">書き出す</button></div>
       <div class="set-row"><div class="lab">バックアップから戻す<small>書き出したファイルを読み込みます（今の記録と合わせます）</small></div><label class="btn ghost sm" style="width:auto;margin:0;padding:7px 12px;display:inline-block">読み込む<input type="file" accept="application/json,.json" id="importFile" style="display:none"></label></div>
     </div>
-    <div class="note" style="text-align:center;margin:8px 0 20px">CBT の記録は <a href="../" style="color:var(--blue)">CBT Planner</a> にそのまま残っています。</div>
+    <div class="note" style="text-align:center;margin:8px 0 6px">QB・モントレを1問ずつ忘却曲線で回すなら <a href="../kioku/#drill" style="color:var(--blue)">Kioku の問題演習</a>（解いた数はここに自動で入ります）</div>
+    <div class="note" style="text-align:center;margin:0 0 20px">CBT の記録は <a href="../" style="color:var(--blue)">CBT Planner</a> にそのまま残っています。</div>
   </section>
 </main>
 
@@ -463,35 +464,34 @@ const $ = id => document.getElementById(id);
 //   科目IDはQBとモントレで共通にして「実習中の科」と結びつける。
 // ══════════════════════════════════════════════════════════════
 const GROUPS = { major: 'メジャー（内科・外科）', pedob: '小児・産婦', minor: 'マイナー・救急', public: '公衆衛生', hisshu: '必修・総論', other: 'その他' };
-const SUBJECTS = [
-  // id, 科目, グループ, QB目安, モントレ目安
-  ['GI', '消化管',           'major', 380, 230],
-  ['LV', '肝・胆・膵',       'major', 300, 180],
-  ['CV', '循環器',           'major', 420, 250],
-  ['EN', '内分泌・代謝',     'major', 380, 230],
-  ['KD', '腎',               'major', 260, 150],
-  ['IM', '免疫・膠原病',     'major', 250, 150],
-  ['HE', '血液',             'major', 260, 150],
-  ['IF', '感染症',           'major', 250, 150],
-  ['RS', '呼吸器',           'major', 380, 230],
-  ['NR', '神経',             'major', 380, 230],
-  ['PE', '小児科',           'pedob', 350, 200],
-  ['OB', '産科',             'pedob', 300, 170],
-  ['GY', '婦人科',           'pedob', 250, 150],
-  ['ER', '救急・中毒',       'minor', 260, 150],
-  ['AN', '麻酔',             'minor', 50, 30],
-  ['PS', '精神',             'minor', 200, 120],
-  ['OR', '整形外科',         'minor', 180, 110],
-  ['DE', '皮膚科',           'minor', 160, 100],
-  ['OP', '眼科',             'minor', 120, 80],
-  ['EA', '耳鼻咽喉科',       'minor', 130, 80],
-  ['UR', '泌尿器科',         'minor', 160, 100],
-  ['RA', '放射線',           'minor', 60, 40],
-  ['GE', '老年医学',         'minor', 60, 40],
-  ['PH', '公衆衛生',         'public', 700, 400],
-  ['HS', '必修',             'hisshu', 900, 500],
-  ['GN', '総論（症候・検査・手技）', 'hisshu', 400, 250],
+// QB（2027年版 vol.1〜7）とモントレの実際の章立て・問題数。
+// 科目IDは2つで共通（同じ科目なら同じID）にして「実習中の科」と Kioku の記録を結びつける。
+// [id, 名前, グループ, 問題数]
+const QB_CH = [
+  ['GI', 'A 消化管', 'major', 291], ['LV', 'B 肝・胆・膵', 'major', 195], ['CV', 'C 循環器', 'major', 378],
+  ['EN', 'D 代謝・内分泌', 'major', 298], ['KD', 'E 腎・泌尿器', 'major', 186], ['IM', 'F 免疫・膠原病', 'major', 157],
+  ['HE', 'G 血液', 'major', 202], ['IF', 'H 感染症', 'major', 239], ['RS', 'I 呼吸器', 'major', 295],
+  ['NR', 'J 神経', 'major', 361], ['TX', 'K 中毒', 'minor', 63], ['ER', 'L 救急', 'minor', 136],
+  ['AN', 'M 麻酔科', 'minor', 32], ['GN', 'N 医学総論', 'hisshu', 147], ['PE', 'O 小児科', 'pedob', 423],
+  ['GY', 'P 婦人科', 'pedob', 204], ['OB', 'Q 産科', 'pedob', 337], ['OP', 'R 眼科', 'minor', 151],
+  ['EA', 'S 耳鼻咽喉科', 'minor', 151], ['OR', 'T 整形外科', 'minor', 152], ['PS', 'U 精神科', 'minor', 205],
+  ['DE', 'V 皮膚科', 'minor', 150], ['UR', 'W 泌尿器科', 'minor', 150], ['RA', 'X 放射線科', 'minor', 53],
+  ['PH', 'Y 公衆衛生', 'public', 605], ['HS', 'Z 必修問題', 'hisshu', 1418],
 ];
+const MONTE_CH = [
+  ['CV', '循環器', 'major', 1041], ['RS', '呼吸器', 'major', 898], ['GI', '消化器', 'major', 1151],
+  ['KD', '腎臓', 'major', 408], ['EN', '内分泌代謝', 'major', 761], ['NR', '神経', 'major', 924],
+  ['HE', '血液', 'major', 556], ['IM', '免疫', 'major', 388], ['IF', '感染症', 'major', 430],
+  ['TX', '中毒・環境異常症', 'minor', 151], ['ER', '救急', 'minor', 164], ['PE', '小児', 'pedob', 738],
+  ['OB', '産科', 'pedob', 609], ['GY', '婦人科', 'pedob', 416], ['UR', '泌尿器', 'minor', 367],
+  ['OP', '眼科', 'minor', 325], ['EA', '耳鼻咽喉科', 'minor', 437], ['DE', '皮膚', 'minor', 352],
+  ['PS', '精神', 'minor', 490], ['OR', '整形', 'minor', 343], ['AN', '麻酔', 'minor', 57],
+  ['RA', '放射線', 'minor', 73], ['PH', '公衆衛生', 'public', 898], ['GN', '臨床医学総論', 'hisshu', 827],
+];
+const BANK_CH = { qb: QB_CH, monte: MONTE_CH };
+const CH_VER = 2; // 章立てを実際の QB・モントレに合わせた版
+// 旧版（目安の章立て）の科目IDを新しい章立てに読み替える
+const OLD_CH_MAP = { qb: { GE: 'GN' }, monte: { LV: 'GI', HS: 'GN', GE: 'GN' } };
 const BANK_NAME = { qb: 'QB', monte: 'モントレ' };
 const BANK_COLOR = { qb: 'var(--blue)', monte: 'var(--green)' };
 
@@ -501,7 +501,7 @@ function defaultState() {
     settings: { examDate: '2029-02-03', minDaily: 5, restPerWeek: 1, theme: '', rot: '', rotUntil: '' },
     banks: {
       qb: {
-        chapters: SUBJECTS.map(s => ({ id: s[0], name: s[1], group: s[2], n: s[3] })),
+        chapters: QB_CH.map(s => ({ id: s[0], name: s[1], group: s[2], n: s[3] })),
         plan: [
           { due: '2028-03-31', wrongOnly: false },
           { due: '2028-09-30', wrongOnly: false },
@@ -509,13 +509,14 @@ function defaultState() {
         ],
       },
       monte: {
-        chapters: SUBJECTS.map(s => ({ id: s[0], name: s[1], group: s[2], n: s[4] })),
+        chapters: MONTE_CH.map(s => ({ id: s[0], name: s[1], group: s[2], n: s[3] })),
         plan: [
           { due: '2028-10-31', wrongOnly: false },
           { due: '2029-01-15', wrongOnly: true },
         ],
       },
     },
+    chv: CH_VER,
     logs: [],      // { id, d:日付, b:バンク, c:科目ID, r:周回, n:問題数, w:誤答数|null, m:分|null, t:記録時刻 }
     tomb: [],      // 削除した記録のID（同期で復活させないため）
     weekGoals: {}, // { '週の月曜': 'ひとこと目標' }
@@ -548,6 +549,13 @@ function normalize(s) {
   }
   s.logs = Array.isArray(s.logs) ? s.logs : [];
   s.tomb = Array.isArray(s.tomb) ? s.tomb : [];
+  if ((s.chv || 0) < CH_VER) {
+    // 章立てを実際の QB・モントレに置き換え、古い記録の科目IDを読み替える
+    for (const b of ['qb', 'monte']) s.banks[b].chapters = d.banks[b].chapters;
+    for (const l of s.logs) { const m = OLD_CH_MAP[l.b]; if (m && m[l.c]) l.c = m[l.c]; }
+    if (s.settings.rot === 'GE') s.settings.rot = '';
+    s.chv = CH_VER;
+  }
   s.weekGoals = s.weekGoals || {};
   s.v = 1;
   return s;
@@ -574,15 +582,36 @@ const FIREBASE_CONFIG = {
 // 本番（github.io）以外では別ドキュメントを使い、本番データを汚さない
 const IS_PROD = /github\.io$/.test(location.hostname);
 const DOC_ID = IS_PROD ? 'kokushi_user1' : 'kokushi_localtest';
-let fsDoc = null;
+let fsDoc = null, kiokuDoc = null;
 try {
   if (window.firebase) {
     const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
     const db = app.firestore();
     db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
     fsDoc = db.collection('progress').doc(DOC_ID);
+    // Kioku（問題演習）が書き出す記録。読むだけで、こちらからは書かない。
+    kiokuDoc = db.collection('progress').doc(IS_PROD ? 'kokushi_kioku_user1' : 'kokushi_kioku_localtest');
   }
-} catch (e) { fsDoc = null; }
+} catch (e) { fsDoc = null; kiokuDoc = null; }
+
+// Kioku の記録（id が kx- で始まる）は Kioku 側が正。毎回まるごと差し替える。
+// こちらで消した記録（tomb）は取り込まない。周回は計画の周回数までに丸める。
+async function importKioku() {
+  if (!kiokuDoc) return false;
+  let snap;
+  try { snap = await kiokuDoc.get(); } catch (e) { return false; }
+  if (!snap.exists) return false;
+  const data = snap.data() || {};
+  const tomb = new Set(S.tomb);
+  const incoming = (Array.isArray(data.logs) ? data.logs : [])
+    .filter(l => l && typeof l.id === 'string' && l.id.startsWith('kx-') && l.n > 0 && !tomb.has(l.id) && S.banks[l.b])
+    .map(l => ({ id: l.id, d: l.d, b: l.b, c: l.c, r: Math.max(1, Math.min(plan(l.b).length, l.r || 1)), n: l.n, w: l.w == null ? null : l.w, m: null, t: l.t || 0 }));
+  const isK = l => String(l.id).startsWith('kx-');
+  const key = arr => JSON.stringify(arr.map(l => [l.id, l.d, l.b, l.c, l.r, l.n, l.w]).sort());
+  if (key(S.logs.filter(isK)) === key(incoming)) return false;
+  S.logs = [...S.logs.filter(l => !isK(l)), ...incoming].sort((x, y) => (x.t || 0) - (y.t || 0));
+  return true;
+}
 
 let syncState = { status: 'idle', last: localStorage.getItem('kokushi_last_sync') || '', err: '' };
 function setSync(status, err) {
@@ -622,10 +651,13 @@ async function cloudRead() {
       const merged = mergeStates(S, remote);
       const changedLocal = stateSig(merged) !== stateSig(S);
       const needPush = stateSig(merged) !== stateSig(remote);
-      S = merged; saveLocal();
-      if (changedLocal) render();
-      if (needPush) await cloudWrite(); else setSync('ok');
+      S = merged;
+      const fromKioku = await importKioku();
+      saveLocal();
+      if (changedLocal || fromKioku) render();
+      if (needPush || fromKioku) await cloudWrite(); else setSync('ok');
     } else {
+      if (await importKioku()) { saveLocal(); render(); }
       await cloudWrite();
     }
   } catch (e) { setSync('err', e.code || e.message || 'error'); }
@@ -635,7 +667,7 @@ function scheduleCloudWrite() {
   if (!fsDoc) return;
   clearTimeout(writeTimer);
   setSync('busy');
-  writeTimer = setTimeout(cloudWrite, 1200);
+  writeTimer = setTimeout(() => { writeTimer = null; cloudWrite(); }, 1200);
 }
 async function cloudWrite() {
   if (!fsDoc) return;
@@ -644,6 +676,13 @@ async function cloudWrite() {
     setSync('ok');
   } catch (e) { setSync('err', e.code || e.message || 'error'); }
 }
+// 記録した直後にアプリを閉じても、クラウドへの書き込みを先に済ませる
+function flushCloudWrite() {
+  if (!fsDoc || !writeTimer) return;
+  clearTimeout(writeTimer); writeTimer = null;
+  cloudWrite();
+}
+window.addEventListener('pagehide', flushCloudWrite);
 function syncNow() { cloudRead().then(() => toast(syncState.status === 'ok' ? '同期しました' : '同期できませんでした')); }
 
 // ══════════════════════════════════════════════════════════════
@@ -925,7 +964,7 @@ function renderRecordForm(idx) {
   box.innerHTML = '<div class="small dim" style="margin-bottom:4px;font-weight:700">今日の記録</div>' + todays.map(l => {
     const c = chapterById(l.b, l.c);
     const acc = l.w != null && l.n ? ` · 正答率 ${Math.round((1 - l.w / l.n) * 100)}%` : '';
-    return `<div class="entry"><span class="bk ${l.b}">${BANK_NAME[l.b]}</span><span class="sp">${esc(c ? c.name : l.c)} <span class="dim">${l.r}周目</span> <b class="mono">${l.n}問</b><span class="dim small">${acc}${l.m ? ' · ' + l.m + '分' : ''}</span></span><button class="x" onclick="deleteLog('${l.id}')">✕</button></div>`;
+    return `<div class="entry"><span class="bk ${l.b}">${BANK_NAME[l.b]}</span><span class="sp">${String(l.id).startsWith('kx-') ? '<span class="dim small">Kioku · </span>' : ''}${esc(c ? c.name : l.c)} <span class="dim">${l.r}周目</span> <b class="mono">${l.n}問</b><span class="dim small">${acc}${l.m ? ' · ' + l.m + '分' : ''}</span></span><button class="x" onclick="deleteLog('${l.id}')">✕</button></div>`;
   }).join('');
 }
 function updateRemainHint(idx) {
@@ -1189,7 +1228,7 @@ function renderLog(totals) {
   const ds = Object.keys(byDay).sort().reverse();
   $('logList').innerHTML = ds.length ? ds.map(d => `<div class="lday"><span>${fmtMDW(d)}</span><span class="mono">${totals[d]}問</span></div>` + byDay[d].sort((a, b) => b.t - a.t).map(l => {
     const c = chapterById(l.b, l.c);
-    return `<div class="entry"><span class="bk ${l.b}">${BANK_NAME[l.b]}</span><span class="sp">${esc(c ? c.name : l.c)} <span class="dim">${l.r}周目</span> <b class="mono">${l.n}問</b>${l.w != null ? `<span class="dim small"> · 誤${l.w}</span>` : ''}${l.m ? `<span class="dim small"> · ${l.m}分</span>` : ''}</span><button class="x" onclick="deleteLog('${l.id}')">✕</button></div>`;
+    return `<div class="entry"><span class="bk ${l.b}">${BANK_NAME[l.b]}</span><span class="sp">${String(l.id).startsWith('kx-') ? '<span class="dim small">Kioku · </span>' : ''}${esc(c ? c.name : l.c)} <span class="dim">${l.r}周目</span> <b class="mono">${l.n}問</b>${l.w != null ? `<span class="dim small"> · 誤${l.w}</span>` : ''}${l.m ? `<span class="dim small"> · ${l.m}分</span>` : ''}</span><button class="x" onclick="deleteLog('${l.id}')">✕</button></div>`;
   }).join('')).join('') : '<div class="note">まだ記録がありません。</div>';
 }
 
@@ -1289,7 +1328,7 @@ function toast(msg) {
 
 // 日付が変わったら・アプリに戻ってきたら描き直して同期
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
+  if (document.visibilityState !== 'visible') { flushCloudWrite(); return; }
   const d = ymd(new Date());
   if (d !== TODAY) { $('recDate').value = d; }
   render(); cloudRead();

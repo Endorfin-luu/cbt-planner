@@ -1,0 +1,2294 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kioku — 間隔反復フラッシュカード</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kioku">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<!-- GitHub Pages 版はクラウド保存に CBT Planner と同じ Firebase を使う（claude.ai 版は claude.use("db")） -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDPMincho:wght@400;700&family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f4f0; --surface:#ffffff; --surface2:#faf9f6; --ink:#1c1c1e; --ink2:#4f5056; --muted:#86878d; --line:#e2e0da;
+  --accent:#2160c4; --accent-ink:#ffffff; --accent-soft:#e6eefb;
+  --new:#2160c4; --learn:#c2352c; --rev:#1d7f47;
+  --again:#c2352c; --hard:#5e636b; --good:#1d7f47; --easy:#2160c4;
+  --cloze:#2160c4; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.05);
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-head:"BIZ UDPMincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --bar:#3a74d0;
+}
+[data-theme="dark"]{
+  --bg:#141518; --surface:#1f2024; --surface2:#26272c; --ink:#ebebee; --ink2:#b9bac0; --muted:#85868d; --line:#34353b;
+  --accent:#6ea0f0; --accent-ink:#0d1a2e; --accent-soft:#1f2b40;
+  --new:#7aa8f5; --learn:#f07b72; --rev:#5cc489;
+  --again:#f07b72; --hard:#a0a4ab; --good:#5cc489; --easy:#7aa8f5;
+  --cloze:#7aa8f5; --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+  --bar:#6c9ce8;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+h1,h2,h3{font-family:var(--f-head);font-weight:700;margin:0 0 .6em;line-height:1.35}
+h1{font-size:1.5rem} h2{font-size:1.25rem} h3{font-size:1.05rem}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent)}
+.topbar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:4px;padding:6px 12px;flex-wrap:wrap}
+.brand{font-family:var(--f-head);font-weight:700;font-size:1.15rem;margin-right:12px;display:flex;align-items:center;gap:8px;cursor:pointer}
+.brand .logo{width:24px;height:24px;border-radius:6px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:14px}
+.nav{display:flex;gap:2px;flex-wrap:wrap}
+.nav button{border:0;background:none;padding:7px 12px;border-radius:8px;cursor:pointer;color:var(--ink2)}
+.nav button:hover{background:var(--surface2)}
+.nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.sync{margin-left:auto;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sync .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.sync.ok .dot{background:var(--rev)} .sync.err .dot{background:var(--learn)} .sync.busy .dot{background:#d89a1d}
+main{max-width:980px;margin:0 auto;padding:20px 16px 120px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--surface2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{color:var(--learn);border-color:color-mix(in srgb,var(--learn) 40%,var(--line))}
+.btn.sm{padding:4px 10px;font-size:.85rem}
+.btn:disabled{opacity:.45;cursor:default}
+.iconbtn{border:0;background:none;cursor:pointer;padding:4px 8px;border-radius:7px;color:var(--ink2)}
+.iconbtn:hover{background:var(--surface2)}
+input[type=text],input[type=number],input[type=search],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+input:focus,select:focus,textarea:focus,.field:focus{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:0}
+label.lbl{display:block;font-size:.82rem;color:var(--ink2);margin:10px 0 4px;font-weight:700}
+.muted{color:var(--muted)} .small{font-size:.85rem}
+.n{color:var(--new)} .l{color:var(--learn)} .r{color:var(--rev)}
+/* deck list */
+.decks{width:100%;border-collapse:collapse}
+.decks th{font-weight:700;font-size:.8rem;color:var(--muted);text-align:right;padding:6px 10px;border-bottom:1px solid var(--line)}
+.decks th:first-child{text-align:left}
+.decks td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.decks td:first-child{text-align:left}
+.decks tr:last-child td{border-bottom:0}
+.decks .dname{cursor:pointer;font-weight:700}
+.decks .dname:hover{color:var(--accent)}
+.decks .zero{color:var(--muted);opacity:.5}
+.tog{display:inline-block;width:18px;cursor:pointer;color:var(--muted);user-select:none}
+/* study */
+.study{display:flex;flex-direction:column;min-height:calc(100vh - 200px)}
+.counts{text-align:center;font-weight:700;font-size:1rem;margin-bottom:10px;font-variant-numeric:tabular-nums}
+.counts span{margin:0 8px;padding-bottom:2px}
+.counts span.cur{border-bottom:2px solid currentColor}
+.cardbox{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:28px 22px;font-size:1.3rem;line-height:1.75;text-align:center;overflow-wrap:anywhere;position:relative}
+.cardbox img{max-width:100%;height:auto;border-radius:6px}
+.cardbox hr#answer{border:0;border-top:1px solid var(--line);margin:22px 0}
+.cardbox .extra{font-size:1.05rem;color:var(--ink2);margin-top:18px}
+.cardbox ul,.cardbox ol{text-align:left;display:inline-block}
+.cardbox table{margin:0 auto;border-collapse:collapse}
+.cardbox td,.cardbox th{border:1px solid var(--line);padding:4px 8px}
+.cloze{color:var(--cloze);font-weight:700}
+.flagbar{position:absolute;top:0;left:0;right:0;height:5px;border-radius:16px 16px 0 0}
+.markstar{position:absolute;top:10px;right:14px;color:#d39a12;font-size:1.1rem}
+.typein{margin-top:16px;width:min(100%,420px);font-size:1.1rem;text-align:center;padding:8px}
+.diff .ok{color:var(--good)} .diff .bad{color:var(--again);text-decoration:line-through} .diff .miss{color:var(--easy);background:var(--accent-soft)}
+.answerbar{position:sticky;bottom:0;padding:14px 0 6px;background:linear-gradient(transparent,var(--bg) 30%);display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.ease{min-width:96px;border:0;border-radius:11px;padding:8px 14px 9px;cursor:pointer;color:#fff;font-weight:700;display:flex;flex-direction:column;align-items:center;line-height:1.3}
+.ease small{font-weight:400;font-size:.78rem;opacity:.92}
+.ease.e1{background:var(--again)} .ease.e2{background:var(--hard)} .ease.e3{background:var(--good)} .ease.e4{background:var(--easy)}
+[data-theme="dark"] .ease{color:#111}
+.ease:hover{filter:brightness(1.08)}
+.showbtn{min-width:240px;padding:12px 20px;font-size:1.05rem}
+.studytools{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+.kbd{font-size:.72rem;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:4px}
+/* editor */
+.editor .fieldname{font-size:.82rem;color:var(--ink2);font-weight:700;margin:12px 0 4px;display:flex;align-items:center;gap:8px}
+.editor .field{min-height:70px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:1.05rem;overflow-wrap:anywhere}
+.editor .field img{max-width:240px;height:auto}
+.editor .field .clz{color:var(--cloze)}
+.toolbar{display:flex;gap:2px;flex-wrap:wrap;padding:4px;border:1px solid var(--line);border-radius:9px;background:var(--surface2);margin-top:12px}
+.toolbar button{border:0;background:none;min-width:32px;height:30px;border-radius:6px;cursor:pointer;color:var(--ink2)}
+.toolbar button:hover{background:var(--surface)}
+.toolbar .sep{width:1px;background:var(--line);margin:4px 3px}
+.dup{color:var(--learn);font-size:.8rem;font-weight:400}
+/* browse */
+.btable{width:100%;border-collapse:collapse;font-size:.88rem}
+.btable th{position:sticky;top:0;background:var(--surface2);text-align:left;padding:7px 8px;font-size:.78rem;color:var(--ink2);cursor:pointer;user-select:none;border-bottom:1px solid var(--line);white-space:nowrap}
+.btable td{padding:7px 8px;border-bottom:1px solid var(--line);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btable tr{cursor:pointer}
+.btable tr:hover td{background:var(--surface2)}
+.btable tr.sel td{background:var(--accent-soft)}
+.btable tr.susp td{color:var(--muted);font-style:italic}
+.btable tr.f1 td:first-child{box-shadow:inset 4px 0 #d9483b}.btable tr.f2 td:first-child{box-shadow:inset 4px 0 #e08a1e}.btable tr.f3 td:first-child{box-shadow:inset 4px 0 #2f9e57}.btable tr.f4 td:first-child{box-shadow:inset 4px 0 #3a74d0}
+.bwrap{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.browse-grid{display:grid;grid-template-columns:1fr;gap:14px}
+.browse-grid>*{min-width:0}
+@media(min-width:900px){ main.wide{max-width:1280px} .browse-grid.has-ed{grid-template-columns:1.25fr 1fr} .browse-grid.has-ed .bwrap{max-height:72vh} }
+/* stats */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.tile .v{font-size:1.6rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.tile .k{font-size:.8rem;color:var(--ink2)}
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .axis{fill:var(--muted);font-size:10px;font-family:var(--f-body)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .bar{fill:var(--bar)}
+.chart .bar.hl{fill:var(--accent)}
+.chart .hit{fill:transparent;cursor:default}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);font-size:.8rem;padding:4px 8px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%);display:none;z-index:5}
+.legendrow{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.stackbar{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px;background:var(--surface)}
+.stackbar div{height:100%}
+/* image occlusion editor */
+.io-ed{margin-top:4px}
+.io-stage{position:relative;display:inline-block;max-width:100%;user-select:none;-webkit-user-select:none;touch-action:none;outline:none;line-height:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface2)}
+.io-stage:focus{border-color:var(--accent)}
+.io-stage.empty{display:block;line-height:1.6;padding:34px 16px;text-align:center}
+.io-stage img{display:block;max-width:100%;max-height:70vh;cursor:crosshair;-webkit-user-drag:none}
+.io-box{position:absolute;background:rgba(242,135,92,.55);border:2px solid #c0502a;border-radius:3px;cursor:move;box-sizing:border-box}
+.io-box span{position:absolute;top:2px;left:4px;font-size:12px;line-height:1;color:#fff;font-weight:700;text-shadow:0 0 2px #000;pointer-events:none}
+.io-box.sel{border-color:#2160c4;background:rgba(33,96,196,.38)}
+.io-box.drawing{border-style:dashed;pointer-events:none}
+.progress{font-variant-numeric:tabular-nums}
+.curve{margin-top:10px}
+.curve .ln{fill:none;stroke:var(--bar);stroke-width:2}
+.curve .tg{stroke:var(--muted);stroke-dasharray:4 4}
+.curve .now{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(10,10,14,.45);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:6vh 12px;overflow:auto}
+.modal{background:var(--surface);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.25);width:min(560px,100%);padding:20px}
+.modal.wide{width:min(820px,100%)}
+.modal .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px}
+@media(max-width:560px){.grid2{grid-template-columns:1fr}}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:10px;z-index:200;font-size:.9rem;box-shadow:var(--shadow);transition:opacity .3s}
+.menu{position:absolute;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:5px;z-index:120;min-width:170px}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px;cursor:pointer}
+.menu button:hover{background:var(--surface2)}
+.menu button.danger{color:var(--learn)}
+.banner{background:var(--accent-soft);color:var(--ink);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.88rem}
+.tagchip{display:inline-block;background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:0 8px;font-size:.78rem;margin-right:3px}
+pre.preview{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:.8rem;max-height:160px;overflow:auto;white-space:pre-wrap}
+.revtable{width:100%;font-size:.82rem;border-collapse:collapse}
+.revtable td,.revtable th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
+.empty{text-align:center;padding:40px 10px}
+@media(max-width:640px){
+  main{padding:14px 10px 120px}
+  .cardbox{padding:22px 14px;font-size:1.15rem}
+  .ease{min-width:72px;padding:8px 8px}
+  .sync .txt{display:none}
+  .hide-sm{display:none}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand" data-go="decks"><span class="logo">記</span>Kioku</div>
+  <nav class="nav" id="nav">
+    <button data-go="decks">デッキ</button>
+    <button data-go="drill">問題演習</button>
+    <button data-go="add">追加</button>
+    <button data-go="browse">閲覧</button>
+    <button data-go="stats">統計</button>
+    <button data-go="settings">設定</button>
+  </nav>
+  <div class="sync" id="sync" title=""><span class="dot"></span><span class="txt">このブラウザに保存</span></div>
+</header>
+<main id="view"></main>
+<div class="tip" id="tip"></div>
+<script src="pixel.js"></script>
+<script src="game.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   基本ユーティリティ
+   ============================================================ */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const MIN = 60000, HOUR = 3600000, DAY = 86400000;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const rid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+function h(tag, attrs={}, ...kids){
+  const el = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs||{})){
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "html") el.innerHTML = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()){ if (kid == null || kid === false) continue; el.append(kid.nodeType ? kid : document.createTextNode(kid)); }
+  return el;
+}
+function hash32(str){ let x = 2166136261; for (let i=0;i<str.length;i++){ x ^= str.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; }
+function sanitize(html){
+  const t = document.createElement("template"); t.innerHTML = html ?? "";
+  t.content.querySelectorAll("script,style,iframe,object,embed,link,meta,base,form").forEach(e => e.remove());
+  t.content.querySelectorAll("*").forEach(el => {
+    for (const a of [...el.attributes]){
+      const n = a.name.toLowerCase();
+      if (n.startsWith("on") || ((n==="href"||n==="src"||n==="xlink:href"||n==="action") && /^\s*(javascript|vbscript):/i.test(a.value))) el.removeAttribute(a.name);
+    }
+    if (el.tagName === "IMG"){
+      const src = el.getAttribute("src");
+      if (src && !/^\s*(data:|blob:)/i.test(src) && !/^\/_blob\//.test(src)){
+        el.removeAttribute("src");
+        if (!/^[a-z][a-z0-9+.-]*:|^\/\//i.test(src)){ let nm = src; try { nm = decodeURIComponent(src); } catch(e){} el.setAttribute("data-media", nm); }
+        else el.setAttribute("alt", "[外部の画像は表示できません]");
+      }
+    }
+  });
+  return t.innerHTML;
+}
+const plainCache = new Map();
+function plain(html){
+  if (!html) return "";
+  let v = plainCache.get(html); if (v !== undefined) return v;
+  const t = document.createElement("template"); t.innerHTML = String(html).replace(/<br\s*\/?>/gi," ").replace(/<\/(div|p|li)>/gi," ");
+  v = (t.content.textContent || "").replace(/\s+/g," ").trim();
+  if (plainCache.size > 20000) plainCache.clear();
+  plainCache.set(html, v); return v;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function fmtIvl(ms){
+  const m = ms / MIN;
+  if (m < 1) return "1分未満";
+  if (m < 60) return Math.round(m) + "分";
+  const hr = m / 60; if (hr < 24) return (hr < 10 ? Math.round(hr*10)/10 : Math.round(hr)) + "時間";
+  const d = hr / 24; if (d < 30) return Math.round(d) + "日";
+  const mo = d / 30.4; if (mo < 12) return (Math.round(mo*10)/10) + "か月";
+  return (Math.round(d/365*10)/10) + "年";
+}
+const fmtDays = d => fmtIvl(d * DAY);
+function fmtDate(ts){ const d = new Date(ts); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
+function fmtDateTime(ts){ const d = new Date(ts); return `${fmtDate(ts)} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; }
+function fmtDur(ms){ const s = Math.round(ms/1000); if (s < 60) return s + "秒"; const m = Math.floor(s/60); if (m < 60) return m + "分" + (s%60 ? (s%60)+"秒" : ""); return Math.floor(m/60) + "時間" + (m%60) + "分"; }
+
+/* ============================================================
+   状態
+   ============================================================ */
+const DEFAULT_OPTS = {
+  newPerDay: 20, revPerDay: 200, learnSteps: [1, 10], graduatingIvl: 1, easyIvl: 4, startEase: 2.5,
+  relearnSteps: [10], minIvl: 1, lapseMult: 0, easyBonus: 1.3, hardIvl: 1.2, ivlMod: 1.0, maxIvl: 36500,
+  leechThreshold: 8, leechAction: "suspend", newOrder: "added", buryNew: false, buryRev: false,
+  scheduler: "fsrs", desiredRetention: 0.9
+};
+const NOTE_TYPES = {
+  basic:   { name: "基本", fields: ["表面", "裏面"] },
+  reverse: { name: "基本（逆方向カード付き）", fields: ["表面", "裏面"] },
+  type:    { name: "基本（答えを入力）", fields: ["表面", "裏面"] },
+  cloze:   { name: "穴埋め（クローズ）", fields: ["テキスト", "補足"] },
+  io:      { name: "画像穴埋め（イメージオクルージョン）", fields: ["画像", "見出し", "補足"] }
+};
+function typeKey(note){ return note.type === "anki" ? "m:" + note.mid : note.type; }
+function fieldNamesFor(key){ if (String(key).startsWith("m:")) return S.models[key.slice(2)]?.fields || ["表面", "裏面"]; return (NOTE_TYPES[key] || NOTE_TYPES.basic).fields; }
+function typeName(note){ return note.type === "anki" ? (S.models[note.mid]?.name || "Anki") : (NOTE_TYPES[note.type]?.name || note.type); }
+let S = null;
+function defaultState(){
+  const did = "default";
+  return { v: 1, savedAt: 0, nextPos: 1,
+    decks: { [did]: { id: did, name: "デフォルト", opts: {}, collapsed: false } },
+    notes: {}, cards: {}, revlog: [], media: {}, models: {},
+    today: { day: -1, decks: {} },
+    conf: { dayStart: 4, theme: "auto", learnAhead: 20, lastDeck: did, lastType: "basic" }
+  };
+}
+function migrate(s){
+  const d = defaultState();
+  s.decks ||= d.decks; s.notes ||= {}; s.cards ||= {}; s.revlog ||= []; s.media ||= {}; s.models ||= {}; s.today ||= d.today; s.conf = Object.assign(d.conf, s.conf||{});
+  s.nextPos ||= 1;
+  if (!Object.keys(s.decks).length) s.decks = d.decks;
+  for (const dk of Object.values(s.decks)) { dk.opts ||= {}; }
+  return s;
+}
+function dayOf(ts){ const d = new Date(ts - S.conf.dayStart*HOUR); return Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY); }
+function today(){ return dayOf(Date.now()); }
+function dayStartTs(day){ const u = new Date(day*DAY); return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate(), S.conf.dayStart).getTime(); }
+function rollover(){
+  const t = today();
+  if (S.today.day !== t){
+    S.today = { day: t, decks: {} };
+    for (const c of Object.values(S.cards)) if (c.queue === -2 && (c.buriedDay ?? -1) < t){ c.queue = c.type === 0 ? 0 : c.type === 2 ? 2 : 1; delete c.buriedDay; }
+  }
+}
+function opts(did){ const dk = S.decks[did]; return Object.assign({}, DEFAULT_OPTS, dk ? dk.opts : {}); }
+
+/* ---------- デッキ階層 ---------- */
+function deckByName(name){ return Object.values(S.decks).find(d => d.name === name); }
+function parentName(name){ const i = name.lastIndexOf("::"); return i < 0 ? null : name.slice(0, i); }
+function leafName(name){ const i = name.lastIndexOf("::"); return i < 0 ? name : name.slice(i+2); }
+function ensureDeck(name){
+  name = name.split("::").map(x => x.trim()).filter(Boolean).join("::") || "デフォルト";
+  let d = deckByName(name); if (d) return d.id;
+  const p = parentName(name); if (p) ensureDeck(p);
+  const id = rid(); S.decks[id] = { id, name, opts: {}, collapsed: false }; return id;
+}
+function childrenOf(did){ const n = S.decks[did].name; return Object.values(S.decks).filter(d => parentName(d.name) === n).sort((a,b)=>a.name.localeCompare(b.name,"ja")); }
+function subtreeIds(did){ const n = S.decks[did].name; return new Set(Object.values(S.decks).filter(d => d.name === n || d.name.startsWith(n + "::")).map(d => d.id)); }
+function ancestors(did){ const out = []; let n = S.decks[did]?.name; while (n){ const d = deckByName(n); if (d) out.push(d.id); n = parentName(n); } return out; }
+function rootDecks(){ return Object.values(S.decks).filter(d => !parentName(d.name) || !deckByName(parentName(d.name))).sort((a,b)=>a.name.localeCompare(b.name,"ja")); }
+function sortedDecks(){ return Object.values(S.decks).sort((a,b)=>a.name.localeCompare(b.name,"ja")); }
+
+/* ---------- ノート → カード生成 ---------- */
+const CLOZE_RE = /\{\{c(\d+)::([\s\S]*?)(?:::([\s\S]*?))?\}\}/g;
+function clozeNums(text){ const s = new Set(); for (const m of String(text||"").matchAll(CLOZE_RE)) s.add(+m[1]); return [...s].sort((a,b)=>a-b); }
+function cardOrds(note){
+  if (note.type === "reverse") return [0, 1];
+  if (note.type === "cloze") { const n = clozeNums(note.f[0]); return n.length ? n.map(x => x-1) : [0]; }
+  if (note.type === "io") { const g = [...new Set((note.io?.masks || []).map(m => m.g))].sort((a,b)=>a-b); return g.length ? g.map(x => x-1) : [0]; }
+  if (note.type === "anki"){
+    const m = S.models[note.mid]; if (!m) return [0];
+    if (m.cloze){ const n = new Set(); note.f.forEach(f => clozeNums(f).forEach(x => n.add(x))); return n.size ? [...n].sort((a,b)=>a-b).map(x => x-1) : [0]; }
+    const out = []; m.tmpls.forEach((t, i) => { if (t && tmplHasContent(t, note, m)) out.push(i); });
+    return out.length ? out : [0];
+  }
+  return [0];
+}
+function tmplHasContent(t, note, m){
+  const full = renderTmpl(t.q, mkCtx(note, m, 0, ""), false, "").html;
+  const empty = renderTmpl(t.q, mkCtx({ ...note, f: note.f.map(() => "") }, m, 0, ""), false, "").html;
+  return full !== empty;
+}
+function newCard(nid, ord, did){
+  return { id: rid(), nid, ord, did, type: 0, queue: 0, due: 0, ivl: 0, factor: 0, reps: 0, lapses: 0, step: 0, flag: 0, pos: S.nextPos++, mod: Date.now() };
+}
+function syncCards(note, did){
+  const want = new Set(cardOrds(note));
+  const have = Object.values(S.cards).filter(c => c.nid === note.id);
+  const removable = note.type !== "anki" || S.models[note.mid]?.cloze;
+  if (removable) for (const c of have) if (!want.has(c.ord)) delete S.cards[c.id];
+  const haveOrds = new Set(have.map(c => c.ord));
+  const deck = did || have[0]?.did || S.conf.lastDeck;
+  for (const o of want) if (!haveOrds.has(o)) { const c = newCard(note.id, o, deck); S.cards[c.id] = c; }
+}
+function addNote(type, fields, tags, did, extra){
+  const note = { id: rid(), type, f: fields.map(x => x ?? ""), tags: tags || [], created: Date.now(), mod: Date.now() };
+  if (extra) for (const [k, v] of Object.entries(extra)) if (v !== undefined) note[k] = v;
+  S.notes[note.id] = note; syncCards(note, did); return note;
+}
+function deleteNotes(nids){
+  const set = new Set(nids);
+  for (const nid of set) delete S.notes[nid];
+  for (const c of Object.values(S.cards)) if (set.has(c.nid)) delete S.cards[c.id];
+}
+function cardsOfNote(nid){ return Object.values(S.cards).filter(c => c.nid === nid); }
+
+/* ---------- 表示 ---------- */
+function renderCloze(text, ord, reveal){
+  return String(text||"").replace(CLOZE_RE, (m, n, body, hint) => {
+    if (+n !== ord + 1) return body;
+    return reveal ? `<span class="cloze">${body}</span>` : `<span class="cloze">[${hint ? esc(plain(hint)) : "..."}]</span>`;
+  });
+}
+const TYPE_SLOT = '<span class="typein-slot"></span>', ANS_SLOT = '<span class="typeans-slot"></span>';
+function renderQA(card){
+  const note = S.notes[card.nid]; if (!note) return { q: "(ノートなし)", a: "" };
+  if (note.type === "anki") return renderAnki(card, note);
+  const F = note.f.map(sanitize);
+  const hasExtra = x => plain(x) || /<img/i.test(x || "");
+  if (note.type === "io") return renderIO(card, note, F);
+  if (note.type === "cloze"){
+    const q = renderCloze(F[0], card.ord, false), a0 = renderCloze(F[0], card.ord, true);
+    return { q, a: a0 + (hasExtra(F[1]) ? `<div class="extra">${F[1]}</div>` : "") };
+  }
+  if (note.type === "reverse" && card.ord === 1) return { q: F[1], a: F[1] + `<hr id="answer">` + F[0] };
+  if (note.type === "type") return { q: F[0] + "<br>" + TYPE_SLOT, a: F[0] + `<hr id="answer">` + ANS_SLOT, typeAnswer: plain(note.f[1]) };
+  return { q: F[0], a: F[0] + `<hr id="answer">` + F[1] };
+}
+function renderIO(card, note, F){
+  const masks = note.io?.masks || [], mode = note.io?.mode || "hideAll", act = card.ord + 1;
+  const box = m => `left:${(m.x*100).toFixed(3)}%;top:${(m.y*100).toFixed(3)}%;width:${(m.w*100).toFixed(3)}%;height:${(m.h*100).toFixed(3)}%`;
+  const build = reveal => `<div class="io-wrap">${F[0]}${masks.map(m => {
+    const a = m.g === act;
+    if (!a && mode === "hideOne") return "";
+    if (a && reveal) return `<div class="io-m io-rev" style="${box(m)}"></div>`;
+    return `<div class="io-m${a ? " io-act" : ""}" style="${box(m)}"></div>`;
+  }).join("")}</div>`;
+  const head = plain(F[1]) ? `<div class="io-head">${F[1]}</div>` : "";
+  const extra = plain(F[2]) || /<img/i.test(F[2] || "") ? `<div class="extra">${F[2]}</div>` : "";
+  return { q: head + build(false), a: head + build(true) + extra };
+}
+function mkCtx(note, m, ord, deck){
+  const fmap = {}; m.fields.forEach((n, i) => fmap[n] = note.f[i] || "");
+  return { fmap, ord, tags: note.tags || [], deck: deck || "", card: m.cloze ? "Cloze " + (ord + 1) : (m.tmpls[ord]?.name || ""), type: m.name, typeTarget: null };
+}
+function renderAnki(card, note){
+  const m = S.models[note.mid]; if (!m) return { q: "(ノートタイプが見つかりません)", a: "" };
+  const t = m.cloze ? m.tmpls[0] : m.tmpls[card.ord]; if (!t) return { q: "(テンプレートがありません)", a: "" };
+  const ctx = mkCtx({ ...note, f: note.f.map(sanitize) }, m, card.ord, S.decks[card.did]?.name);
+  const q = sanitize(renderTmpl(t.q, ctx, false, "").html);
+  const a = sanitize(renderTmpl(t.a, ctx, true, q.split(TYPE_SLOT).join("")).html);
+  return { q, a, css: m.css, cls: "card" + (card.ord + 1), typeAnswer: ctx.typeTarget ?? undefined };
+}
+function clozeAnswerText(text, ord){ const out = []; for (const m of String(text || "").matchAll(CLOZE_RE)) if (+m[1] === ord + 1) out.push(plain(m[2])); return out.join(", "); }
+function rubyFilter(s, mode){ return String(s).replace(/ ?([^ >\[\]]+?)\[(.+?)\]/g, (m0, base, rd) => mode === "kana" ? rd : mode === "kanji" ? base : `<ruby><rb>${base}</rb><rt>${rd}</rt></ruby>`); }
+function renderTmpl(tpl, ctx, isAnswer, front){
+  let s = String(tpl || "");
+  const fv = name => {
+    name = name.trim();
+    if (Object.prototype.hasOwnProperty.call(ctx.fmap, name)) return ctx.fmap[name];
+    switch (name){ case "Tags": return esc(ctx.tags.join(" ")); case "Deck": return esc(ctx.deck); case "Subdeck": return esc(leafName(ctx.deck)); case "Card": return esc(ctx.card); case "Type": return esc(ctx.type); case "CardFlag": return ""; }
+    return null;
+  };
+  const filled = v => !!v && (plain(v) !== "" || /<(img|video|audio)/i.test(v));
+  for (let i = 0; i < 30; i++){
+    const b = s;
+    s = s.replace(/\{\{([#^])\s*([^}]+?)\s*\}\}([\s\S]*?)\{\{\/\s*\2\s*\}\}/g, (m0, k, name, body) => ((k === "#") === filled(fv(name.split(":").pop())) ? body : ""));
+    if (s === b) break;
+  }
+  s = s.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (m0, tok) => {
+    if (tok === "FrontSide") return isAnswer ? front : "";
+    if (/^[#^\/!]/.test(tok)) return "";
+    const parts = tok.split(":"); const name = parts.pop(); const filters = parts.map(x => x.trim());
+    let v = fv(name);
+    if (v === null) return "";
+    if (filters.includes("type")){
+      ctx.typeTarget = filters.includes("cloze") ? clozeAnswerText(v, ctx.ord) : plain(v);
+      return isAnswer ? ANS_SLOT : TYPE_SLOT;
+    }
+    for (const f of filters.slice().reverse()){
+      if (f === "cloze") v = renderCloze(v, ctx.ord, isAnswer);
+      else if (f === "cloze-only") v = esc(clozeAnswerText(v, ctx.ord));
+      else if (f === "text") v = esc(plain(v));
+      else if (f === "hint") v = `<details class="hint"><summary>ヒント</summary>${v}</details>`;
+      else if (f === "furigana" || f === "kana" || f === "kanji") v = rubyFilter(v, f);
+      else if (f.startsWith("tts")) v = "";
+    }
+    return v;
+  });
+  return { html: s.replace(/\[sound:[^\]]*\]/g, "") };
+}
+const BASE_CARD_CSS = `:host{display:block}
+.card{font-family:var(--f-body);font-size:1.3rem;line-height:1.75;text-align:center;color:var(--ink);overflow-wrap:anywhere}
+img{max-width:100%;height:auto;border-radius:4px}
+hr#answer{border:0;border-top:1px solid var(--line);margin:22px 0}
+.extra{font-size:1.05rem;color:var(--ink2);margin-top:18px}
+ul,ol{text-align:left;display:inline-block}
+table{margin:0 auto;border-collapse:collapse} td,th{border:1px solid var(--line);padding:4px 8px}
+.cloze{color:var(--cloze);font-weight:700}
+.typein{margin-top:16px;width:min(100%,420px);font:inherit;font-size:1.1rem;text-align:center;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);box-sizing:border-box}
+.diff{margin-top:14px;font-size:1.1rem} .diff .ok{color:var(--good)} .diff .bad{color:var(--again);text-decoration:line-through} .diff .miss{color:var(--easy);background:var(--accent-soft)} .muted{color:var(--muted)} .small{font-size:.85rem}
+details.hint{display:inline-block;margin-top:8px;font-size:.95em} details.hint summary{cursor:pointer;color:var(--accent)}
+.io-head{margin-bottom:12px}
+.io-wrap{position:relative;display:inline-block;max-width:100%;line-height:0;vertical-align:top}
+.io-wrap img{display:block;max-width:100%;max-height:72vh;border-radius:0}
+.io-m{position:absolute;background:#f3e6b1;border:1px solid #b9962a;border-radius:3px;box-sizing:border-box}
+.io-act{background:#f2875c;border-color:#b84a22}
+.io-rev{background:transparent;border:3px solid #e0442c}
+.nightMode .card,.card.nightMode{color:var(--ink);background-color:transparent}
+.nightMode .io-m{background:#6b6236;border-color:#a8964f} .nightMode .io-act{background:#c9643c;border-color:#e88a62}`;
+function mountCard(host, qa, html){
+  const sh = host.shadowRoot || host.attachShadow({ mode: "open" });
+  const night = document.documentElement.getAttribute("data-theme") === "dark" ? " nightMode night_mode" : "";
+  sh.innerHTML = `<style>${BASE_CARD_CSS}</style>${qa.css ? `<style>${String(qa.css).replace(/<\/?style/gi, "")}</style>` : ""}<div class="${night}"><div class="card ${qa.cls || ""}${night}"><div id="qa">${html}</div></div></div>`;
+  hydrate(sh);
+  return sh;
+}
+function sortField(note){
+  let v;
+  if (note.type === "anki"){ const m = S.models[note.mid]; v = note.f[m?.sortf || 0]; }
+  else if (note.type === "io") return plain(note.f[1]) || "[画像穴埋め]";
+  else v = note.f[0];
+  return plain(String(v || "").replace(CLOZE_RE, "$2")) || (/<img/i.test(v || "") ? "[画像]" : "");
+}
+/* ============================================================
+   スケジューラ（Anki SM-2 方式）
+   ============================================================ */
+function fuzzIvl(ivl, seed){
+  if (ivl < 2.5) return ivl;
+  let delta = 1;
+  delta += 0.15 * (Math.min(ivl, 7) - 2.5);
+  if (ivl > 7) delta += 0.10 * (Math.min(ivl, 20) - 7);
+  if (ivl > 20) delta += 0.05 * (ivl - 20);
+  const r = (hash32(seed) % 10000) / 10000;
+  const lo = Math.max(2, Math.round(ivl - delta)), hi = Math.round(ivl + delta);
+  return Math.round(lo + r * (hi - lo));
+}
+function learnAnswer(n, ease, steps, now, o, relearn, doFuzz){
+  const t = today();
+  const graduate = (ivl) => {
+    if (o.scheduler === "fsrs" && n.fsrs) ivl = fsrsIvl(n.fsrs.s, o);
+    ivl = Math.max(1, Math.round(ivl));
+    if (doFuzz) ivl = fuzzIvl(ivl, n.id + ":" + n.reps);
+    ivl = Math.min(o.maxIvl, ivl);
+    n.type = 2; n.queue = 2; n.ivl = ivl; n.due = t + ivl; n.step = 0; return { card: n, ms: ivl * DAY };
+  };
+  if (!steps.length) steps = [];
+  const s = n.step || 0;
+  if (ease === 1){
+    if (!steps.length) return graduate(relearn ? n.ivl : o.graduatingIvl);
+    n.step = 0; n.queue = 1; n.due = now + steps[0]*MIN; return { card: n, ms: steps[0]*MIN };
+  }
+  if (ease === 2){
+    if (!steps.length) return graduate(relearn ? n.ivl : o.graduatingIvl);
+    let delay;
+    if (s === 0) delay = steps.length > 1 ? (steps[0] + steps[1]) / 2 : Math.min(steps[0]*1.5, steps[0] + 1440);
+    else delay = steps[Math.min(s, steps.length-1)];
+    n.queue = 1; n.due = now + delay*MIN; return { card: n, ms: delay*MIN };
+  }
+  if (ease === 3){
+    if (s + 1 >= steps.length) return graduate(relearn ? n.ivl : o.graduatingIvl);
+    n.step = s + 1; n.queue = 1; n.due = now + steps[s+1]*MIN; return { card: n, ms: steps[s+1]*MIN };
+  }
+  return graduate(relearn ? n.ivl + 1 : o.easyIvl);
+}
+/* ---------- FSRS-5（忘却曲線モデル） ---------- */
+const FSRS_W = [0.40255, 1.18385, 3.173, 15.69105, 7.1949, 0.5345, 1.4604, 0.0046, 1.54575, 0.1192, 1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898, 0.51655, 0.6621];
+const F_DECAY = -0.5, F_FACTOR = 19 / 81;
+/** 想起確率 R(t) = (1 + 19/81 · t/S)^-0.5 … t日後に思い出せる確率 */
+function fR(t, s){ return Math.pow(1 + F_FACTOR * t / s, F_DECAY); }
+function fIvlRaw(s, r){ return s / F_FACTOR * (Math.pow(r, 1 / F_DECAY) - 1); }
+function fD0(g){ const W = FSRS_W; return clamp(W[4] - Math.exp(W[5] * (g - 1)) + 1, 1, 10); }
+function fNextD(d, g){ const W = FSRS_W; const d1 = d - W[6] * (g - 3) * (10 - d) / 9; return clamp(W[7] * fD0(4) + (1 - W[7]) * d1, 1, 10); }
+function fRecallS(d, s, r, g){ const W = FSRS_W; return s * (1 + Math.exp(W[8]) * (11 - d) * Math.pow(s, -W[9]) * (Math.exp(W[10] * (1 - r)) - 1) * (g === 2 ? W[15] : 1) * (g === 4 ? W[16] : 1)); }
+function fForgetS(d, s, r){ const W = FSRS_W; return Math.min(s, W[11] * Math.pow(d, -W[12]) * (Math.pow(s + 1, W[13]) - 1) * Math.exp(W[14] * (1 - r))); }
+function fShortS(s, g){ const W = FSRS_W; return s * Math.exp(W[17] * (g - 3 + W[18])); }
+function fsrsState(c){
+  if (c.fsrs) return c.fsrs;
+  if (c.type === 2 || c.type === 3){ const ease = (c.factor || 2500) / 1000; return { s: Math.max(0.5, c.ivl || 1), d: clamp(10 - (ease - 1.3) / 1.2 * 5, 1, 10), last: dayStartTs(c.due - Math.max(1, c.ivl || 1)) + HOUR }; }
+  return null;
+}
+function fsrsNext(c, g, now){
+  const st = fsrsState(c);
+  if (!st) return { s: FSRS_W[g - 1], d: fD0(g), last: now };
+  const el = Math.max(0, dayOf(now) - dayOf(st.last));
+  let s;
+  if (el < 1) s = fShortS(st.s, g);
+  else { const r = fR(el, st.s); s = g === 1 ? fForgetS(st.d, st.s, r) : fRecallS(st.d, st.s, r, g); }
+  return { s: clamp(s, 0.01, 36500), d: fNextD(st.d, g), last: now };
+}
+function fsrsIvl(s, o){ return clamp(Math.round(fIvlRaw(s, o.desiredRetention)), 1, o.maxIvl); }
+function retrievability(c, now = Date.now()){ const st = fsrsState(c); if (!st) return null; return fR(Math.max(0, dayOf(now) - dayOf(st.last)), st.s); }
+function reviewIvls(c, o){
+  const t = today(), late = Math.max(0, t - c.due), f = c.factor / 1000, ivl = Math.max(1, c.ivl);
+  const cap = x => Math.min(o.maxIvl, Math.max(1, Math.round(x)));
+  const hard = cap(Math.max(ivl + 1, ivl * o.hardIvl * o.ivlMod));
+  const good = cap(Math.max(hard + 1, (ivl + late/2) * f * o.ivlMod));
+  const easy = cap(Math.max(good + 1, (ivl + late) * f * o.easyBonus * o.ivlMod));
+  return { hard, good, easy };
+}
+/** 回答後のカードを返す（元カードは変更しない） */
+function schedule(c, ease, now, doFuzz){
+  const o = opts(c.did), t = today();
+  const fs = o.scheduler === "fsrs";
+  const n = { ...c, reps: c.reps + 1, mod: now };
+  if (fs) n.fsrs = fsrsNext(c, ease, now);
+  let res;
+  if (c.type === 0 || c.type === 1){
+    if (c.type === 0){ n.type = 1; n.step = 0; n.factor = Math.round(o.startEase*1000); }
+    res = learnAnswer(n, ease, o.learnSteps, now, o, false, doFuzz);
+  } else if (c.type === 3){
+    res = learnAnswer(n, ease, o.relearnSteps, now, o, true, doFuzz);
+  } else {
+    if (ease === 1){
+      n.lapses = c.lapses + 1; n.factor = Math.max(1300, c.factor - 200);
+      n.ivl = Math.max(o.minIvl, fs ? fsrsIvl(n.fsrs.s, o) : Math.round(c.ivl * o.lapseMult));
+      if (o.relearnSteps.length){ n.type = 3; n.queue = 1; n.step = 0; n.due = now + o.relearnSteps[0]*MIN; res = { card: n, ms: o.relearnSteps[0]*MIN }; }
+      else { n.due = t + n.ivl; res = { card: n, ms: n.ivl*DAY }; }
+      n.leech = n.lapses >= o.leechThreshold && (n.lapses - o.leechThreshold) % Math.max(1, Math.ceil(o.leechThreshold/2)) === 0;
+    } else {
+      let ivl;
+      if (fs){
+        const iv = g => fsrsIvl(fsrsNext(c, g, now).s, o);
+        let hI = iv(2), gI = iv(3), eI = iv(4);
+        hI = Math.min(hI, gI); gI = Math.max(gI, hI + 1); eI = Math.max(eI, gI + 1);
+        ivl = ease === 2 ? hI : ease === 3 ? gI : eI;
+      } else {
+        const iv = reviewIvls(c, o);
+        ivl = ease === 2 ? iv.hard : ease === 3 ? iv.good : iv.easy;
+      }
+      if (ease === 2) n.factor = Math.max(1300, c.factor - 150);
+      if (ease === 4) n.factor = c.factor + 150;
+      if (doFuzz) ivl = fuzzIvl(ivl, c.id + ":" + c.reps);
+      ivl = Math.min(o.maxIvl, ivl);
+      n.ivl = ivl; n.due = t + ivl; n.type = 2; n.queue = 2;
+      res = { card: n, ms: ivl*DAY };
+    }
+  }
+  return res;
+}
+function previewLabels(c){
+  const now = Date.now(), out = {};
+  for (const e of [1,2,3,4]) out[e] = fmtIvl(schedule(c, e, now, false).ms);
+  return out;
+}
+
+/* ---------- キュー ---------- */
+function doneFor(did){ return S.today.decks[did] || (S.today.decks[did] = { n: 0, r: 0 }); }
+function remaining(did, kind){
+  const o = opts(did), d = S.today.decks[did] || { n: 0, r: 0 };
+  if (kind === "n"){ const dk = S.decks[did]; const extra = dk?.extra && dk.extra.day === S.today.day ? dk.extra.n : 0; return Math.max(0, o.newPerDay + extra - d.n); }
+  const extraR = S.decks[did]?.extraR && S.decks[did].extraR.day === S.today.day ? S.decks[did].extraR.n : 0;
+  return Math.max(0, o.revPerDay + extraR - d.r);
+}
+function buildIndex(){
+  const t = today(), endToday = dayStartTs(t + 1), idx = {};
+  for (const id in S.decks) idx[id] = { n: 0, r: 0, l: 0 };
+  for (const c of Object.values(S.cards)){
+    const x = idx[c.did]; if (!x) continue;
+    if (c.queue === 0) x.n++;
+    else if (c.queue === 2 && c.due <= t) x.r++;
+    else if (c.queue === 1 && c.due < endToday) x.l++;
+  }
+  return idx;
+}
+function deckCounts(did, idx){
+  const kids = childrenOf(did).map(k => deckCounts(k.id, idx));
+  const own = idx[did] || { n:0, r:0, l:0 };
+  const n = Math.min(remaining(did, "n"), own.n + kids.reduce((a,k)=>a+k.n,0));
+  const r = Math.min(remaining(did, "r"), own.r + kids.reduce((a,k)=>a+k.r,0));
+  const l = own.l + kids.reduce((a,k)=>a+k.l,0);
+  return { n, r, l };
+}
+function chainOK(card, top, kind){
+  for (const id of ancestors(card.did)){ if (remaining(id, kind) <= 0) return false; if (id === top) break; }
+  return true;
+}
+const session = { did: null, revSinceNew: 0, undo: [], current: null, shownAt: 0, answerShown: false, typed: "" };
+function getNext(top){
+  const now = Date.now(), t = today(), sub = subtreeIds(top);
+  const learn = [], rev = [], nw = [];
+  for (const c of Object.values(S.cards)){
+    if (!sub.has(c.did)) continue;
+    if (c.queue === 1) learn.push(c);
+    else if (c.queue === 2 && c.due <= t) rev.push(c);
+    else if (c.queue === 0) nw.push(c);
+  }
+  learn.sort((a,b) => a.due - b.due);
+  if (learn[0] && learn[0].due <= now) return learn[0];
+  rev.sort((a,b) => a.due - b.due || hash32(a.id + t) - hash32(b.id + t));
+  const order = opts(top).newOrder;
+  nw.sort(order === "random" ? (a,b) => hash32(a.id) - hash32(b.id) : (a,b) => a.pos - b.pos);
+  const r = rev.find(c => chainOK(c, top, "r"));
+  const n = nw.find(c => chainOK(c, top, "n"));
+  if (r && n){
+    const cnt = deckCounts(top, buildIndex());
+    const every = Math.max(1, Math.round(cnt.r / Math.max(1, cnt.n)));
+    if (session.revSinceNew >= every) return n;
+    return r;
+  }
+  if (r) return r; if (n) return n;
+  const ahead = now + S.conf.learnAhead*MIN;
+  if (learn[0] && learn[0].due <= ahead) return learn[0];
+  return null;
+}
+function nextLearnDue(top){
+  const sub = subtreeIds(top), endToday = dayStartTs(today()+1);
+  let best = null;
+  for (const c of Object.values(S.cards)) if (sub.has(c.did) && c.queue === 1 && c.due < endToday && (best === null || c.due < best)) best = c.due;
+  return best;
+}
+function answerCard(card, ease, timeMs){
+  const now = Date.now();
+  const before = JSON.parse(JSON.stringify(card));
+  const note = S.notes[card.nid];
+  const undo = { card: before, noteTags: note ? [...note.tags] : null, today: JSON.parse(JSON.stringify(S.today)), revlogLen: S.revlog.length, buried: [], revSinceNew: session.revSinceNew };
+  const res = schedule(card, ease, now, true);
+  const n = res.card;
+  const kind = card.type === 0 ? "n" : card.type === 2 ? "r" : null;
+  if (kind) for (const id of ancestors(card.did)) doneFor(id)[kind]++;
+  if (card.type === 0) session.revSinceNew = 0; else if (card.type === 2) session.revSinceNew++;
+  if (n.leech && note){
+    if (!note.tags.includes("leech")) note.tags.push("leech");
+    if (opts(card.did).leechAction === "suspend") n.queue = -1;
+    toast("リーチ（何度も忘れるカード）として" + (n.queue === -1 ? "一時停止しました" : "タグを付けました"));
+  }
+  delete n.leech;
+  S.cards[card.id] = n;
+  S.revlog.push({ id: now, cid: card.id, ease, ivl: n.type === 2 && n.queue !== 1 ? n.ivl : -Math.round(res.ms/1000), lastIvl: card.ivl, factor: n.factor, time: Math.min(60000, timeMs), type: card.type === 0 ? 0 : card.type === 1 ? 0 : card.type === 3 ? 2 : 1 });
+  const o = opts(card.did);
+  if (o.buryNew || o.buryRev){
+    for (const sib of cardsOfNote(card.nid)){
+      if (sib.id === card.id) continue;
+      if ((o.buryNew && sib.queue === 0) || (o.buryRev && sib.queue === 2 && sib.due <= today())){ undo.buried.push({ id: sib.id, queue: sib.queue }); sib.queue = -2; sib.buriedDay = today(); }
+    }
+  }
+  let gev = null;
+  if (window.Game){ undo.game = S.game ? JSON.parse(JSON.stringify(S.game)) : null; undo.gsess = Game.sessSnap(); try { gev = Game.onAnswer({ ease, wasNew: card.type === 0, cardId: card.id, reps: card.reps }); } catch(e){ console.warn(e); } }
+  session.undo.push(undo); if (session.undo.length > 30) session.undo.shift();
+  markDirty();
+  return gev;
+}
+function undoLast(){
+  const u = session.undo.pop(); if (!u){ toast("元に戻す操作はありません"); return null; }
+  S.cards[u.card.id] = u.card;
+  if (u.noteTags && S.notes[u.card.nid]) S.notes[u.card.nid].tags = u.noteTags;
+  S.today = u.today; S.revlog.length = u.revlogLen; session.revSinceNew = u.revSinceNew;
+  if ("game" in u){ if (u.game) S.game = u.game; else delete S.game; if (window.Game && u.gsess) Game.sessRestore(u.gsess); }
+  for (const b of u.buried) if (S.cards[b.id]) { S.cards[b.id].queue = b.queue; delete S.cards[b.id].buriedDay; }
+  markDirty(); return u.card;
+}
+function resetCard(c){ Object.assign(c, { type: 0, queue: 0, due: 0, ivl: 0, factor: 0, reps: 0, lapses: 0, step: 0, pos: S.nextPos++, mod: Date.now() }); }
+function setSuspended(c, on){ if (on) c.queue = -1; else c.queue = c.type === 0 ? 0 : c.type === 2 ? 2 : 1; c.mod = Date.now(); }
+
+/* ============================================================
+   保存（ローカル＋クラウド同期）
+   ============================================================ */
+const LS_KEY = "kioku-state-v1";
+const Store = {
+  db: null, base: null, deviceId: null, status: "local", lastRemote: 0, saving: false, again: false, timer: null, maxTimer: null, lsTimer: null, prevChunks: 0, unsub: null, loadingRemote: false,
+  setStatus(st, text){
+    this.status = st; const el = $("#sync"); if (!el) return;
+    el.className = "sync " + (st === "ok" ? "ok" : st === "err" ? "err" : st === "busy" ? "busy" : "");
+    $(".txt", el).textContent = text; el.title = text;
+  }
+};
+try { Store.deviceId = localStorage.getItem("kioku-device") || rid(); localStorage.setItem("kioku-device", Store.deviceId); } catch(e){ Store.deviceId = rid(); }
+function loadLocal(){ try { const s = localStorage.getItem(LS_KEY); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
+function saveLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch(e){ /* 容量超過などは無視（クラウドに保存） */ } }
+function markDirty(){
+  S.savedAt = Date.now();
+  clearTimeout(Store.lsTimer); Store.lsTimer = setTimeout(saveLocal, 250);
+  if (Store.base && Store.ready){
+    Store.setStatus("busy", "保存待ち…");
+    clearTimeout(Store.timer); Store.timer = setTimeout(remoteSave, 3000);
+    if (!Store.maxTimer) Store.maxTimer = setTimeout(remoteSave, 15000);
+  }
+}
+function flushSave(){ clearTimeout(Store.lsTimer); saveLocal(); if (Store.base && Store.ready && S.savedAt > Store.lastRemote) remoteSave(); }
+const hasCS = typeof CompressionStream !== "undefined" && typeof DecompressionStream !== "undefined";
+function toB64(buf){ const u = new Uint8Array(buf); let s = ""; for (let i=0;i<u.length;i+=0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i+0x8000)); return btoa(s); }
+function fromB64(b){ const s = atob(b), u = new Uint8Array(s.length); for (let i=0;i<s.length;i++) u[i] = s.charCodeAt(i); return u; }
+async function gz(str){ const st = new Blob([str]).stream().pipeThrough(new CompressionStream("gzip")); return toB64(await new Response(st).arrayBuffer()); }
+async function gunz(b){ const st = new Blob([fromB64(b)]).stream().pipeThrough(new DecompressionStream("gzip")); return await new Response(st).text(); }
+async function remoteSave(){
+  clearTimeout(Store.timer); clearTimeout(Store.maxTimer); Store.maxTimer = null;
+  if (!Store.base || !Store.ready) return;
+  if (Store.saving){ Store.again = true; return; }
+  Store.saving = true;
+  const savedAt = S.savedAt;
+  try {
+    Store.setStatus("busy", "同期中…");
+    const json = JSON.stringify(S);
+    const enc = hasCS ? "gz" : "raw";
+    const data = enc === "gz" ? await gz(json) : json;
+    const size = enc === "gz" ? 190000 : 60000;
+    const parts = []; for (let i=0;i<data.length;i+=size) parts.push(data.slice(i, i+size));
+    if (!parts.length) parts.push("");
+    const gen = rid();
+    for (let i=0;i<parts.length;i++) await Store.base.doc("c" + i).set({ gen, i, s: parts[i] });
+    await Store.base.doc("meta").set({ v: 1, n: parts.length, enc, gen, savedAt, dev: Store.deviceId });
+    const prev = Store.prevChunks; Store.prevChunks = parts.length;
+    for (let i=parts.length;i<prev;i++) { try { await Store.base.doc("c" + i).delete(); } catch(e){} }
+    Store.lastRemote = savedAt;
+    Store.setStatus("ok", "クラウドに保存済み");
+  } catch(e){
+    console.warn("save failed", e);
+    Store.setStatus("err", e && e.code === "quota_exceeded" ? "保存容量の上限に達しました" : "クラウド保存に失敗（このブラウザには保存済み）");
+    if (e && (e.code === "unavailable" || e.code === "resource_exhausted")) setTimeout(remoteSave, 8000 + Math.random()*4000);
+  } finally {
+    Store.saving = false;
+    if (Store.again || S.savedAt > Store.lastRemote){ Store.again = false; if (S.savedAt > savedAt) { clearTimeout(Store.timer); Store.timer = setTimeout(remoteSave, 1500); } }
+  }
+}
+async function remoteLoad(meta){
+  for (let attempt = 0; attempt < 3; attempt++){
+    const parts = []; let ok = true;
+    for (let i=0;i<meta.n;i++){
+      const s = await Store.base.doc("c" + i).get();
+      const d = s.exists ? s.data() : null;
+      if (!d || d.gen !== meta.gen){ ok = false; break; }
+      parts.push(d.s);
+    }
+    if (ok){ const str = parts.join(""); const json = meta.enc === "gz" ? await gunz(str) : str; Store.prevChunks = meta.n; return JSON.parse(json); }
+    await new Promise(r => setTimeout(r, 1500));
+    const m2 = await Store.base.doc("meta").get(); if (m2.exists) meta = m2.data();
+  }
+  throw new Error("inconsistent");
+}
+/* GitHub Pages 版：Firestore の progress コレクションに kioku_user1_meta / kioku_user1_c0… として保存する。
+   DocumentReference の get / set / delete / onSnapshot は claude.use("db") と同じ形なので、そのまま Store.base に使える。 */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDQOWt70WRoxJQbVx5XDMz0KI_dnaGnv7A",
+  authDomain: "cbt-planner.firebaseapp.com",
+  projectId: "cbt-planner",
+  storageBucket: "cbt-planner.firebasestorage.app",
+  messagingSenderId: "135218232504",
+  appId: "1:135218232504:web:d05c048e4f750e92c2884d"
+};
+const IS_PROD = /github\.io$/.test(location.hostname);
+let FS = null;
+function firestore(){
+  if (FS || !window.firebase) return FS;
+  try {
+    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+    FS = app.firestore();
+    FS.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+  } catch(e){ FS = null; }
+  return FS;
+}
+function firebaseBase(){
+  const db = firestore(); if (!db) return null;
+  const prefix = IS_PROD ? "kioku_user1_" : "kioku_localtest_";
+  return { doc: name => db.collection("progress").doc(prefix + name) };
+}
+async function initCloud(){
+  if (!window.claude || typeof window.claude.use !== "function"){
+    const fb = firebaseBase();
+    if (!fb){ Store.setStatus("local", "このブラウザに保存"); return; }
+    return startCloud(fb);
+  }
+  let db = null, user = null;
+  try { [db, user] = await Promise.all([claude.use("db"), claude.use("user")]); } catch(e){}
+  claude.use("assets").then(a => { Media.assets = a || null; if (Store.ready) pumpUploads(); }).catch(() => {});
+  let uid = null; try { uid = user ? await user.id() : null; } catch(e){}
+  if (!db || !uid){ Store.setStatus("local", "このブラウザに保存（サインインで同期）"); return; }
+  Store.db = db;
+  return startCloud(db.collection("data/users/" + uid));
+}
+async function startCloud(base){
+  Store.setStatus("busy", "クラウドを確認中…");
+  const timeout = setTimeout(() => Store.setStatus("err", "クラウドに接続できません（このブラウザには保存）"), 10000);
+  try {
+    Store.base = base; // remoteLoad で使う
+    const m = await base.doc("meta").get();
+    clearTimeout(timeout);
+    if (m.exists){
+      const meta = m.data();
+      Store.prevChunks = meta.n;
+      if ((meta.savedAt || 0) > (S.savedAt || 0)){
+        const remote = await remoteLoad(meta);
+        S = migrate(remote); rollover(); Store.lastRemote = S.savedAt; saveLocal(); route(true);
+        Store.ready = true; Store.setStatus("ok", "クラウドと同期済み"); pumpUploads();
+      } else if ((S.savedAt || 0) > (meta.savedAt || 0)){
+        Store.lastRemote = meta.savedAt; Store.ready = true; await remoteSave();
+      } else { Store.lastRemote = S.savedAt; Store.ready = true; Store.setStatus("ok", "クラウドと同期済み"); }
+    } else {
+      Store.ready = true;
+      if (S.savedAt) await remoteSave(); else Store.setStatus("ok", "クラウド保存オン");
+    }
+    pumpUploads();
+    Store.unsub = base.doc("meta").onSnapshot(async snap => {
+      if (!snap.exists || snap.metadata.hasPendingWrites) return;
+      const meta = snap.data();
+      if (meta.dev === Store.deviceId || (meta.savedAt||0) <= (S.savedAt||0) || Store.saving || Store.loadingRemote) return;
+      if (S.savedAt > Store.lastRemote) return; // 未送信の変更があるときは上書きしない
+      Store.loadingRemote = true;
+      try { const remote = await remoteLoad(meta); S = migrate(remote); rollover(); Store.lastRemote = S.savedAt; saveLocal(); if (currentView !== "study") route(true); toast("別の端末の変更を読み込みました"); }
+      catch(e){} finally { Store.loadingRemote = false; }
+    }, () => {});
+  } catch(e){
+    clearTimeout(timeout); console.warn(e);
+    Store.base = null; Store.ready = false; Store.setStatus("err", "クラウドに接続できません（このブラウザには保存）");
+  }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSave(); });
+window.addEventListener("pagehide", flushSave);
+
+/* ============================================================
+   画像（メディア）
+   ============================================================ */
+const Media = { urls: new Map(), idb: null, assets: null, uploading: false };
+const IMG_TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml" };
+const UPLOADABLE = new Set(Object.values(IMG_TYPES));
+function extOf(n){ const m = /\.([a-z0-9]+)$/i.exec(n || ""); return m ? m[1].toLowerCase() : ""; }
+function guessType(n){ return IMG_TYPES[extOf(n)] || ""; }
+function extForType(t){ return { "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp", "image/svg+xml": ".svg" }[t] || ".img"; }
+function hashBytes(u8){ let x = 2166136261; const n = u8.length, step = n > 4e6 ? Math.floor(n / 2e6) : 1; for (let i = 0; i < n; i += step){ x ^= u8[i]; x = Math.imul(x, 16777619); } return (x >>> 0).toString(36) + n.toString(36); }
+function idbOpen(){
+  if (Media.idb) return Media.idb;
+  Media.idb = new Promise(res => { try { const r = indexedDB.open("kioku-media", 1); r.onupgradeneeded = () => r.result.createObjectStore("m"); r.onsuccess = () => res(r.result); r.onerror = () => res(null); r.onblocked = () => res(null); } catch(e){ res(null); } });
+  return Media.idb;
+}
+async function idbGet(k){ const db = await idbOpen(); if (!db) return null; return new Promise(res => { try { const q = db.transaction("m").objectStore("m").get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); } catch(e){ res(null); } }); }
+async function idbPut(k, v){ const db = await idbOpen(); if (!db) return; return new Promise(res => { try { const tx = db.transaction("m", "readwrite"); tx.objectStore("m").put(v, k); tx.oncomplete = () => res(); tx.onerror = () => res(); tx.onabort = () => res(); } catch(e){ res(); } }); }
+function mediaSrc(name){ if (Media.urls.has(name)) return Media.urls.get(name); const m = S.media[name]; return m && m.id ? "/_blob/" + m.id : null; }
+async function mediaUrl(name){
+  const s = mediaSrc(name); if (s) return s;
+  const b = await idbGet(name); if (b){ const u = URL.createObjectURL(b); Media.urls.set(name, u); return u; }
+  return null;
+}
+async function getMediaBlob(name){
+  const b = await idbGet(name); if (b) return b;
+  const m = S.media[name]; if (m && m.id){ try { const r = await fetch("/_blob/" + m.id); if (r.ok) return await r.blob(); } catch(e){} }
+  return null;
+}
+function hydrate(root){
+  root.querySelectorAll("img[data-media]").forEach(async img => {
+    if (img.getAttribute("src")) return;
+    const name = img.getAttribute("data-media");
+    const u = await mediaUrl(name);
+    if (u) img.src = u; else { img.alt = "[画像が見つかりません: " + name + "]"; img.style.minWidth = "40px"; }
+  });
+}
+/** 画像を保存してファイル名を返す（同じ内容なら同じ名前を再利用） */
+async function addMedia(blob, name){
+  const u8 = new Uint8Array(await blob.arrayBuffer()); const hsh = hashBytes(u8);
+  const type = (blob.type && blob.type.startsWith("image/")) ? blob.type : (guessType(name) || blob.type || "application/octet-stream");
+  if (!name) name = "img-" + hsh + extForType(type);
+  name = name.replace(/[\\/:*?"<>|]/g, "_");
+  const ex = S.media[name];
+  if (ex){
+    if (ex.h === hsh){ if (!(await idbGet(name))) await idbPut(name, blob); return name; }
+    const dot = name.lastIndexOf(".");
+    name = (dot > 0 ? name.slice(0, dot) : name) + "-" + hsh + (dot > 0 ? name.slice(dot) : "");
+    if (S.media[name]) return name;
+  }
+  const b2 = blob.type === type ? blob : new Blob([u8], { type });
+  await idbPut(name, b2);
+  Media.urls.set(name, URL.createObjectURL(b2));
+  S.media[name] = { type, size: blob.size, h: hsh };
+  return name;
+}
+async function pumpUploads(){
+  if (Media.uploading || !Media.assets) return;
+  Media.uploading = true;
+  try {
+    for (const [name, m] of Object.entries(S.media)){
+      if (m.id || (m.fail || 0) >= 3) continue;
+      if (!UPLOADABLE.has(m.type)){ m.fail = 9; continue; }
+      const b = await idbGet(name); if (!b) continue;
+      try { const r = await Media.assets.upload(b, { type: m.type }); m.id = r.id; delete m.fail; markDirty(); }
+      catch(e){
+        m.fail = (m.fail || 0) + 1;
+        if (e && e.code === "quota_or_state"){ toast("画像のクラウド保存容量がいっぱいです（このブラウザには保存されています）", 4000); break; }
+        if (e && (e.code === "rate_limited" || e.code === "store_unavailable")) await sleep(6000);
+        if (e && (e.code === "not_granted" || e.code === "capability_disabled" || e.code === "capability_removed")){ Media.assets = null; break; }
+      }
+    }
+  } finally { Media.uploading = false; }
+}
+function shrinkBlob(file, max = 1600){
+  return new Promise(res => {
+    if (/svg|gif/.test(file.type)) return res(file);
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const sc = Math.min(1, max / Math.max(img.width, img.height));
+      if (sc === 1 && file.size < 500000) return res(file);
+      const cv = document.createElement("canvas"); cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+      const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob(b => res(b || file), "image/jpeg", 0.86);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); res(file); };
+    img.src = url;
+  });
+}
+function blobToDataURL(b){ return new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(b); }); }
+function dataURLtoBlob(d){ const m = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(d || ""); if (!m) return null; const bytes = m[2] ? fromB64(m[3]) : new TextEncoder().encode(decodeURIComponent(m[3])); return new Blob([bytes], { type: m[1] }); }
+
+/* ============================================================
+   UI 共通部品
+   ============================================================ */
+function toast(msg, ms=2200){ const t = h("div", { class: "toast" }, msg); document.body.append(t); setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 300); }, ms); }
+function modal({ title, body, buttons = [{ label: "閉じる", value: null }], wide = false, onOpen }){
+  return new Promise(resolve => {
+    const box = h("div", { class: "modal" + (wide ? " wide" : "") });
+    if (title) box.append(h("h2", {}, title));
+    if (typeof body === "string") box.append(h("div", { html: body })); else if (body) box.append(body);
+    const foot = h("div", { class: "foot" });
+    const close = v => { mask.remove(); document.removeEventListener("keydown", onKey, true); resolve(v); };
+    for (const b of buttons){
+      foot.append(h("button", { class: "btn" + (b.primary ? " primary" : "") + (b.danger ? " danger" : ""), onclick: async () => {
+        if (b.onClick){ const r = await b.onClick(); if (r === false) return; close(r === undefined ? b.value : r); } else close(b.value);
+      } }, b.label));
+    }
+    box.append(foot);
+    const mask = h("div", { class: "mask", onmousedown: e => { if (e.target === mask) close(null); } }, box);
+    const onKey = e => { if (e.key === "Escape"){ e.stopPropagation(); close(null); } };
+    document.addEventListener("keydown", onKey, true);
+    document.body.append(mask);
+    if (onOpen) onOpen(box); else { const f = box.querySelector("input,select,textarea"); if (f) f.focus(); }
+    box._close = close;
+  });
+}
+function confirmDlg(msg, okLabel="OK", danger=false){ return modal({ title: "確認", body: h("p", {}, msg), buttons: [{ label: "キャンセル", value: false }, { label: okLabel, value: true, primary: !danger, danger }] }); }
+function promptDlg(title, value="", label=""){
+  const inp = h("input", { type: "text", value, style: "width:100%" });
+  const body = h("div", {}, label ? h("label", { class: "lbl" }, label) : null, inp);
+  const p = modal({ title, body, buttons: [{ label: "キャンセル", value: null }, { label: "OK", primary: true, onClick: () => inp.value }] });
+  inp.addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); body.closest(".modal").querySelector(".btn.primary").click(); } });
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  return p;
+}
+function popMenu(anchor, items){
+  $$(".menu").forEach(m => m.remove());
+  const r = anchor.getBoundingClientRect();
+  const m = h("div", { class: "menu" });
+  for (const it of items){ if (!it) continue; m.append(h("button", { class: it.danger ? "danger" : "", onclick: () => { m.remove(); it.run(); } }, it.label)); }
+  document.body.append(m);
+  const mw = m.offsetWidth;
+  m.style.top = (r.bottom + window.scrollY + 4) + "px";
+  m.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.right + window.scrollX - mw)) + "px";
+  setTimeout(() => document.addEventListener("mousedown", function off(e){ if (!m.contains(e.target)){ m.remove(); document.removeEventListener("mousedown", off); } }), 0);
+}
+function deckSelect(selected, opt={}){
+  const sel = h("select", { style: opt.style || "" });
+  if (opt.all) sel.append(h("option", { value: "" }, "すべてのデッキ"));
+  for (const d of sortedDecks()) sel.append(h("option", { value: d.id, selected: d.id === selected }, d.name.split("::").map((x,i,a)=> i < a.length-1 ? "　" : x).join("")));
+  return sel;
+}
+function applyTheme(){
+  const t = S.conf.theme;
+  const dark = t === "dark" || (t === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+}
+
+/* ============================================================
+   ルーティング
+   ============================================================ */
+let currentView = "decks";
+const VIEWS = { decks: viewDecks, overview: viewOverview, study: viewStudy, add: viewAdd, browse: viewBrowse, stats: viewStats, settings: viewSettings };
+function go(view, params){ if (params) Object.assign(routeParams, params); if (location.hash.slice(1) !== view) location.hash = view; else route(true); }
+const routeParams = {};
+function route(force){
+  rollover();
+  let v = location.hash.slice(1) || "decks";
+  if (!VIEWS[v]) v = "decks";
+  if ((v === "study" || v === "overview") && !(routeParams.did && S.decks[routeParams.did])) v = "decks";
+  if (v !== currentView || force){
+    if (currentView === "study" && v !== "study") stopStudy();
+    currentView = v;
+    $$("#nav button").forEach(b => b.classList.toggle("on", b.dataset.go === v || (b.dataset.go === "decks" && (v === "overview" || v === "study"))));
+    const main = $("#view"); main.className = v === "browse" ? "wide" : ""; main.innerHTML = "";
+    VIEWS[v](main);
+    window.scrollTo(0, 0);
+  }
+}
+window.addEventListener("hashchange", () => route(true));
+document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g){ e.preventDefault(); go(g.dataset.go); } });
+
+/* ============================================================
+   デッキ一覧
+   ============================================================ */
+function viewDecks(main){
+  const idx = buildIndex();
+  const total = Object.keys(S.cards).length;
+  if (window.Game){ try { const gp = Game.homePanel(); if (gp) main.append(gp); } catch(e){ console.warn(e); } }
+  const wrap = h("div", { class: "panel" });
+  const head = h("div", { class: "row", style: "margin-bottom:8px" }, h("h1", { style: "margin:0" }, "デッキ"), h("div", { class: "spacer" }),
+    h("button", { class: "btn", onclick: createDeck }, "＋ デッキ作成"),
+    h("button", { class: "btn", onclick: () => go("settings") }, "インポート"));
+  wrap.append(head);
+  const tbl = h("table", { class: "decks" }, h("thead", {}, h("tr", {}, h("th", {}, "デッキ"), h("th", {}, "新規"), h("th", {}, "学習中"), h("th", {}, "復習"), h("th", { style: "width:40px" }, ""))));
+  const tb = h("tbody"); tbl.append(tb);
+  const addRow = (d, depth) => {
+    const c = deckCounts(d.id, idx), kids = childrenOf(d.id);
+    const num = (v, cls) => h("td", { class: v ? cls : "zero" }, String(v));
+    const tog = kids.length ? h("span", { class: "tog", onclick: () => { d.collapsed = !d.collapsed; markDirty(); route(true); } }, d.collapsed ? "▸" : "▾") : h("span", { class: "tog" }, "");
+    const gear = h("button", { class: "iconbtn", title: "操作", onclick: e => deckMenu(e.currentTarget, d) }, "⚙");
+    tb.append(h("tr", {}, h("td", { style: `padding-left:${10 + depth*20}px` }, tog, h("span", { class: "dname", onclick: () => openDeck(d.id) }, leafName(d.name))), num(c.n, "n"), num(c.l, "l"), num(c.r, "r"), h("td", {}, gear)));
+    if (!d.collapsed) for (const k of kids) addRow(k, depth + 1);
+  };
+  for (const d of rootDecks()) addRow(d, 0);
+  wrap.append(tbl);
+  // 今日のまとめ
+  const t0 = dayStartTs(today()); const todays = S.revlog.filter(r => r.id >= t0);
+  const studied = todays.length ? `今日は ${todays.length} 枚を ${fmtDur(todays.reduce((a,r)=>a+r.time,0))} で学習しました。` : "今日はまだ学習していません。";
+  main.append(wrap, h("p", { class: "muted small", style: "text-align:center;margin-top:14px" }, studied));
+  if (!total){
+    main.append(h("div", { class: "panel empty", style: "margin-top:14px" },
+      h("h2", {}, "まだカードがありません"),
+      h("p", { class: "muted" }, "カードを追加するか、CSV・バックアップからインポートしましょう。試しに使うならサンプルを入れてみてください。"),
+      h("div", { class: "row", style: "justify-content:center" },
+        h("button", { class: "btn primary", onclick: () => go("add") }, "カードを追加"),
+        h("button", { class: "btn", onclick: addSamples }, "サンプルを追加"))));
+  }
+  main.append(h("p", { class: "muted small", style: "text-align:center" }, "ショートカット: 学習中 Space=答え/普通　1〜4=評価　E=編集　U=元に戻す　@=一時停止　-=延期　*=マーク"));
+}
+function openDeck(did){ S.conf.lastDeck = did; routeParams.did = did; go("overview"); }
+async function createDeck(){
+  const name = await promptDlg("デッキ作成", "", "デッキ名（「親::子」でサブデッキ）");
+  if (!name || !name.trim()) return;
+  ensureDeck(name.trim()); markDirty(); route(true);
+}
+function deckMenu(anchor, d){
+  popMenu(anchor, [
+    { label: "学習する", run: () => { routeParams.did = d.id; go("study"); } },
+    { label: "名前を変更", run: () => renameDeck(d) },
+    { label: "オプション", run: () => deckOptions(d) },
+    { label: "カードを閲覧", run: () => { routeParams.search = `deck:"${d.name}"`; go("browse"); } },
+    { label: "CSVで書き出す", run: () => exportCSV(d.id) },
+    { label: "削除", danger: true, run: () => deleteDeck(d) }
+  ]);
+}
+async function renameDeck(d){
+  const name = await promptDlg("名前を変更", d.name, "デッキ名（「親::子」でサブデッキ）");
+  if (!name || !name.trim() || name.trim() === d.name) return;
+  const nn = name.split("::").map(x=>x.trim()).filter(Boolean).join("::");
+  if (deckByName(nn)){ toast("同じ名前のデッキがあります"); return; }
+  const old = d.name;
+  for (const x of Object.values(S.decks)) if (x.name === old || x.name.startsWith(old + "::")) x.name = nn + x.name.slice(old.length);
+  const p = parentName(nn); if (p) ensureDeck(p);
+  markDirty(); route(true);
+}
+async function deleteDeck(d){
+  const ids = subtreeIds(d.id); const cards = Object.values(S.cards).filter(c => ids.has(c.did));
+  const ok = await confirmDlg(`「${d.name}」${ids.size > 1 ? "とサブデッキ" : ""}を削除します。含まれるカード ${cards.length} 枚も削除されます。`, "削除", true);
+  if (!ok) return;
+  const nids = new Set(cards.map(c => c.nid));
+  for (const c of cards) delete S.cards[c.id];
+  for (const nid of nids) if (!cardsOfNote(nid).length) delete S.notes[nid];
+  for (const id of ids) delete S.decks[id];
+  if (!Object.keys(S.decks).length) S.decks = defaultState().decks;
+  if (!S.decks[S.conf.lastDeck]) S.conf.lastDeck = Object.keys(S.decks)[0];
+  markDirty(); route(true); toast("削除しました");
+}
+async function deckOptions(d){
+  const o = opts(d.id);
+  const f = {};
+  const num = (k, label, step="1", unit="") => { f[k] = h("input", { type: "number", step, value: String(o[k]), style: "width:100%" }); return h("div", {}, h("label", { class: "lbl" }, label + (unit ? `（${unit}）` : "")), f[k]); };
+  const pct = (k, label) => { f[k] = h("input", { type: "number", step: "1", value: String(Math.round(o[k]*100)), style: "width:100%" }); f[k].dataset.pct = "1"; return h("div", {}, h("label", { class: "lbl" }, label + "（%）"), f[k]); };
+  const steps = (k, label) => { f[k] = h("input", { type: "text", value: o[k].join(" "), style: "width:100%" }); return h("div", {}, h("label", { class: "lbl" }, label + "（分・スペース区切り）"), f[k]); };
+  f.leechAction = h("select", { style: "width:100%" }, h("option", { value: "suspend", selected: o.leechAction === "suspend" }, "一時停止してタグ付け"), h("option", { value: "tag", selected: o.leechAction === "tag" }, "タグ付けのみ"));
+  f.newOrder = h("select", { style: "width:100%" }, h("option", { value: "added", selected: o.newOrder === "added" }, "追加した順"), h("option", { value: "random", selected: o.newOrder === "random" }, "ランダム"));
+  f.buryNew = h("input", { type: "checkbox", checked: o.buryNew }); f.buryRev = h("input", { type: "checkbox", checked: o.buryRev });
+  f.scheduler = h("select", { style: "width:100%" }, h("option", { value: "fsrs", selected: o.scheduler === "fsrs" }, "FSRS（忘却曲線モデル・推奨）"), h("option", { value: "sm2", selected: o.scheduler !== "fsrs" }, "SM-2（従来のAnki方式）"));
+  const applySub = h("input", { type: "checkbox" });
+  const body = h("div", {},
+    h("h3", { style: "margin-top:4px" }, "1日の上限"),
+    h("div", { class: "grid2" }, num("newPerDay", "新規カード/日"), num("revPerDay", "最大復習数/日")),
+    h("h3", { style: "margin-top:16px" }, "スケジューラ"),
+    h("div", { class: "grid2" }, h("div", {}, h("label", { class: "lbl" }, "方式"), f.scheduler), pct("desiredRetention", "目標の記憶保持率（FSRS）")),
+    h("p", { class: "muted small", style: "margin:4px 0 0" }, "FSRS はカードごとに忘却曲線を推定し、思い出せる確率が目標（標準90%）まで下がる日に復習を入れます。目標を上げると復習回数が増え、下げると減ります。"),
+    h("h3", { style: "margin-top:16px" }, "新規カード"),
+    h("div", { class: "grid2" }, steps("learnSteps", "学習ステップ"), h("div", {}, h("label", { class: "lbl" }, "新規の順序"), f.newOrder), num("graduatingIvl", "卒業間隔", "1", "日"), num("easyIvl", "簡単の間隔", "1", "日"), pct("startEase", "初期の易しさ")),
+    h("h3", { style: "margin-top:16px" }, "忘れたとき（失敗）"),
+    h("div", { class: "grid2" }, steps("relearnSteps", "再学習ステップ"), num("minIvl", "最小間隔", "1", "日"), pct("lapseMult", "新しい間隔の倍率"), num("leechThreshold", "リーチの閾値", "1", "回"), h("div", {}, h("label", { class: "lbl" }, "リーチ時の動作"), f.leechAction)),
+    h("h3", { style: "margin-top:16px" }, "上級"),
+    h("div", { class: "grid2" }, pct("easyBonus", "簡単ボーナス"), pct("hardIvl", "難しいの間隔倍率"), pct("ivlMod", "間隔修飾子"), num("maxIvl", "最大間隔", "1", "日")),
+    h("div", { style: "margin-top:12px" }, h("label", {}, f.buryNew, " 兄弟カード（同じノートの別カード）の新規を翌日に延期")),
+    h("div", {}, h("label", {}, f.buryRev, " 兄弟カードの復習を翌日に延期")),
+    childrenOf(d.id).length ? h("div", { style: "margin-top:10px" }, h("label", {}, applySub, " サブデッキにも同じ設定を適用")) : null,
+    h("p", { class: "muted small" }, "学習ステップなどの既定値は Anki の標準設定と同じです。"));
+  const res = await modal({ title: `オプション：${d.name}`, body, wide: true, buttons: [
+    { label: "既定値に戻す", onClick: () => "reset" }, { label: "キャンセル", value: null }, { label: "保存", primary: true, value: "save" }] });
+  if (!res) return;
+  let newOpts = {};
+  if (res === "save"){
+    for (const [k, el] of Object.entries(f)){
+      if (el.type === "checkbox") newOpts[k] = el.checked;
+      else if (el.tagName === "SELECT") newOpts[k] = el.value;
+      else if (k === "learnSteps" || k === "relearnSteps") newOpts[k] = el.value.split(/[\s,、]+/).map(Number).filter(x => x > 0);
+      else { let v = parseFloat(el.value); if (!isFinite(v)) v = DEFAULT_OPTS[k]; newOpts[k] = el.dataset.pct ? v/100 : v; }
+    }
+    newOpts.newPerDay = Math.max(0, Math.round(newOpts.newPerDay)); newOpts.revPerDay = Math.max(0, Math.round(newOpts.revPerDay));
+    newOpts.startEase = Math.max(1.3, newOpts.startEase); newOpts.desiredRetention = clamp(newOpts.desiredRetention || 0.9, 0.7, 0.99); newOpts.minIvl = Math.max(1, newOpts.minIvl); newOpts.maxIvl = Math.max(1, newOpts.maxIvl);
+    if (!newOpts.learnSteps.length) newOpts.learnSteps = [];
+  }
+  const targets = applySub.checked ? [...subtreeIds(d.id)] : [d.id];
+  for (const id of targets) S.decks[id].opts = { ...newOpts };
+  markDirty(); route(true); toast("オプションを保存しました");
+}
+
+/* ============================================================
+   デッキ概要
+   ============================================================ */
+function viewOverview(main){
+  const did = routeParams.did, d = S.decks[did]; const c = deckCounts(did, buildIndex());
+  const nothing = !c.n && !c.r && !c.l;
+  const sub = subtreeIds(did); const totalCards = Object.values(S.cards).filter(x => sub.has(x.did)).length;
+  const p = h("div", { class: "panel", style: "text-align:center;padding:30px 18px" },
+    h("div", { class: "muted small" }, d.name.split("::").slice(0, -1).join(" › ")),
+    h("h1", {}, leafName(d.name)),
+    h("div", { class: "row", style: "justify-content:center;gap:28px;margin:18px 0 22px;font-size:1.05rem" },
+      h("div", {}, h("div", { class: "muted small" }, "新規"), h("div", { class: "n", style: "font-size:1.8rem;font-weight:700" }, c.n)),
+      h("div", {}, h("div", { class: "muted small" }, "学習中"), h("div", { class: "l", style: "font-size:1.8rem;font-weight:700" }, c.l)),
+      h("div", {}, h("div", { class: "muted small" }, "復習"), h("div", { class: "r", style: "font-size:1.8rem;font-weight:700" }, c.r))),
+    nothing ? h("p", { class: "muted" }, totalCards ? "今日の学習はすべて終わりました。" : "このデッキにはまだカードがありません。") : null,
+    h("div", { class: "row", style: "justify-content:center" },
+      h("button", { class: "btn primary showbtn", disabled: nothing && !nextLearnDue(did), onclick: () => go("study") }, "学習を始める"),
+    ),
+    h("div", { class: "row", style: "justify-content:center;margin-top:14px" },
+      h("button", { class: "btn sm", onclick: () => { S.conf.lastDeck = did; go("add"); } }, "カードを追加"),
+      h("button", { class: "btn sm", onclick: () => customStudy(d) }, "今日の上限を増やす"),
+      h("button", { class: "btn sm", onclick: () => deckOptions(d) }, "オプション"),
+      h("button", { class: "btn sm", onclick: () => { routeParams.search = `deck:"${d.name}"`; go("browse"); } }, "閲覧")),
+    h("p", { class: "muted small", style: "margin-top:18px" }, `全 ${totalCards} 枚`));
+  main.append(p);
+}
+async function customStudy(d){
+  const nIn = h("input", { type: "number", value: "10", style: "width:100%" }), rIn = h("input", { type: "number", value: "0", style: "width:100%" });
+  const body = h("div", {}, h("p", { class: "muted small" }, "今日だけ、このデッキの上限を増やします（明日には元に戻ります）。"),
+    h("div", { class: "grid2" }, h("div", {}, h("label", { class: "lbl" }, "新規を追加で"), nIn), h("div", {}, h("label", { class: "lbl" }, "復習を追加で"), rIn)));
+  const ok = await modal({ title: "今日の上限を増やす", body, buttons: [{ label: "キャンセル", value: false }, { label: "増やす", primary: true, value: true }] });
+  if (!ok) return;
+  const t = today(), add = (key, v) => { if (!v) return; const cur = d[key] && d[key].day === t ? d[key].n : 0; d[key] = { day: t, n: cur + v }; };
+  add("extra", Math.max(0, parseInt(nIn.value)||0)); add("extraR", Math.max(0, parseInt(rIn.value)||0));
+  markDirty(); route(true);
+}
+
+/* ============================================================
+   学習画面
+   ============================================================ */
+let studyTimer = null, studyKey = null;
+function stopStudy(){ clearInterval(studyTimer); studyTimer = null; if (studyKey){ document.removeEventListener("keydown", studyKey); studyKey = null; } }
+function viewStudy(main){
+  stopStudy();
+  const did = routeParams.did; session.did = did; S.conf.lastDeck = did;
+  if (session.deckForUndo !== did){ session.undo = []; session.revSinceNew = 0; session.deckForUndo = did; }
+  if (window.Game) Game.startSession();
+  const box = h("div", { class: "study" }); main.append(box);
+  studyKey = e => onStudyKey(e); document.addEventListener("keydown", studyKey);
+  nextCard();
+}
+function nextCard(){
+  const box = $(".study"); if (!box) return;
+  const did = session.did;
+  const card = getNext(did);
+  session.current = card; session.answerShown = false; session.typed = "";
+  box.innerHTML = "";
+  clearInterval(studyTimer); studyTimer = null;
+  if (!card){
+    const nd = nextLearnDue(did);
+    box.append(h("div", { class: "panel empty" },
+      h("h1", {}, "お疲れさまでした！"),
+      h("p", {}, "このデッキの今日の学習はここまでです。"),
+      nd ? h("p", { class: "muted" }, `学習中のカードがあと ${fmtIvl(Math.max(0, nd - Date.now()))} 後に表示されます。この画面のまま待つと自動で再開します。`) : null,
+      h("div", { class: "row", style: "justify-content:center;margin-top:10px" },
+        h("button", { class: "btn", onclick: () => go("decks") }, "デッキ一覧へ"),
+        h("button", { class: "btn", onclick: () => customStudy(S.decks[did]).then(() => { if (currentView === "study") nextCard(); }) }, "今日の上限を増やす"),
+        session.undo.length ? h("button", { class: "btn", onclick: doUndo }, "元に戻す") : null),
+      window.Game ? Game.summary() : null));
+    if (nd) studyTimer = setInterval(() => { if (getNext(did)) nextCard(); }, 10000);
+    return;
+  }
+  session.shownAt = Date.now();
+  renderStudyCard(false);
+}
+function renderStudyCard(showAnswer){
+  const box = $(".study"); const card = session.current; if (!box || !card) return;
+  const note = S.notes[card.nid];
+  const c = deckCounts(session.did, buildIndex());
+  const cur = card.queue === 0 ? "n" : card.queue === 1 ? "l" : "r";
+  const counts = h("div", { class: "counts" },
+    h("span", { class: "n" + (cur === "n" ? " cur" : "") }, String(c.n)), " + ",
+    h("span", { class: "l" + (cur === "l" ? " cur" : "") }, String(c.l)), " + ",
+    h("span", { class: "r" + (cur === "r" ? " cur" : "") }, String(c.r)));
+  const qa = renderQA(card);
+  const cb = h("div", { class: "cardbox" });
+  const flagColors = ["", "#d9483b", "#e08a1e", "#2f9e57", "#3a74d0"];
+  if (card.flag) cb.append(h("div", { class: "flagbar", style: `background:${flagColors[card.flag]}` }));
+  if (note && note.tags.includes("marked")) cb.append(h("div", { class: "markstar", title: "マーク" }, "★"));
+  const host = h("div"); cb.append(host);
+  const sh = mountCard(host, qa, showAnswer ? qa.a : qa.q);
+  const slot = sh.querySelector(".typein-slot");
+  if (slot){
+    if (!showAnswer){
+      const inp = h("input", { type: "text", class: "typein", placeholder: "答えを入力して Enter", value: session.typed });
+      inp.addEventListener("input", () => session.typed = inp.value);
+      inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing){ e.preventDefault(); e.stopPropagation(); showAns(); } });
+      slot.replaceWith(inp); setTimeout(() => inp.focus(), 0);
+    } else slot.remove();
+  }
+  const aslot = sh.querySelector(".typeans-slot");
+  if (aslot){
+    if (qa.typeAnswer !== undefined){ const d = document.createElement("div"); d.className = "diff"; d.innerHTML = typeDiff(session.typed, qa.typeAnswer); aslot.replaceWith(d); }
+    else aslot.remove();
+  }
+  box.innerHTML = ""; const gbar = window.Game ? Game.studyBar() : null; if (gbar) box.append(gbar); box.append(counts, cb);
+  const bar = h("div", { class: "answerbar" });
+  if (!showAnswer){
+    bar.append(h("button", { class: "btn primary showbtn", onclick: showAns }, "答えを表示", h("span", { class: "kbd hide-sm" }, "Space")));
+  } else {
+    const lab = previewLabels(card), names = { 1: "もう一度", 2: "難しい", 3: "普通", 4: "簡単" };
+    for (const e of [1,2,3,4]) bar.append(h("button", { class: "ease e" + e, onclick: () => rate(e) }, names[e], h("small", {}, lab[e])));
+  }
+  box.append(bar);
+  const tools = h("div", { class: "studytools" },
+    h("button", { class: "iconbtn small", onclick: () => editCurrent() }, "編集", h("span", { class: "kbd hide-sm" }, "E")),
+    h("button", { class: "iconbtn small", onclick: e => moreMenu(e.currentTarget) }, "その他 ▾"),
+    session.undo.length ? h("button", { class: "iconbtn small", onclick: doUndo }, "元に戻す", h("span", { class: "kbd hide-sm" }, "U")) : null,
+    h("button", { class: "iconbtn small", onclick: () => go("overview") }, "終了"));
+  box.append(tools);
+}
+function showAns(){ if (!session.current || session.answerShown) return; session.answerShown = true; renderStudyCard(true); }
+function rate(ease){
+  const c = session.current; if (!c || !session.answerShown) return;
+  const gev = answerCard(c, ease, Date.now() - session.shownAt);
+  nextCard();
+  if (window.Game) try { Game.react(gev); } catch(e){ console.warn(e); }
+}
+function doUndo(){ const c = undoLast(); if (!c) return; if (currentView !== "study") return; session.current = S.cards[c.id]; session.answerShown = false; session.shownAt = Date.now(); renderStudyCard(false); toast("元に戻しました"); }
+function moreMenu(anchor){
+  const c = session.current; if (!c) return; const note = S.notes[c.nid];
+  popMenu(anchor, [
+    { label: "このカードを一時停止 (@)", run: suspendCurrent },
+    { label: "今日は延期 (-)", run: buryCurrent },
+    { label: (note?.tags.includes("marked") ? "マークを外す" : "ノートにマーク") + " (*)", run: markCurrent },
+    { label: "フラグ：赤", run: () => flagCurrent(1) }, { label: "フラグ：オレンジ", run: () => flagCurrent(2) },
+    { label: "フラグ：緑", run: () => flagCurrent(3) }, { label: "フラグ：青", run: () => flagCurrent(4) },
+    c.flag ? { label: "フラグを外す", run: () => flagCurrent(0) } : null,
+    { label: "カード情報", run: () => cardInfo(c.id) },
+    { label: "新規カードに戻す", run: async () => { if (await confirmDlg("このカードの学習履歴をリセットして新規に戻しますか？")){ resetCard(S.cards[c.id]); markDirty(); nextCard(); } } },
+    { label: "ノートを削除", danger: true, run: async () => { if (await confirmDlg("このノート（とそのすべてのカード）を削除しますか？", "削除", true)){ deleteNotes([c.nid]); markDirty(); nextCard(); } } }
+  ]);
+}
+function suspendCurrent(){ const c = session.current; if (!c) return; setSuspended(S.cards[c.id], true); markDirty(); toast("一時停止しました"); nextCard(); }
+function buryCurrent(){ const c = session.current; if (!c) return; const x = S.cards[c.id]; x.queue = -2; x.buriedDay = today(); markDirty(); toast("明日に延期しました"); nextCard(); }
+function markCurrent(){ const c = session.current; if (!c) return; const n = S.notes[c.nid]; if (!n) return; const i = n.tags.indexOf("marked"); if (i >= 0) n.tags.splice(i, 1); else n.tags.push("marked"); markDirty(); renderStudyCard(session.answerShown); }
+function flagCurrent(f){ const c = session.current; if (!c) return; S.cards[c.id].flag = (S.cards[c.id].flag === f ? 0 : f); session.current = S.cards[c.id]; markDirty(); renderStudyCard(session.answerShown); }
+async function editCurrent(){
+  const c = session.current; if (!c) return;
+  const saved = await editNoteModal(c.nid);
+  if (saved){ session.current = S.cards[c.id] || null; if (!session.current) nextCard(); else renderStudyCard(session.answerShown); }
+}
+function onStudyKey(e){
+  if ($(".mask") || $(".menu")) return;
+  const tgt = (e.composedPath && e.composedPath()[0]) || e.target;
+  const tag = (tgt.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select" || tgt.isContentEditable) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z"){ e.preventDefault(); doUndo(); return; }
+  if ((e.ctrlKey || e.metaKey) && /^[0-4]$/.test(e.key)){ e.preventDefault(); flagCurrent(+e.key); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+  if (k === " " || k === "Enter"){ e.preventDefault(); if (!session.answerShown) showAns(); else rate(3); return; }
+  if (/^[1-4]$/.test(k) && session.answerShown){ e.preventDefault(); rate(+k); return; }
+  if (k === "e" || k === "E"){ e.preventDefault(); editCurrent(); return; }
+  if (k === "u" || k === "U"){ e.preventDefault(); doUndo(); return; }
+  if (k === "@" || k === "!"){ e.preventDefault(); suspendCurrent(); return; }
+  if (k === "-"){ e.preventDefault(); buryCurrent(); return; }
+  if (k === "*"){ e.preventDefault(); markCurrent(); return; }
+  if (k === "i" || k === "I"){ if (session.current){ e.preventDefault(); cardInfo(session.current.id); } return; }
+  if (k === "Escape"){ go("overview"); }
+}
+function typeDiff(given, correct){
+  given = (given || "").trim(); correct = (correct || "").trim();
+  if (!given) return `<div class="muted small">あなたの答え：（未入力）</div><div><span class="ok">${esc(correct)}</span></div>`;
+  if (given === correct) return `<span class="ok">✓ ${esc(correct)}</span>`;
+  const a = [...given], b = [...correct];
+  if (a.length * b.length > 90000) return `<div><span class="bad">${esc(given)}</span></div><div>↓</div><div><span class="ok">${esc(correct)}</span></div>`;
+  const dp = Array.from({ length: a.length + 1 }, () => new Uint16Array(b.length + 1));
+  for (let i=a.length-1;i>=0;i--) for (let j=b.length-1;j>=0;j--) dp[i][j] = a[i] === b[j] ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1]);
+  let i=0, j=0, top = "", bot = "";
+  while (i < a.length || j < b.length){
+    if (i < a.length && j < b.length && a[i] === b[j]){ top += `<span class="ok">${esc(a[i])}</span>`; bot += `<span class="ok">${esc(b[j])}</span>`; i++; j++; }
+    else if (j < b.length && (i >= a.length || dp[i][j+1] >= dp[i+1][j])){ top += `<span class="miss">-</span>`; bot += `<span class="miss">${esc(b[j])}</span>`; j++; }
+    else { top += `<span class="bad">${esc(a[i])}</span>`; i++; }
+  }
+  return `<div>${top}</div><div class="muted">↓</div><div>${bot}</div>`;
+}
+function forgettingCurve(c, st){
+  const o = opts(c.did), el = Math.max(0, today() - dayOf(st.last));
+  const due = c.type === 2 ? Math.max(1, c.due - dayOf(st.last)) : null;
+  const span = Math.max(8, Math.ceil(Math.max(due || 1, el, st.s) * 2.2));
+  const W = 600, H = 190, padL = 38, padR = 10, padT = 10, padB = 24, w = W - padL - padR, hh = H - padT - padB;
+  const X = t => padL + t / span * w, Y = r => padT + (1 - r) * hh;
+  let d = ""; for (let i = 0; i <= 120; i++){ const t = span * i / 120; d += (i ? "L" : "M") + X(t).toFixed(1) + "," + Y(fR(t, st.s)).toFixed(1); }
+  const ticks = [0, Math.round(span / 2), span];
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="忘却曲線">
+    ${[1, 0.5, 0].map(r => `<line class="grid" x1="${padL}" x2="${W - padR}" y1="${Y(r)}" y2="${Y(r)}"/><text class="axis" x="${padL - 6}" y="${Y(r) + 3}" text-anchor="end">${Math.round(r * 100)}%</text>`).join("")}
+    <line class="tg" x1="${padL}" x2="${W - padR}" y1="${Y(o.desiredRetention)}" y2="${Y(o.desiredRetention)}"/>
+    <text class="axis" x="${W - padR}" y="${Y(o.desiredRetention) - 4}" text-anchor="end">目標 ${Math.round(o.desiredRetention * 100)}%</text>
+    ${ticks.map(t => `<text class="axis" x="${X(t)}" y="${H - 6}" text-anchor="middle">${t === 0 ? "前回" : t + "日後"}</text>`).join("")}
+    <path class="ln" d="${d}"/>
+    ${due ? `<line class="grid" x1="${X(due)}" x2="${X(due)}" y1="${padT}" y2="${padT + hh}" stroke-dasharray="2 3"/><text class="axis" x="${X(due) + 4}" y="${padT + hh - 6}">次の復習</text>` : ""}
+    ${el <= span ? `<circle class="now" cx="${X(el)}" cy="${Y(fR(el, st.s))}" r="5"/><text class="axis" x="${X(el) + 8}" y="${Y(fR(el, st.s)) + 14}">今日 ${Math.round(fR(el, st.s) * 100)}%</text>` : ""}
+  </svg>`;
+  return h("div", { class: "chart curve", html: svg },
+    h("p", { class: "muted small", style: "margin:6px 0 0" }, "縦軸＝思い出せる確率。復習で「普通」以上を押すたびに安定度 S が伸び、曲線がなだらかになります。"));
+}
+function cardInfo(cid){
+  const c = S.cards[cid]; if (!c) return; const n = S.notes[c.nid];
+  const logs = S.revlog.filter(r => r.cid === cid);
+  const typeNm = ["新規", "学習中", "復習", "再学習"][c.type];
+  const due = c.queue === -1 ? "一時停止中" : c.queue === -2 ? "延期中" : c.type === 0 ? "新規" : (c.queue === 1 ? fmtDateTime(c.due) : fmtDate(dayStartTs(c.due)));
+  const avg = logs.length ? fmtDur(logs.reduce((a,r)=>a+r.time,0)/logs.length) : "-";
+  const st = fsrsState(c), R = retrievability(c);
+  const rows = [["追加日", fmtDate(n?.created || 0)], ["状態", typeNm], ["次回", due], ["間隔", c.ivl ? fmtDays(c.ivl) : "-"],
+    ...(st ? [["記憶の安定度 S", fmtDays(st.s) + "（この日数で想起確率が90%まで下がる）"], ["難易度 D", st.d.toFixed(1) + " / 10"], ["今の想起確率 R", Math.round(R * 100) + "%"]] : [["易しさ", c.factor ? (c.factor/10) + "%" : "-"]]),
+    ["復習回数", c.reps], ["失敗回数", c.lapses], ["平均時間", avg], ["デッキ", S.decks[c.did]?.name || "-"], ["ノートタイプ", n ? typeName(n) : "-"], ["スケジューラ", opts(c.did).scheduler === "fsrs" ? "FSRS" : "SM-2"]];
+  const body = h("div", {},
+    h("table", { class: "revtable" }, ...rows.map(([k,v]) => h("tr", {}, h("th", { style: "width:130px" }, k), h("td", {}, String(v))))),
+    st ? h("h3", { style: "margin-top:16px" }, "このカードの忘却曲線") : null,
+    st ? forgettingCurve(c, st) : null,
+    logs.length ? h("h3", { style: "margin-top:16px" }, "履歴") : null,
+    logs.length ? h("table", { class: "revtable" }, h("tr", {}, h("th", {}, "日時"), h("th", {}, "種類"), h("th", {}, "評価"), h("th", {}, "間隔"), h("th", {}, "易しさ"), h("th", {}, "時間")),
+      ...logs.slice().reverse().map(r => h("tr", {}, h("td", {}, fmtDateTime(r.id)), h("td", {}, ["学習", "復習", "再学習"][r.type] || "-"), h("td", { style: `color:var(--${["","again","hard","good","easy"][r.ease]})` }, ["", "もう一度", "難しい", "普通", "簡単"][r.ease]), h("td", {}, r.ivl < 0 ? fmtIvl(-r.ivl*1000) : fmtDays(r.ivl)), h("td", {}, r.factor ? r.factor/10 + "%" : "-"), h("td", {}, fmtDur(r.time))))) : null);
+  modal({ title: "カード情報", body, wide: true });
+}
+
+/* ============================================================
+   エディタ
+   ============================================================ */
+function typeOptions(selected){
+  const out = Object.entries(NOTE_TYPES).map(([k, v]) => h("option", { value: k, selected: k === selected }, v.name));
+  const ms = Object.values(S.models).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  if (ms.length){ const og = h("optgroup", { label: "Ankiから取り込んだノートタイプ" }); ms.forEach(m => og.append(h("option", { value: "m:" + m.id, selected: "m:" + m.id === selected }, m.name))); out.push(og); }
+  return out;
+}
+function firstImgRef(html){
+  const t = document.createElement("template"); t.innerHTML = sanitize(html || "");
+  const img = t.content.querySelector("img"); if (!img) return null;
+  return img.getAttribute("data-media") || img.getAttribute("src");
+}
+function setImgRef(img, ref){
+  if (/^(data:|blob:|\/_blob\/)/.test(ref)){ img.src = ref; return; }
+  const s = mediaSrc(ref); if (s){ img.src = s; return; }
+  mediaUrl(ref).then(u => { if (u) img.src = u; });
+}
+function ioPanel(state){
+  const wrap = h("div", { class: "io-ed" });
+  const fileIn = h("input", { type: "file", accept: "image/*", style: "display:none" });
+  const stage = h("div", { class: "io-stage", tabindex: "0" });
+  const img = h("img", { draggable: "false", alt: "" });
+  const cnt = h("span", { class: "muted" });
+  const modeSel = h("select", {}, h("option", { value: "hideAll", selected: state.mode !== "hideOne" }, "すべて隠して1つずつ答える"), h("option", { value: "hideOne", selected: state.mode === "hideOne" }, "答える部分だけ隠す"));
+  modeSel.addEventListener("change", () => state.mode = modeSel.value);
+  let sel = new Set(), drag = null;
+  const setImage = async file => { if (!file || !file.type.startsWith("image/")) return; const b = await shrinkBlob(file, 1600); state.img = await addMedia(b); markDirty(); pumpUploads(); draw(); stage.focus(); };
+  fileIn.addEventListener("change", () => { setImage(fileIn.files[0]); fileIn.value = ""; });
+  const nextG = () => state.masks.reduce((a, m) => Math.max(a, m.g), 0) + 1;
+  const bar = h("div", { class: "row small", style: "margin-top:8px;gap:6px" },
+    h("button", { class: "btn sm", type: "button", onclick: () => delSel() }, "削除"),
+    h("button", { class: "btn sm", type: "button", title: "選んだ範囲を1枚のカードとしてまとめて出題 (Ctrl+G)", onclick: () => group() }, "グループ化"),
+    h("button", { class: "btn sm", type: "button", onclick: () => ungroup() }, "グループ解除"),
+    h("button", { class: "btn sm", type: "button", onclick: () => { state.masks.forEach((m, i) => sel.add(i)); draw(); } }, "全選択"),
+    h("button", { class: "btn sm", type: "button", onclick: () => fileIn.click() }, "画像を変更"),
+    modeSel, cnt);
+  const delSel = () => { if (!sel.size) return; state.masks = state.masks.filter((m, i) => !sel.has(i)); sel.clear(); draw(); };
+  const group = () => { if (sel.size < 2) { toast("2つ以上の範囲を Shift+クリックで選んでください"); return; } const g = Math.min(...[...sel].map(i => state.masks[i].g)); sel.forEach(i => state.masks[i].g = g); draw(); };
+  const ungroup = () => { let g = nextG(); [...sel].forEach((i, k) => { if (k > 0) state.masks[i].g = g++; }); draw(); };
+  const draw = () => {
+    stage.innerHTML = "";
+    if (!state.img){
+      stage.classList.add("empty"); bar.style.display = "none";
+      stage.append(h("div", {}, h("div", { style: "margin-bottom:8px" }, "画像をここにドラッグ＆ドロップ、Ctrl+V で貼り付け、または"), h("button", { class: "btn primary sm", type: "button", onclick: () => fileIn.click() }, "画像を選ぶ")));
+      return;
+    }
+    stage.classList.remove("empty"); bar.style.display = "";
+    stage.append(img); setImgRef(img, state.img);
+    state.masks.forEach((m, i) => stage.append(h("div", { class: "io-box" + (sel.has(i) ? " sel" : ""), "data-i": String(i), style: `left:${m.x*100}%;top:${m.y*100}%;width:${m.w*100}%;height:${m.h*100}%` }, h("span", {}, String(m.g)))));
+    const n = new Set(state.masks.map(m => m.g)).size;
+    cnt.textContent = n ? `→ カード ${n} 枚` : "画像の上をドラッグして隠す範囲を作ってください";
+  };
+  const pos = e => { const r = img.getBoundingClientRect(); return [clamp((e.clientX - r.left) / r.width, 0, 1), clamp((e.clientY - r.top) / r.height, 0, 1)]; };
+  stage.addEventListener("pointerdown", e => {
+    if (!state.img || e.button !== 0 || e.target.closest("button")) return;
+    const [px, py] = pos(e); stage.focus(); e.preventDefault();
+    const boxEl = e.target.closest(".io-box");
+    if (boxEl){
+      const i = +boxEl.dataset.i;
+      if (e.shiftKey || e.ctrlKey || e.metaKey){ sel.has(i) ? sel.delete(i) : sel.add(i); draw(); return; }
+      if (!sel.has(i)) sel = new Set([i]);
+      drag = { mode: "move", sx: px, sy: py, orig: [...sel].map(j => ({ j, x: state.masks[j].x, y: state.masks[j].y })) };
+    } else {
+      sel.clear(); draw();
+      drag = { mode: "new", sx: px, sy: py, el: h("div", { class: "io-box drawing" }) }; stage.append(drag.el);
+    }
+    try { stage.setPointerCapture(e.pointerId); } catch(err){}
+  });
+  stage.addEventListener("pointermove", e => {
+    if (!drag) return; const [px, py] = pos(e);
+    if (drag.mode === "new"){
+      const x = Math.min(drag.sx, px), y = Math.min(drag.sy, py), w = Math.abs(px - drag.sx), hh = Math.abs(py - drag.sy);
+      Object.assign(drag.el.style, { left: x*100 + "%", top: y*100 + "%", width: w*100 + "%", height: hh*100 + "%" }); drag.cur = { x, y, w, h: hh };
+    } else {
+      const dx = px - drag.sx, dy = py - drag.sy;
+      for (const o of drag.orig){ const m = state.masks[o.j]; m.x = clamp(o.x + dx, 0, 1 - m.w); m.y = clamp(o.y + dy, 0, 1 - m.h); }
+      draw();
+    }
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    if (drag.mode === "new" && drag.cur && drag.cur.w > 0.006 && drag.cur.h > 0.006){
+      const r4 = v => Math.round(v * 10000) / 10000;
+      state.masks.push({ x: r4(drag.cur.x), y: r4(drag.cur.y), w: r4(drag.cur.w), h: r4(drag.cur.h), g: nextG() });
+      sel = new Set([state.masks.length - 1]);
+    }
+    drag = null; draw();
+  };
+  stage.addEventListener("pointerup", endDrag); stage.addEventListener("pointercancel", endDrag);
+  stage.addEventListener("keydown", e => {
+    if (e.key === "Delete" || e.key === "Backspace"){ e.preventDefault(); delSel(); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g"){ e.preventDefault(); e.shiftKey ? ungroup() : group(); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a"){ e.preventDefault(); state.masks.forEach((m, i) => sel.add(i)); draw(); }
+  });
+  stage.addEventListener("paste", e => { const it = [...(e.clipboardData?.items || [])].find(x => x.type.startsWith("image/")); if (it){ e.preventDefault(); setImage(it.getAsFile()); } });
+  stage.addEventListener("dragover", e => e.preventDefault());
+  stage.addEventListener("drop", e => { const f = [...(e.dataTransfer?.files || [])].find(x => x.type.startsWith("image/")); if (f){ e.preventDefault(); setImage(f); } });
+  wrap.append(stage, bar, fileIn,
+    h("p", { class: "muted small", style: "margin:6px 0 0" }, "ドラッグで隠す範囲を作成。クリックで選択、Shift+クリックで複数選択、ドラッグで移動、Delete で削除。グループ化した範囲は1枚のカードとして同時に出題されます。"));
+  draw();
+  return wrap;
+}
+function normIO(state){
+  const gs = [...new Set(state.masks.map(m => m.g))].sort((a, b) => a - b);
+  const map = new Map(gs.map((g, i) => [g, i + 1]));
+  return { mode: state.mode === "hideOne" ? "hideOne" : "hideAll", masks: state.masks.map(m => ({ x: m.x, y: m.y, w: m.w, h: m.h, g: map.get(m.g) })) };
+}
+function buildEditor({ type, fields = [], tags = [], did, isNew, noteId, io }){
+  const root = h("div", { class: "editor" });
+  const fieldEls = [];
+  const typeSel = h("select", {}, ...typeOptions(type));
+  const dSel = deckSelect(did);
+  if (!isNew) typeSel.disabled = true;
+  const top = h("div", { class: "row" },
+    h("div", {}, h("label", { class: "lbl", style: "margin-top:0" }, "ノートタイプ"), typeSel),
+    h("div", { style: "flex:1;min-width:180px" }, h("label", { class: "lbl", style: "margin-top:0" }, "デッキ"), dSel));
+  const tb = h("div", { class: "toolbar" });
+  const fieldsWrap = h("div");
+  const tagIn = h("input", { type: "text", value: tags.join(" "), placeholder: "スペース区切り（例: 循環器 CBT）", style: "width:100%" });
+  const ioState = { masks: io ? JSON.parse(JSON.stringify(io.masks || [])) : [], mode: io?.mode || "hideAll", img: null };
+  let lastFocus = null;
+  const anyField = () => lastFocus || fieldEls.find(Boolean);
+  const exec = (cmd, val) => { const f = anyField(); if (!f) return; f.focus(); document.execCommand(cmd, false, val); };
+  const tbtn = (label, title, fn, style="") => h("button", { type: "button", title, style, onmousedown: e => e.preventDefault(), onclick: fn }, label);
+  const colorIn = h("input", { type: "color", value: "#c2352c", style: "width:30px;height:28px;border:0;background:none;padding:0;cursor:pointer", title: "文字色" });
+  colorIn.addEventListener("input", () => exec("foreColor", colorIn.value));
+  const fileIn = h("input", { type: "file", accept: "image/*", style: "display:none", multiple: true });
+  fileIn.addEventListener("change", async () => { for (const f of fileIn.files) await insertImage(f); fileIn.value = ""; });
+  const insertImage = async (file) => {
+    const f = anyField(); if (!f) return;
+    const b = await shrinkBlob(file, 1600); const name = await addMedia(b); markDirty(); pumpUploads();
+    f.focus(); document.execCommand("insertHTML", false, `<img data-media="${esc(name)}" src="${mediaSrc(name) || ""}">`);
+  };
+  const clozeField = () => fieldEls.find(Boolean);
+  const isClozeType = () => typeSel.value === "cloze" || (typeSel.value.startsWith("m:") && S.models[typeSel.value.slice(2)]?.cloze);
+  const cloze = (same) => {
+    if (!isClozeType()){ toast("穴埋めはノートタイプ「穴埋め」で使えます"); return; }
+    const f = lastFocus || clozeField(); f.focus();
+    const nums = fieldEls.filter(Boolean).flatMap(x => clozeNums(x.innerHTML)); let n = nums.length ? Math.max(...nums) : 0; if (!same || !n) n = n + 1;
+    const sel = window.getSelection(); const text = sel && sel.rangeCount ? sel.toString() : "";
+    if (text){ const r = sel.getRangeAt(0); const frag = r.cloneContents(); const tmp = h("div"); tmp.append(frag); document.execCommand("insertHTML", false, `{{c${n}::${tmp.innerHTML}}}`); }
+    else { document.execCommand("insertText", false, `{{c${n}::}}`); const s = window.getSelection(); if (s.rangeCount){ const r = s.getRangeAt(0); const node = r.startContainer; if (node.nodeType === 3 && r.startOffset >= 2){ r.setStart(node, r.startOffset - 2); r.collapse(true); s.removeAllRanges(); s.addRange(r); } } }
+    updateDup();
+  };
+  tb.append(
+    tbtn("B", "太字 (Ctrl+B)", () => exec("bold"), "font-weight:700"), tbtn("I", "斜体 (Ctrl+I)", () => exec("italic"), "font-style:italic"), tbtn("U", "下線 (Ctrl+U)", () => exec("underline"), "text-decoration:underline"),
+    tbtn("x²", "上付き", () => exec("superscript")), tbtn("x₂", "下付き", () => exec("subscript")), colorIn,
+    tbtn("⌫", "書式をクリア", () => exec("removeFormat")), h("span", { class: "sep" }),
+    tbtn("• ", "箇条書き", () => exec("insertUnorderedList")), tbtn("1.", "番号付きリスト", () => exec("insertOrderedList")), h("span", { class: "sep" }),
+    tbtn("🖼", "画像を挿入（貼り付け・ドラッグも可）", () => fileIn.click()), tbtn("[…]", "穴埋め (Ctrl+Shift+C)", () => cloze(false), "font-weight:700;color:var(--cloze)"),
+    tbtn("[…]=", "同じ番号で穴埋め (Ctrl+Alt+Shift+C)", () => cloze(true), "color:var(--cloze)"),
+    tbtn("</>", "HTMLを編集", () => editHTML()), fileIn);
+  const editHTML = async () => {
+    const f = anyField(); if (!f) return; const ta = h("textarea", { style: "width:100%;height:220px;font-family:monospace;font-size:.85rem" }); ta.value = cleanField(f.innerHTML);
+    const v = await modal({ title: "HTMLを編集", body: ta, wide: true, buttons: [{ label: "キャンセル", value: null }, { label: "反映", primary: true, onClick: () => ta.value }] });
+    if (v !== null && v !== undefined){ f.innerHTML = sanitize(v); hydrate(f); updateDup(); }
+  };
+  const dupEl = h("span", { class: "dup" });
+  const updateDup = () => {
+    dupEl.textContent = "";
+    const key = typeSel.value; if (key === "cloze" || key === "io" || isClozeType()) return;
+    const first = fieldEls.find(Boolean); const val = plain(first?.innerHTML || ""); if (!val) return;
+    for (const n of Object.values(S.notes)) if (n.id !== noteId && typeKey(n) === key && plain(n.f[0]) === val){ dupEl.textContent = "重複：同じ内容のノートがあります"; return; }
+  };
+  const renderFields = (vals) => {
+    fieldsWrap.innerHTML = ""; fieldEls.length = 0;
+    const key = typeSel.value, names = fieldNamesFor(key);
+    tb.style.display = "";
+    names.forEach((name, i) => {
+      if (key === "io" && i === 0){
+        if (!ioState.img) ioState.img = firstImgRef(vals[0]);
+        fieldsWrap.append(h("div", { class: "fieldname" }, name), ioPanel(ioState));
+        fieldEls.push(null); return;
+      }
+      const f = h("div", { class: "field", contenteditable: "true", "data-i": String(i), html: sanitize(vals[i] || "") });
+      hydrate(f);
+      f.addEventListener("focus", () => lastFocus = f);
+      f.addEventListener("input", () => { if (i === 0) updateDup(); });
+      f.addEventListener("paste", async e => {
+        const items = [...(e.clipboardData?.items || [])].filter(x => x.type.startsWith("image/"));
+        if (items.length){ e.preventDefault(); lastFocus = f; for (const it of items){ const file = it.getAsFile(); if (file) await insertImage(file); } return; }
+        const html = e.clipboardData?.getData("text/html"); const text = e.clipboardData?.getData("text/plain");
+        e.preventDefault();
+        if (html && /<(b|strong|i|em|u|sub|sup|br|img)\b/i.test(html)){ document.execCommand("insertHTML", false, cleanPaste(html)); }
+        else if (text != null){ document.execCommand("insertHTML", false, esc(text).replace(/\r?\n/g, "<br>")); }
+      });
+      f.addEventListener("dragover", e => e.preventDefault());
+      f.addEventListener("drop", async e => { const files = [...(e.dataTransfer?.files || [])].filter(x => x.type.startsWith("image/")); if (files.length){ e.preventDefault(); lastFocus = f; f.focus(); for (const x of files) await insertImage(x); } });
+      f.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "C" || e.key === "c" || e.code === "KeyC")){ e.preventDefault(); cloze(e.altKey); } });
+      fieldsWrap.append(h("div", { class: "fieldname" }, name, i === 0 ? dupEl : null), f);
+      fieldEls.push(f);
+    });
+    lastFocus = null;
+    updateDup();
+  };
+  typeSel.addEventListener("change", () => { const vals = fieldEls.map(f => f ? f.innerHTML : (ioState.img ? `<img src="${esc(ioState.img)}">` : "")); renderFields(vals); S.conf.lastType = typeSel.value; });
+  renderFields(fields);
+  root.append(top, tb, fieldsWrap, h("label", { class: "lbl" }, "タグ"), tagIn);
+  return {
+    el: root,
+    get: () => {
+      const key = typeSel.value, isM = key.startsWith("m:");
+      const f = fieldEls.map(el => el ? cleanField(el.innerHTML) : "");
+      if (key === "io") f[0] = ioState.img ? (/^(data:|blob:)/.test(ioState.img) ? `<img src="${ioState.img}">` : `<img src="${esc(ioState.img)}">`) : "";
+      return { type: isM ? "anki" : key, mid: isM ? key.slice(2) : undefined, key, did: dSel.value, fields: f, io: key === "io" ? normIO(ioState) : undefined,
+        tags: tagIn.value.split(/[\s　]+/).map(x => x.trim()).filter(Boolean) };
+    },
+    clear: () => { fieldEls.forEach(f => { if (f) f.innerHTML = ""; }); if (typeSel.value === "io"){ ioState.img = null; ioState.masks = []; renderFields([]); } updateDup(); (fieldEls.find(Boolean))?.focus(); },
+    focus: () => (fieldEls.find(Boolean))?.focus(),
+    setDeck: id => dSel.value = id
+  };
+}
+function cleanField(html){
+  const t = document.createElement("template"); t.innerHTML = sanitize(html);
+  t.content.querySelectorAll("img[data-media]").forEach(img => { const n = img.getAttribute("data-media"); for (const a of [...img.attributes]) if (a.name !== "style" && a.name !== "width" && a.name !== "height") img.removeAttribute(a.name); img.setAttribute("src", n); });
+  let s = t.innerHTML.trim(); if (/^(<br\s*\/?>|\s|&nbsp;)*$/i.test(s)) s = "";
+  return s.replace(/(<br\s*\/?>)+$/i, "");
+}
+function cleanPaste(html){
+  const t = document.createElement("template"); t.innerHTML = sanitize(html);
+  const keep = new Set(["B","STRONG","I","EM","U","SUB","SUP","BR","IMG","UL","OL","LI","DIV","P","SPAN"]);
+  const walk = node => { for (const ch of [...node.childNodes]){ if (ch.nodeType === 1){ walk(ch); if (!keep.has(ch.tagName)){ ch.replaceWith(...ch.childNodes); } else { for (const a of [...ch.attributes]) if (!(ch.tagName === "IMG" && (a.name === "src" || a.name === "data-media"))) ch.removeAttribute(a.name); } } else if (ch.nodeType === 8) ch.remove(); } };
+  walk(t.content); return t.innerHTML;
+}
+function shrinkImage(file){ return shrinkBlob(file).then(blobToDataURL); }
+function validateNote(v){
+  if (v.type === "io"){
+    if (!v.fields[0]){ toast("画像を選んでください"); return false; }
+    if (!v.io.masks.length){ toast("画像の上をドラッグして、隠す範囲を1つ以上作ってください"); return false; }
+    return true;
+  }
+  if (v.type === "cloze" || (v.type === "anki" && S.models[v.mid]?.cloze)){ if (!v.fields.some(f => clozeNums(f).length)){ toast("穴埋めが1つもありません。[…] ボタンか Ctrl+Shift+C で作成してください"); return false; } return true; }
+  if (!v.fields.some(f => plain(f) || /<img/i.test(f))){ toast("フィールドが空です"); return false; }
+  if (v.type !== "anki" && !plain(v.fields[0]) && !/<img/i.test(v.fields[0])){ toast("表面が空です"); return false; }
+  return true;
+}
+function viewAdd(main){
+  const did = S.decks[S.conf.lastDeck] ? S.conf.lastDeck : Object.keys(S.decks)[0];
+  let lt = S.conf.lastType || "basic"; if (lt.startsWith("m:") ? !S.models[lt.slice(2)] : !NOTE_TYPES[lt]) lt = "basic";
+  const ed = buildEditor({ type: lt, did, isNew: true, tags: S.conf.lastTags || [] });
+  const add = () => {
+    const v = ed.get(); if (!validateNote(v)) return;
+    const n = addNote(v.type, v.fields, v.tags, v.did, { mid: v.mid, io: v.io });
+    S.conf.lastDeck = v.did; S.conf.lastType = v.key; S.conf.lastTags = v.tags;
+    markDirty(); ed.clear();
+    toast(`追加しました（カード ${cardsOfNote(n.id).length} 枚）`);
+    recent.prepend(h("li", {}, sortField(n).slice(0, 60) || "(画像)", h("span", { class: "muted small" }, "　" + S.decks[v.did].name)));
+  };
+  const recent = h("ul", { class: "small", style: "padding-left:18px;margin:6px 0 0" });
+  const panel = h("div", { class: "panel" },
+    h("div", { class: "row" }, h("h1", { style: "margin:0" }, "カードを追加"), h("div", { class: "spacer" }), h("span", { class: "muted small hide-sm" }, "Ctrl+Enter で追加")),
+    ed.el,
+    h("div", { class: "row", style: "margin-top:16px" }, h("div", { class: "spacer" }), h("button", { class: "btn primary", onclick: add }, "追加")));
+  main.append(panel, h("div", { style: "margin-top:14px" }, h("div", { class: "muted small" }, "このセッションで追加したカード"), recent));
+  panel.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter"){ e.preventDefault(); add(); } });
+  setTimeout(() => ed.focus(), 0);
+}
+async function editNoteModal(nid){
+  const n = S.notes[nid]; if (!n) return false;
+  const cs = cardsOfNote(nid);
+  const ed = buildEditor({ type: typeKey(n), fields: n.f, tags: n.tags, did: cs[0]?.did, isNew: false, noteId: nid, io: n.io });
+  const res = await modal({ title: "ノートを編集", body: ed.el, wide: true, buttons: [{ label: "キャンセル", value: null }, { label: "保存", primary: true, onClick: () => { const v = ed.get(); if (!validateNote(v)) return false; return v; } }],
+    onOpen: box => { box.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter"){ e.preventDefault(); box.querySelector(".btn.primary").click(); } }); setTimeout(() => ed.focus(), 0); } });
+  if (!res) return false;
+  saveNoteEdit(n, res);
+  return true;
+}
+function saveNoteEdit(n, v){
+  n.f = v.fields; n.tags = v.tags; n.mod = Date.now(); if (v.io) n.io = v.io;
+  const before = cardsOfNote(n.id);
+  syncCards(n, v.did);
+  if (before.length && v.did !== before[0].did) for (const c of cardsOfNote(n.id)) c.did = v.did;
+  markDirty();
+}
+
+/* ============================================================
+   閲覧（ブラウザ）
+   ============================================================ */
+const browseState = { search: "", sort: "created", dir: -1, sel: new Set(), limit: 300, editing: null };
+function tokenize(q){ const out = []; const re = /(-?)(?:(\w+):)?(?:"([^"]*)"|(\S+))/g; let m; while ((m = re.exec(q))) out.push({ neg: !!m[1], key: (m[2]||"").toLowerCase(), val: m[3] !== undefined ? m[3] : m[4] }); return out; }
+function wildRe(s){ return new RegExp("^" + s.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$", "i"); }
+function searchCards(q){
+  const toks = tokenize(q.trim()); const t = today();
+  const tests = toks.map(tk => {
+    let f;
+    const v = tk.val;
+    if (tk.key === "deck"){ const re = wildRe(v); const ids = new Set(Object.values(S.decks).filter(d => { let n = d.name; while (n){ if (re.test(n)) return true; n = parentName(n); } return false; }).map(d => d.id)); f = c => ids.has(c.did); }
+    else if (tk.key === "tag"){ const re = wildRe(v); f = (c, n) => n.tags.some(x => re.test(x) || x.toLowerCase().startsWith(v.toLowerCase() + "::")); }
+    else if (tk.key === "is"){
+      const k = v.toLowerCase();
+      f = k === "new" ? c => c.type === 0 : k === "learn" ? c => c.queue === 1 : k === "review" ? c => c.type === 2 || c.type === 3 : k === "due" ? c => (c.queue === 2 && c.due <= t) || (c.queue === 1 && c.due <= Date.now()) : k === "suspended" ? c => c.queue === -1 : k === "buried" ? c => c.queue === -2 : () => true;
+    }
+    else if (tk.key === "flag"){ const n = +v; f = c => (c.flag||0) === n; }
+    else if (tk.key === "note" || tk.key === "type"){ f = (c, n) => n.type === v || typeName(n).includes(v); }
+    else if (tk.key === "prop"){ const m = v.match(/^(ivl|due|reps|lapses|ease)(<=|>=|=|<|>)([\d.]+)$/); f = m ? c => { const val = m[1]==="ease" ? c.factor/1000 : m[1]==="due" ? c.due - t : c[m[1]]; const x = +m[3]; return m[2]==="<"?val<x:m[2]===">"?val>x:m[2]==="<="?val<=x:m[2]===">="?val>=x:val===x; } : () => true; }
+    else if (tk.key === "added"){ const days = +v; const from = dayStartTs(t - days + 1); f = (c, n) => n.created >= from; }
+    else if (tk.key === "rated"){ const days = +v; const from = dayStartTs(t - days + 1); const set = new Set(S.revlog.filter(r => r.id >= from).map(r => r.cid)); f = c => set.has(c.id); }
+    else { const needle = (tk.key ? tk.key + ":" : "") + v; const nl = needle.toLowerCase(); const re = needle.includes("*") ? new RegExp(needle.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*"), "i") : null; f = (c, n) => { const txt = n.f.map(plain).join(" ").toLowerCase(); return re ? re.test(txt) : txt.includes(nl); }; }
+    return tk.neg ? (c, n) => !f(c, n) : f;
+  });
+  const out = [];
+  for (const c of Object.values(S.cards)){ const n = S.notes[c.nid]; if (!n) continue; if (tests.every(fn => fn(c, n))) out.push(c); }
+  return out;
+}
+function viewBrowse(main){
+  if (routeParams.search !== undefined){ browseState.search = routeParams.search; delete routeParams.search; browseState.sel.clear(); browseState.editing = null; }
+  const sIn = h("input", { type: "search", value: browseState.search, placeholder: '検索（例: 心不全　deck:"循環器"　tag:CBT　is:due　-is:suspended）', style: "flex:1;min-width:220px" });
+  let deb; sIn.addEventListener("input", () => { clearTimeout(deb); deb = setTimeout(() => { browseState.search = sIn.value; browseState.limit = 300; draw(); }, 200); });
+  const help = h("button", { class: "btn sm", onclick: searchHelp }, "検索のヒント");
+  const actions = h("div", { class: "row", style: "margin:10px 0" });
+  const grid = h("div", { class: "browse-grid" });
+  const tableWrap = h("div"); const edWrap = h("div");
+  grid.append(tableWrap, edWrap);
+  main.append(h("div", { class: "row" }, h("h1", { style: "margin:0 10px 0 0" }, "閲覧"), sIn, help), actions, grid);
+  const cols = [
+    { k: "sort", label: "並べ替えフィールド", v: (c, n) => sortField(n) },
+    { k: "ans", label: "裏面", v: (c, n) => n.type === "io" ? `画像穴埋め ${c.ord + 1}` : plain(n.f[1]), cls: "hide-sm" },
+    { k: "deck", label: "デッキ", v: c => S.decks[c.did]?.name || "" },
+    { k: "due", label: "期日", v: c => c.queue === -1 ? "(停止)" : c.queue === -2 ? "(延期)" : c.type === 0 ? "新規 #" + c.pos : c.queue === 1 ? fmtDateTime(c.due) : fmtDate(dayStartTs(c.due)), sv: c => c.type === 0 ? 1e15 + c.pos : c.queue === 1 ? c.due : dayStartTs(c.due) },
+    { k: "ivl", label: "間隔", v: c => c.type === 2 || c.type === 3 ? fmtDays(c.ivl) : "-", sv: c => c.ivl },
+    { k: "ease", label: "易しさ/難易度", v: c => c.fsrs ? "D " + c.fsrs.d.toFixed(1) : c.factor ? c.factor/10 + "%" : "-", sv: c => c.fsrs ? 100 - c.fsrs.d : c.factor / 100, cls: "hide-sm" },
+    { k: "reps", label: "復習", v: c => String(c.reps), sv: c => c.reps, cls: "hide-sm" },
+    { k: "lapses", label: "失敗", v: c => String(c.lapses), sv: c => c.lapses, cls: "hide-sm" },
+    { k: "created", label: "追加日", v: (c, n) => fmtDate(n.created), sv: (c, n) => n.created + c.ord, cls: "hide-sm" }
+  ];
+  const draw = () => {
+    const cards = searchCards(browseState.search);
+    const col = cols.find(c => c.k === browseState.sort) || cols[cols.length-1];
+    const key = col.sv || ((c, n) => col.v(c, n).toLowerCase());
+    const decorated = cards.map(c => ({ c, k: key(c, S.notes[c.nid]) }));
+    decorated.sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : 0) * browseState.dir);
+    for (const id of [...browseState.sel]) if (!S.cards[id]) browseState.sel.delete(id);
+    // actions
+    actions.innerHTML = "";
+    const nSel = browseState.sel.size;
+    actions.append(h("span", { class: "muted small" }, `${cards.length} 枚${nSel ? `・${nSel} 枚選択中` : ""}`), h("div", { class: "spacer" }));
+    actions.append(h("button", { class: "btn sm", onclick: () => { const all = decorated.map(x => x.c.id); const allSel = all.every(id => browseState.sel.has(id)); browseState.sel = allSel ? new Set() : new Set(all); draw(); } }, "全選択/解除"));
+    const selCards = () => [...browseState.sel].map(id => S.cards[id]).filter(Boolean);
+    const dis = !nSel;
+    actions.append(
+      h("button", { class: "btn sm", disabled: dis, onclick: () => { const cs = selCards(); const anyActive = cs.some(c => c.queue !== -1); cs.forEach(c => setSuspended(c, anyActive)); markDirty(); draw(); toast(anyActive ? "一時停止しました" : "再開しました"); } }, "一時停止切替"),
+      h("button", { class: "btn sm", disabled: dis, onclick: async () => { const sel = deckSelect(S.conf.lastDeck, { style: "width:100%" }); const v = await modal({ title: "デッキを変更", body: sel, buttons: [{ label: "キャンセル", value: null }, { label: "移動", primary: true, onClick: () => sel.value }] }); if (!v) return; selCards().forEach(c => c.did = v); markDirty(); draw(); } }, "デッキ変更"),
+      h("button", { class: "btn sm", disabled: dis, onclick: async () => { const v = await promptDlg("タグを追加", "", "スペース区切り"); if (!v) return; const tags = v.split(/\s+/).filter(Boolean); const nids = new Set(selCards().map(c => c.nid)); for (const nid of nids){ const n = S.notes[nid]; for (const t of tags) if (!n.tags.includes(t)) n.tags.push(t); } markDirty(); draw(); } }, "タグ追加"),
+      h("button", { class: "btn sm", disabled: dis, onclick: async () => { const v = await promptDlg("タグを削除", "", "スペース区切り"); if (!v) return; const tags = v.split(/\s+/).filter(Boolean); const nids = new Set(selCards().map(c => c.nid)); for (const nid of nids){ const n = S.notes[nid]; n.tags = n.tags.filter(t => !tags.includes(t)); } markDirty(); draw(); } }, "タグ削除"),
+      h("button", { class: "btn sm", disabled: dis, onclick: async () => { if (!await confirmDlg(`${nSel} 枚を新規カードに戻します（学習履歴の進み具合がリセットされます）。`)) return; selCards().forEach(resetCard); markDirty(); draw(); } }, "新規に戻す"),
+      h("button", { class: "btn sm", disabled: dis, onclick: async () => { const v = await promptDlg("期日を設定", "0", "今日から何日後に復習するか（例: 0 = 今日, 3 = 3日後）"); if (v === null) return; const d = Math.max(0, parseInt(v)||0); selCards().forEach(c => { if (!c.factor) c.factor = Math.round(opts(c.did).startEase*1000); c.type = 2; c.queue = 2; c.step = 0; c.due = today() + d; c.ivl = Math.max(1, c.ivl || d || 1); }); markDirty(); draw(); } }, "期日設定"),
+      h("button", { class: "btn sm danger", disabled: dis, onclick: async () => { const nids = new Set(selCards().map(c => c.nid)); if (!await confirmDlg(`選択したカードのノート ${nids.size} 件（とその全カード）を削除します。`, "削除", true)) return; deleteNotes(nids); browseState.sel.clear(); browseState.editing = null; markDirty(); draw(); } }, "削除"));
+    // table
+    const tbl = h("table", { class: "btable" });
+    const hr = h("tr", {}, h("th", { style: "width:28px" }, ""));
+    for (const c of cols) hr.append(h("th", { class: c.cls || "", onclick: () => { if (browseState.sort === c.k) browseState.dir *= -1; else { browseState.sort = c.k; browseState.dir = 1; } draw(); } }, c.label + (browseState.sort === c.k ? (browseState.dir > 0 ? " ▲" : " ▼") : "")));
+    tbl.append(h("thead", {}, hr));
+    const tb = h("tbody");
+    for (const { c } of decorated.slice(0, browseState.limit)){
+      const n = S.notes[c.nid];
+      const cb = h("input", { type: "checkbox", checked: browseState.sel.has(c.id), onclick: e => { e.stopPropagation(); if (e.target.checked) browseState.sel.add(c.id); else browseState.sel.delete(c.id); draw(); } });
+      const tr = h("tr", { class: (browseState.editing === c.nid ? "sel " : "") + (c.queue === -1 ? "susp " : "") + (c.flag ? "f" + c.flag : "") }, h("td", {}, cb), ...cols.map(col => h("td", { class: col.cls || "", title: col.v(c, n) }, col.v(c, n))));
+      tr.addEventListener("click", () => { browseState.editing = c.nid; browseState.editingCard = c.id; draw(); });
+      tb.append(tr);
+    }
+    tbl.append(tb);
+    const oldScroll = $(".bwrap", tableWrap)?.scrollTop || 0;
+    tableWrap.innerHTML = "";
+    const bw = h("div", { class: "bwrap" }, tbl); tableWrap.append(bw); bw.scrollTop = oldScroll;
+    if (decorated.length > browseState.limit) tableWrap.append(h("div", { style: "text-align:center;margin-top:8px" }, h("button", { class: "btn sm", onclick: () => { browseState.limit += 500; draw(); } }, `さらに表示（残り ${decorated.length - browseState.limit} 枚）`)));
+    if (!cards.length) tableWrap.append(h("p", { class: "muted", style: "text-align:center" }, Object.keys(S.cards).length ? "該当するカードがありません" : "カードがまだありません"));
+    // editor
+    edWrap.innerHTML = "";
+    const n = browseState.editing && S.notes[browseState.editing];
+    grid.classList.toggle("has-ed", !!n);
+    if (n){
+      const cs = cardsOfNote(n.id);
+      const ed = buildEditor({ type: typeKey(n), fields: n.f, tags: n.tags, did: cs[0]?.did, isNew: false, noteId: n.id, io: n.io });
+      const save = () => { const v = ed.get(); if (!validateNote(v)) return; saveNoteEdit(n, v); toast("保存しました"); draw(); };
+      const p = h("div", { class: "panel" }, h("div", { class: "row" }, h("h2", { style: "margin:0" }, "編集"), h("div", { class: "spacer" }),
+        h("button", { class: "btn sm", onclick: () => previewCard(browseState.editingCard && S.cards[browseState.editingCard] ? browseState.editingCard : cs[0]?.id) }, "プレビュー"),
+        h("button", { class: "btn sm", onclick: () => cardInfo(browseState.editingCard && S.cards[browseState.editingCard] ? browseState.editingCard : cs[0]?.id) }, "情報"),
+        h("button", { class: "iconbtn", onclick: () => { browseState.editing = null; draw(); } }, "✕")),
+        ed.el, h("div", { class: "row", style: "margin-top:12px" }, h("span", { class: "muted small" }, `カード ${cs.length} 枚`), h("div", { class: "spacer" }), h("button", { class: "btn primary", onclick: save }, "保存")));
+      p.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter"){ e.preventDefault(); save(); } });
+      edWrap.append(p);
+    }
+  };
+  draw();
+}
+function previewCard(cid){
+  const c = S.cards[cid]; if (!c) return; const qa = renderQA(c);
+  const box = h("div", { class: "cardbox", style: "min-height:160px" }); const host = h("div"); box.append(host);
+  let showingA = false;
+  const show = () => { const sh = mountCard(host, qa, showingA ? qa.a : qa.q); sh.querySelectorAll(".typein-slot,.typeans-slot").forEach(x => x.remove()); };
+  show();
+  modal({ title: "プレビュー", wide: true, body: box, buttons: [{ label: "表/裏 切替", onClick: () => { showingA = !showingA; show(); return false; } }, { label: "閉じる", value: null }] });
+}
+function searchHelp(){
+  modal({ title: "検索のヒント", wide: true, body: `<table class="revtable">
+  <tr><td><code>心不全</code></td><td>表面・裏面に「心不全」を含む</td></tr>
+  <tr><td><code>心*不全</code></td><td>* はワイルドカード</td></tr>
+  <tr><td><code>deck:"循環器"</code></td><td>デッキ（サブデッキ含む）</td></tr>
+  <tr><td><code>tag:CBT</code></td><td>タグ</td></tr>
+  <tr><td><code>is:new / is:learn / is:review / is:due</code></td><td>新規 / 学習中 / 復習 / 今日が期日</td></tr>
+  <tr><td><code>is:suspended / is:buried</code></td><td>一時停止中 / 延期中</td></tr>
+  <tr><td><code>flag:1</code></td><td>フラグ（1赤 2橙 3緑 4青、0なし）</td></tr>
+  <tr><td><code>added:7 / rated:1</code></td><td>7日以内に追加 / 今日評価した</td></tr>
+  <tr><td><code>prop:ivl>=30 / prop:lapses>3</code></td><td>間隔・失敗回数などで絞り込み</td></tr>
+  <tr><td><code>-tag:leech</code></td><td>先頭の - で否定</td></tr>
+  <tr><td><code>note:cloze</code></td><td>ノートタイプ（basic / reverse / type / cloze）</td></tr></table>
+  <p class="muted small">複数の条件はスペースで区切ると AND になります。</p>` });
+}
+
+/* ============================================================
+   統計
+   ============================================================ */
+function viewStats(main){
+  const sel = deckSelect(routeParams.statsDeck || "", { all: true });
+  sel.addEventListener("change", () => { routeParams.statsDeck = sel.value; route(true); });
+  const did = routeParams.statsDeck && S.decks[routeParams.statsDeck] ? routeParams.statsDeck : "";
+  const sub = did ? subtreeIds(did) : null;
+  const cards = Object.values(S.cards).filter(c => !sub || sub.has(c.did));
+  const cids = new Set(cards.map(c => c.id));
+  const logs = sub ? S.revlog.filter(r => cids.has(r.cid)) : S.revlog;
+  const t = today(), t0 = dayStartTs(t);
+  const todays = logs.filter(r => r.id >= t0);
+  const correct = todays.filter(r => r.ease > 1).length;
+  const firstSeen = new Map(); for (const r of logs) if (!firstSeen.has(r.cid)) firstSeen.set(r.cid, r.id);
+  const cnt = { n: 0, l: 0, y: 0, m: 0, s: 0 };
+  for (const c of cards){ if (c.queue === -1 || c.queue === -2) cnt.s++; else if (c.type === 0) cnt.n++; else if (c.type === 1 || c.type === 3) cnt.l++; else if (c.ivl >= 21) cnt.m++; else cnt.y++; }
+  // streak
+  const daysSet = new Set(logs.map(r => dayOf(r.id)));
+  let streak = 0; for (let d = daysSet.has(t) ? t : t - 1; daysSet.has(d); d--) streak++;
+  const tile = (v, k) => h("div", { class: "tile" }, h("div", { class: "v" }, String(v)), h("div", { class: "k" }, k));
+  main.append(h("div", { class: "row", style: "margin-bottom:14px" }, h("h1", { style: "margin:0" }, "統計"), h("div", { class: "spacer" }), sel));
+  main.append(h("h3", {}, "今日"), h("div", { class: "tiles" },
+    tile(todays.length, "学習した枚数"), tile(todays.length ? fmtDur(todays.reduce((a,r)=>a+r.time,0)) : "0秒", "学習時間"),
+    tile(todays.length ? Math.round(correct/todays.length*100) + "%" : "-", "正答率（もう一度以外）"),
+    tile([...firstSeen.values()].filter(ts => ts >= t0).length, "新しく学んだカード"),
+    tile(streak + "日", "連続学習日数")));
+  // memory (FSRS)
+  const revCards = cards.filter(c => (c.type === 2 || c.type === 3) && c.queue !== -1);
+  const Rs = revCards.map(c => retrievability(c)).filter(x => x != null);
+  const avgR = Rs.length ? Rs.reduce((a, b) => a + b, 0) / Rs.length : null;
+  const revLogs30 = logs.filter(r => r.type === 1 && r.id >= dayStartTs(t - 29));
+  const trueRet = revLogs30.length ? revLogs30.filter(r => r.ease > 1).length / revLogs30.length : null;
+  const Ss = revCards.map(c => fsrsState(c)?.s).filter(Boolean).sort((a, b) => a - b);
+  main.append(h("h3", { style: "margin-top:22px" }, "記憶の状態"), h("div", { class: "tiles" },
+    tile(avgR != null ? Math.round(avgR * 100) + "%" : "-", "今この瞬間の推定保持率"),
+    tile(trueRet != null ? Math.round(trueRet * 100) + "%" : "-", "実際の復習正答率（30日）"),
+    tile(Ss.length ? fmtDays(Ss[Math.floor(Ss.length / 2)]) : "-", "記憶の安定度（中央値）")),
+    h("p", { class: "muted small" }, "推定保持率は FSRS の忘却曲線から計算した「今テストしたら思い出せる割合」です。実際の正答率が目標（標準90%）と近いほど、予測がうまく合っています。"));
+  // forecast
+  const fc = Array(30).fill(0);
+  for (const c of cards){ if (c.queue === 2){ const d = Math.max(0, c.due - t); if (d < 30) fc[d]++; } else if (c.queue === 1 && c.type !== 0){ fc[0]++; } }
+  const fcLabels = fc.map((_, i) => i === 0 ? "今日" : i === 1 ? "明日" : `${i}日後`);
+  main.append(h("h3", { style: "margin-top:22px" }, "今後30日の復習予定"), h("div", { class: "panel" }, barChart(fc, fcLabels, v => `${v} 枚`, i => i % 5 === 0 ? (i === 0 ? "今日" : `+${i}`) : "")));
+  // history
+  const hist = Array(30).fill(0), histT = Array(30).fill(0);
+  for (const r of logs){ const d = t - dayOf(r.id); if (d >= 0 && d < 30){ hist[29-d]++; histT[29-d] += r.time; } }
+  const hLabels = hist.map((_, i) => { const d = 29 - i; return d === 0 ? "今日" : d === 1 ? "昨日" : fmtDate(dayStartTs(t - d)); });
+  main.append(h("h3", { style: "margin-top:22px" }, "過去30日の学習量"), h("div", { class: "panel" }, barChart(hist, hLabels, (v, i) => `${v} 枚・${fmtDur(histT[i])}`, i => { const d = 29 - i; return d % 5 === 0 ? (d === 0 ? "今日" : `-${d}`) : ""; })));
+  // card counts
+  const total = cards.length || 1;
+  const parts = [["新規", cnt.n, "var(--new)"], ["学習中", cnt.l, "var(--learn)"], ["若い（間隔21日未満）", cnt.y, "#7cc49a"], ["成熟（21日以上）", cnt.m, "var(--rev)"], ["停止・延期", cnt.s, "var(--muted)"]];
+  main.append(h("h3", { style: "margin-top:22px" }, `カードの内訳（全 ${cards.length} 枚）`), h("div", { class: "panel" },
+    h("div", { class: "stackbar" }, ...parts.filter(p => p[1]).map(p => h("div", { style: `width:${p[1]/total*100}%;background:${p[2]}`, title: `${p[0]}: ${p[1]}` }))),
+    h("div", { class: "legendrow", style: "margin-top:10px" }, ...parts.map(p => h("span", {}, h("span", { class: "sw", style: `background:${p[2]}` }), `${p[0]} ${p[1]}`)))));
+  // answer buttons
+  const month = logs.filter(r => r.id >= dayStartTs(t - 29));
+  const btn = [0,0,0,0,0]; month.forEach(r => btn[r.ease]++);
+  const mt = month.length || 1;
+  main.append(h("h3", { style: "margin-top:22px" }, "回答ボタン（過去30日）"), h("div", { class: "tiles" },
+    ...[[1,"もう一度"],[2,"難しい"],[3,"普通"],[4,"簡単"]].map(([e, k]) => h("div", { class: "tile" }, h("div", { class: "v", style: `color:var(--${["","again","hard","good","easy"][e]})` }, Math.round(btn[e]/mt*100) + "%"), h("div", { class: "k" }, `${k}（${btn[e]}回）`)))));
+}
+function barChart(vals, labels, tipFn, tickFn){
+  const W = 640, H = 170, padL = 30, padB = 22, padT = 8, w = W - padL - 6, hh = H - padB - padT;
+  const max = Math.max(1, ...vals); const nice = max <= 5 ? 5 : Math.ceil(max / 5) * 5;
+  const bw = w / vals.length;
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg"); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("role", "img");
+  const el = (tag, at) => { const e = document.createElementNS(ns, tag); for (const k in at) e.setAttribute(k, at[k]); return e; };
+  for (let i = 0; i <= 2; i++){ const v = nice * i / 2, y = padT + hh - v / nice * hh; svg.append(el("line", { x1: padL, x2: W - 6, y1: y, y2: y, class: "grid" })); const tx = el("text", { x: padL - 6, y: y + 3, "text-anchor": "end", class: "axis" }); tx.textContent = String(Math.round(v)); svg.append(tx); }
+  const wrap = h("div", { class: "chart" }); const tip = h("div", { class: "tip" });
+  vals.forEach((v, i) => {
+    const bh = v / nice * hh, x = padL + i * bw + 2, y = padT + hh - bh, bwid = Math.max(2, bw - 4);
+    if (v > 0){
+      const r = Math.min(4, bwid/2, bh);
+      const path = `M${x},${padT+hh} V${y + r} Q${x},${y} ${x + r},${y} H${x + bwid - r} Q${x + bwid},${y} ${x + bwid},${y + r} V${padT+hh} Z`;
+      svg.append(el("path", { d: path, class: "bar" }));
+    }
+    const tk = tickFn(i); if (tk){ const tx = el("text", { x: x + bwid/2, y: H - 6, "text-anchor": "middle", class: "axis" }); tx.textContent = tk; svg.append(tx); }
+    const hit = el("rect", { x: padL + i * bw, y: padT, width: bw, height: hh, class: "hit" });
+    hit.addEventListener("mouseenter", () => { tip.style.display = "block"; tip.textContent = `${labels[i]}：${tipFn(v, i)}`; const rect = svg.getBoundingClientRect(), sc = rect.width / W; tip.style.left = ((x + bwid/2) * sc) + "px"; tip.style.top = (Math.min(y, padT + hh - 4) * sc) + "px"; });
+    hit.addEventListener("mouseleave", () => tip.style.display = "none");
+    svg.append(hit);
+  });
+  wrap.append(svg, tip);
+  return wrap;
+}
+
+/* ============================================================
+   設定・インポート/エクスポート
+   ============================================================ */
+function viewSettings(main){
+  const ds = h("input", { type: "number", min: "0", max: "23", value: String(S.conf.dayStart), style: "width:90px" });
+  ds.addEventListener("change", () => { S.conf.dayStart = clamp(parseInt(ds.value)||0, 0, 23); S.today.day = -1; rollover(); markDirty(); toast("保存しました"); });
+  const la = h("input", { type: "number", min: "0", max: "120", value: String(S.conf.learnAhead), style: "width:90px" });
+  la.addEventListener("change", () => { S.conf.learnAhead = clamp(parseInt(la.value)||0, 0, 120); markDirty(); toast("保存しました"); });
+  const th = h("select", {}, h("option", { value: "auto", selected: S.conf.theme === "auto" }, "端末に合わせる"), h("option", { value: "light", selected: S.conf.theme === "light" }, "ライト"), h("option", { value: "dark", selected: S.conf.theme === "dark" }, "ダーク"));
+  th.addEventListener("change", () => { S.conf.theme = th.value; applyTheme(); markDirty(); });
+  const syncText = Store.base && Store.ready ? "クラウドに自動保存しています。同じアカウントでこのページを開けば、別の端末でも続きから学習できます。" + (Media.assets ? "画像もクラウドに保存されます。" : "画像はこのブラウザに保存されます。") : "いまはこのブラウザの中だけに保存しています。クラウドにつながると自動で保存され、端末間で同期されます。念のため定期的にバックアップを書き出してください。";
+  main.append(h("h1", {}, "設定"),
+    h("div", { class: "panel" }, h("h3", {}, "保存と同期"), h("p", { class: "small" }, syncText),
+      h("div", { class: "row" }, h("button", { class: "btn", onclick: exportBackup }, "バックアップを書き出す（JSON）"), h("button", { class: "btn", onclick: importBackup }, "バックアップから復元"), Store.base ? h("button", { class: "btn", onclick: () => { remoteSave(); } }, "今すぐ同期") : null)),
+    h("div", { class: "panel", style: "margin-top:14px" }, h("h3", {}, "取り込み"),
+      h("p", { class: "small" }, "Excel・スプレッドシート・他のアプリから書き出した CSV / TSV（1列目＝表面、2列目＝裏面、3列目＝タグ）を取り込めます。Anki からは「ノートをプレーンテキストで書き出す」で作ったファイルがそのまま使えます。"),
+      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: importApkgDialog }, "Ankiデッキ（.apkg / .colpkg）を取り込む"), h("button", { class: "btn", onclick: importCSV }, "CSV / テキストを取り込む")),
+      h("p", { class: "muted small", style: "margin-bottom:0" }, "Ankiのデッキは、ノートタイプのデザイン（テンプレート・CSS）、画像、サブデッキ、タグ、画像穴埋めをそのまま取り込みます。音声・動画とテンプレート内のJavaScriptには対応していません。")),
+    window.Game ? Game.settingsPanel() : null,
+    h("div", { class: "panel", style: "margin-top:14px" }, h("h3", {}, "学習"),
+      h("div", { class: "row" }, h("label", {}, "1日の始まり（時）"), ds, h("span", { class: "muted small" }, "この時刻で「今日」が切り替わります（Anki の既定は 4 時）")),
+      h("div", { class: "row", style: "margin-top:8px" }, h("label", {}, "学習の前倒し（分）"), la, h("span", { class: "muted small" }, "ほかに出すカードがないとき、この時間内に期日が来る学習中カードを先に出します")),
+      h("div", { class: "row", style: "margin-top:8px" }, h("label", {}, "テーマ"), th)),
+    h("div", { class: "panel", style: "margin-top:14px" }, h("h3", {}, "データ"),
+      h("p", { class: "small muted" }, `デッキ ${Object.keys(S.decks).length}・ノート ${Object.keys(S.notes).length}・カード ${Object.keys(S.cards).length}・復習ログ ${S.revlog.length} 件・画像 ${Object.keys(S.media).length} 件（クラウド保存済み ${Object.values(S.media).filter(m => m.id).length} 件）`),
+      h("div", { class: "row" }, h("button", { class: "btn", onclick: addSamples }, "サンプルを追加"), h("button", { class: "btn danger", onclick: resetAll }, "すべてのデータを削除"))));
+}
+async function offerFile(filename, text, mime){
+  let dl = null; try { dl = window.claude ? await claude.use("downloads") : null; } catch(e){}
+  if (dl){
+    try { await dl.save({ filename, data: new Blob([text], { type: mime }) }); toast("書き出しました"); return; }
+    catch(e){ if (e && /declin|cancel|abort/i.test(String(e.code || e.message || ""))) return; }
+  }
+  const ta = h("textarea", { style: "width:100%;height:220px;font-family:monospace;font-size:.78rem", readonly: true }); ta.value = text;
+  modal({ title: "書き出し", wide: true, body: h("div", {}, h("p", { class: "small" }, `この画面ではファイルを直接保存できないため、内容をコピーしてテキストファイル（${filename}）として保存してください。`), ta),
+    buttons: [{ label: "コピー", primary: true, onClick: async () => { try { await navigator.clipboard.writeText(text); toast("コピーしました"); } catch(e){ ta.select(); toast("選択しました。Ctrl+C でコピーしてください"); } return false; } }, { label: "閉じる", value: null }] });
+}
+async function exportBackup(){
+  const data = JSON.parse(JSON.stringify(S)); const names = Object.keys(S.media || {});
+  if (names.length){
+    data.mediaData = {}; let total = 0, skipped = 0;
+    toast("画像をまとめています…");
+    for (const n of names){ const b = await getMediaBlob(n); if (!b){ skipped++; continue; } total += b.size; if (total > 120e6){ skipped++; continue; } data.mediaData[n] = await blobToDataURL(b); }
+    if (skipped) toast(`画像 ${skipped} 件はバックアップに含められませんでした`, 3500);
+  }
+  const d = new Date(); offerFile(`kioku-backup-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`, JSON.stringify(data), "application/json");
+}
+function readFileText(accept){
+  return new Promise(res => {
+    const fi = h("input", { type: "file", accept, style: "display:none" }); document.body.append(fi);
+    fi.addEventListener("change", () => { const f = fi.files[0]; fi.remove(); if (!f) return res(null); const fr = new FileReader(); fr.onload = () => res({ name: f.name, text: fr.result }); fr.readAsText(f); });
+    fi.click();
+  });
+}
+async function importBackup(){
+  const f = await readFileText(".json,application/json"); if (!f) return;
+  let data; try { data = JSON.parse(f.text); if (!data.cards || !data.notes) throw 0; } catch(e){ toast("Kioku のバックアップファイルではありません"); return; }
+  const mode = await modal({ title: "バックアップから復元", body: h("p", {}, `カード ${Object.keys(data.cards).length} 枚を含むバックアップです。どう取り込みますか？`), buttons: [{ label: "キャンセル", value: null }, { label: "今のデータに追加", value: "merge" }, { label: "置き換える", value: "replace", danger: true }] });
+  if (!mode) return;
+  const mediaData = data.mediaData || {}; delete data.mediaData;
+  if (mode === "replace"){ const keep = S.conf; S = migrate(data); S.conf = Object.assign(S.conf, { theme: keep.theme }); for (const m of Object.values(S.media)) { if (mediaData && Object.keys(mediaData).length) delete m.id; } }
+  else {
+    for (const d of Object.values(data.decks || {})){ const ex = deckByName(d.name); if (!ex){ const id = S.decks[d.id] ? rid() : d.id; S.decks[id] = { ...d, id }; } }
+    const deckMap = {}; for (const d of Object.values(data.decks || {})) deckMap[d.id] = deckByName(d.name).id;
+    for (const n of Object.values(data.notes)) if (!S.notes[n.id]) S.notes[n.id] = n;
+    for (const c of Object.values(data.cards)) if (!S.cards[c.id]) S.cards[c.id] = { ...c, did: deckMap[c.did] || S.conf.lastDeck, pos: c.type === 0 ? S.nextPos++ : c.pos };
+    const ids = new Set(S.revlog.map(r => r.id + r.cid)); for (const r of data.revlog || []) if (!ids.has(r.id + r.cid)) S.revlog.push(r);
+    S.revlog.sort((a,b) => a.id - b.id);
+    for (const [k, m] of Object.entries(data.media || {})) if (!S.media[k]) S.media[k] = { ...m };
+    for (const [k, m] of Object.entries(data.models || {})) if (!S.models[k]) S.models[k] = m;
+  }
+  for (const [name, d] of Object.entries(mediaData)){ const b = dataURLtoBlob(d); if (!b) continue; await idbPut(name, b); Media.urls.set(name, URL.createObjectURL(b)); if (S.media[name]) { delete S.media[name].fail; } else S.media[name] = { type: b.type, size: b.size, h: "" }; }
+  pumpUploads();
+  S.savedAt = 0; rollover(); markDirty(); applyTheme(); toast("復元しました"); go("decks");
+}
+function parseDelimited(text, delim){
+  const rows = []; let row = [], cur = "", q = false;
+  for (let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if (q){ if (ch === '"'){ if (text[i+1] === '"'){ cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"' && cur === "") q = true;
+    else if (ch === delim){ row.push(cur); cur = ""; }
+    else if (ch === "\n" || ch === "\r"){ if (ch === "\r" && text[i+1] === "\n") i++; row.push(cur); rows.push(row); row = []; cur = ""; }
+    else cur += ch;
+  }
+  if (cur !== "" || row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim() !== ""));
+}
+async function importCSV(){
+  const ta = h("textarea", { style: "width:100%;height:140px;font-size:.85rem", placeholder: "ここに貼り付けるか、ファイルを選んでください\n例）\n高血圧の第一選択薬は？\tCa拮抗薬・ARB・ACE阻害薬・利尿薬\tCBT 循環器" });
+  const fileBtn = h("button", { class: "btn sm", onclick: async () => { const f = await readFileText(".csv,.tsv,.txt,text/*"); if (f){ ta.value = f.text; upd(); } } }, "ファイルを選ぶ");
+  const delimSel = h("select", {}, h("option", { value: "auto" }, "自動判定"), h("option", { value: "\t" }, "タブ"), h("option", { value: "," }, "カンマ"), h("option", { value: ";" }, "セミコロン"));
+  const typeSel = h("select", {}, ...Object.entries(NOTE_TYPES).filter(([k]) => k !== "io").map(([k,v]) => h("option", { value: k }, v.name)));
+  const dSel = deckSelect(S.conf.lastDeck);
+  const newDeck = h("input", { type: "text", placeholder: "新しいデッキ名（任意）", style: "width:100%" });
+  const header = h("input", { type: "checkbox" }); const html = h("input", { type: "checkbox", checked: true });
+  const extraTag = h("input", { type: "text", placeholder: "全カードに付けるタグ（任意）", style: "width:100%" });
+  const pv = h("pre", { class: "preview" }, "（プレビュー）");
+  const parse = () => {
+    let text = ta.value.replace(/^﻿/, "");
+    const lines = text.split(/\r?\n/).filter(l => !/^#(separator|html|tags|columns|notetype|deck)/i.test(l));
+    text = lines.join("\n");
+    let d = delimSel.value;
+    if (d === "auto"){ const sample = text.slice(0, 3000); const tabs = (sample.match(/\t/g)||[]).length, commas = (sample.match(/,/g)||[]).length, semis = (sample.match(/;/g)||[]).length; d = tabs ? "\t" : semis > commas ? ";" : ","; }
+    let rows = parseDelimited(text, d); if (header.checked) rows = rows.slice(1);
+    return rows;
+  };
+  const upd = () => { const rows = parse(); pv.textContent = rows.length ? `${rows.length} 行\n` + rows.slice(0, 4).map(r => r.slice(0, 3).map((x,i) => ["表","裏","タグ"][i] + "：" + x.slice(0, 50)).join("　｜　")).join("\n") : "（プレビュー）"; };
+  [ta, delimSel, header].forEach(x => x.addEventListener("input", upd)); header.addEventListener("change", upd);
+  const body = h("div", {},
+    h("div", { class: "row" }, h("span", { class: "small muted" }, "1列目＝表面（穴埋めならテキスト）、2列目＝裏面（補足）、3列目＝タグ"), h("div", { class: "spacer" }), fileBtn), ta,
+    h("div", { class: "grid2" },
+      h("div", {}, h("label", { class: "lbl" }, "区切り文字"), delimSel), h("div", {}, h("label", { class: "lbl" }, "ノートタイプ"), typeSel),
+      h("div", {}, h("label", { class: "lbl" }, "デッキ"), dSel), h("div", {}, h("label", { class: "lbl" }, "または新しいデッキ"), newDeck)),
+    h("label", { class: "lbl" }, "タグ"), extraTag,
+    h("div", { style: "margin-top:10px" }, h("label", {}, header, " 1行目は見出しなので飛ばす"), "　", h("label", {}, html, " HTMLタグをそのまま使う")),
+    h("label", { class: "lbl" }, "プレビュー"), pv);
+  const ok = await modal({ title: "CSV / テキストを取り込む", wide: true, body, buttons: [{ label: "キャンセル", value: false }, { label: "取り込む", primary: true, value: true }] });
+  if (!ok) return;
+  const rows = parse(); if (!rows.length){ toast("取り込む行がありません"); return; }
+  const did = newDeck.value.trim() ? ensureDeck(newDeck.value.trim()) : dSel.value;
+  const conv = s => html.checked ? sanitize(s) : esc(s).replace(/\n/g, "<br>");
+  const xt = extraTag.value.split(/\s+/).filter(Boolean);
+  let added = 0, skipped = 0;
+  const existing = new Set(Object.values(S.notes).map(n => n.type + "|" + plain(n.f[0])));
+  for (const r of rows){
+    const f0 = conv(r[0] || ""), f1 = conv(r[1] || ""), tags = [...new Set([...(r[2] || "").split(/\s+/).filter(Boolean), ...xt])];
+    if (!plain(f0) && !/<img/i.test(f0)){ skipped++; continue; }
+    if (typeSel.value === "cloze" && !clozeNums(f0).length){ skipped++; continue; }
+    const key = typeSel.value + "|" + plain(f0); if (existing.has(key)){ skipped++; continue; }
+    existing.add(key); addNote(typeSel.value, [f0, f1], tags, did); added++;
+  }
+  markDirty(); toast(`${added} 件取り込みました` + (skipped ? `（重複・空欄 ${skipped} 件は飛ばしました）` : ""), 3500);
+  go("decks");
+}
+/* ---------- Anki (.apkg / .colpkg) ---------- */
+function loadScript(src){ return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("ライブラリを読み込めませんでした: " + src)); document.head.append(s); }); }
+async function ensureAnkiLibs(){
+  if (!window.JSZip) await loadScript("lib/jszip.min.js");
+  if (!window.fzstd) await loadScript("lib/fzstd.js");
+  if (!window.initSqlJs) await loadScript("lib/sql-asm-memory-growth.js");
+  if (!window.__SQL) window.__SQL = await initSqlJs();
+  return window.__SQL;
+}
+function pbRead(buf){
+  const out = {}; let i = 0;
+  const varint = () => { let x = 0, sh = 1, b; do { b = buf[i++]; x += (b & 0x7f) * sh; sh *= 128; } while (b & 0x80 && i < buf.length); return x; };
+  while (i < buf.length){
+    const key = varint(), f = Math.floor(key / 8), wt = key % 8; let v;
+    if (wt === 0) v = varint(); else if (wt === 2){ const len = varint(); v = buf.subarray(i, i + len); i += len; } else if (wt === 1){ i += 8; continue; } else if (wt === 5){ i += 4; continue; } else break;
+    (out[f] ||= []).push(v);
+  }
+  return out;
+}
+const TD = new TextDecoder();
+const pbStr = (m, f) => m[f] && m[f][0] && m[f][0].length !== undefined ? TD.decode(m[f][0]) : "";
+const isZstd = u8 => u8 && u8.length > 4 && u8[0] === 0x28 && u8[1] === 0xb5 && u8[2] === 0x2f && u8[3] === 0xfd;
+function readFileBlob(accept){
+  return new Promise(res => {
+    const fi = h("input", { type: "file", accept, style: "display:none" }); document.body.append(fi);
+    fi.addEventListener("change", () => { const f = fi.files[0]; fi.remove(); res(f || null); });
+    fi.click();
+  });
+}
+function decodeEnt(s){ return String(s).replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">"); }
+function imageSize(blob){ return new Promise(res => { const u = URL.createObjectURL(blob); const im = new Image(); im.onload = () => { URL.revokeObjectURL(u); res([im.naturalWidth, im.naturalHeight]); }; im.onerror = () => { URL.revokeObjectURL(u); res(null); }; im.src = u; }); }
+function parseIOShapes(text){
+  const masks = []; let oiAll = false;
+  for (const mm of String(text || "").matchAll(/\{\{c(\d+)::image-occlusion:([a-z]+):([^}]*)\}\}/g)){
+    const g = +mm[1], kind = mm[2], props = {};
+    for (const p of mm[3].split(":")){ const k = p.indexOf("="); if (k > 0) props[p.slice(0, k)] = p.slice(k + 1); }
+    let x = +props.left, y = +props.top, w = +props.width, hh = +props.height;
+    if (kind === "ellipse"){ if (!isFinite(w)) w = +props.rx * 2; if (!isFinite(hh)) hh = +props.ry * 2; }
+    if (kind === "polygon" && props.points){ const pts = props.points.trim().split(/\s+/).map(q => q.split(",").map(Number)); const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]); x = Math.min(...xs); y = Math.min(...ys); w = Math.max(...xs) - x; hh = Math.max(...ys) - y; }
+    if (props.oi === "1") oiAll = true;
+    if ([x, y, w, hh].every(isFinite) && w > 0 && hh > 0) masks.push({ x, y, w, h: hh, g });
+  }
+  return { masks, mode: oiAll ? "hideAll" : "hideOne" };
+}
+async function importApkgDialog(){
+  const file = await readFileBlob(".apkg,.colpkg,application/zip");
+  if (!file) return;
+  const isCol = /\.colpkg$/i.test(file.name);
+  const sched = h("input", { type: "checkbox", checked: isCol });
+  const prefix = h("input", { type: "text", placeholder: "例: 共有デッキ（空欄ならそのままの名前）", style: "width:100%" });
+  const ok = await modal({ title: "Ankiデッキを取り込む", body: h("div", {},
+      h("p", {}, h("b", {}, file.name), h("span", { class: "muted" }, `（${(file.size / 1048576).toFixed(1)} MB）`)),
+      h("label", { class: "lbl" }, "取り込み先の親デッキ（任意）"), prefix,
+      h("div", { style: "margin-top:12px" }, h("label", {}, sched, " 学習の進み具合（スケジュール・復習履歴）も取り込む")),
+      h("p", { class: "muted small" }, "共有デッキは通常オフのままで、すべて新規カードとして取り込まれます。自分のAnkiから移行するときはオンにしてください。同じノート（GUIDが同じ）が既にある場合は、内容を更新します。")),
+    buttons: [{ label: "キャンセル", value: false }, { label: "取り込む", primary: true, value: true }] });
+  if (!ok) return;
+  const msg = h("div", { class: "progress" }, "準備中…");
+  const mask = h("div", { class: "mask" }, h("div", { class: "modal" }, h("h2", {}, "取り込み中"), msg, h("p", { class: "muted small" }, "大きなデッキでは数分かかることがあります。この画面のままお待ちください。")));
+  document.body.append(mask);
+  const prog = async t => { msg.textContent = t; await sleep(0); };
+  try {
+    const r = await importApkg(file, { withSched: sched.checked, prefix: prefix.value.trim() }, prog);
+    mask.remove();
+    markDirty(); pumpUploads();
+    await modal({ title: "取り込みが完了しました", body: h("div", {},
+      h("p", {}, `ノート ${r.notes} 件・カード ${r.cards} 枚・画像 ${r.media} 件を取り込みました。`),
+      r.updated ? h("p", {}, `既にあったノート ${r.updated} 件は内容を更新しました。`) : null,
+      r.io ? h("p", {}, `そのうち画像穴埋め（イメージオクルージョン）ノート ${r.io} 件は、Kioku の画像穴埋めに変換しました。`) : null,
+      r.skippedMedia ? h("p", { class: "muted small" }, `音声・動画など対応していないファイル ${r.skippedMedia} 件は取り込んでいません。`) : null,
+      r.decks.length ? h("p", { class: "muted small" }, "デッキ：" + r.decks.slice(0, 12).join("、") + (r.decks.length > 12 ? " ほか" : "")) : null) });
+    go("decks"); route(true);
+  } catch(e){
+    console.error(e); mask.remove();
+    modal({ title: "取り込めませんでした", body: h("p", {}, String(e && e.message || e)) });
+  }
+}
+async function importApkg(file, { withSched, prefix }, prog){
+  await prog("ライブラリを読み込み中…");
+  const SQL = await ensureAnkiLibs();
+  await prog("ファイルを展開中…");
+  const zip = await JSZip.loadAsync(file);
+  const f21b = zip.file("collection.anki21b"), f21 = zip.file("collection.anki21"), f2 = zip.file("collection.anki2");
+  let colBytes;
+  if (f21b) colBytes = fzstd.decompress(await f21b.async("uint8array"));
+  else if (f21) colBytes = await f21.async("uint8array");
+  else if (f2) colBytes = await f2.async("uint8array");
+  else throw new Error("Ankiのデッキファイル（.apkg / .colpkg）ではないようです。");
+  await prog("データベースを読み込み中…");
+  let db = new SQL.Database(colBytes);
+  const q = sql => { const r = db.exec(sql); return r.length ? r[0].values : []; };
+  try {
+    if (q("SELECT count(*) FROM sqlite_master WHERE sql LIKE '%unicase%'")[0][0] > 0){
+      db.exec("PRAGMA writable_schema=ON; UPDATE sqlite_master SET sql=replace(sql,'COLLATE unicase','') WHERE sql LIKE '%unicase%'; PRAGMA writable_schema=OFF;");
+      const d = db.export(); db.close(); db = new SQL.Database(d);
+    }
+    const tables = new Set(q("SELECT name FROM sqlite_master WHERE type='table'").map(r => r[0]));
+    const crt = (q("SELECT crt FROM col")[0] || [Date.now() / 1000])[0];
+    const models = {}, decks = {};
+    if (tables.has("notetypes")){
+      for (const [id, name, cfg] of q("SELECT id, name, config FROM notetypes")){ const pm = pbRead(cfg); models[id] = { id: String(id), name, cloze: (pm[1]?.[0] || 0) === 1, sortf: pm[2]?.[0] || 0, css: pbStr(pm, 3), fields: [], tmpls: [] }; }
+      for (const [ntid, ord, name] of q("SELECT ntid, ord, name FROM fields")) if (models[ntid]) models[ntid].fields[ord] = name;
+      for (const [ntid, ord, name, cfg] of q("SELECT ntid, ord, name, config FROM templates")){ const pm = pbRead(cfg); if (models[ntid]) models[ntid].tmpls[ord] = { name, q: pbStr(pm, 1), a: pbStr(pm, 2) }; }
+      for (const [id, name] of q("SELECT id, name FROM decks")) decks[id] = String(name).split("\x1f").join("::");
+    } else {
+      const [mj, dj] = q("SELECT models, decks FROM col")[0];
+      for (const m of Object.values(JSON.parse(mj || "{}"))) models[m.id] = { id: String(m.id), name: m.name, cloze: m.type === 1, sortf: m.sortf || 0, css: m.css || "",
+        fields: (m.flds || []).slice().sort((a, b) => a.ord - b.ord).map(f => f.name), tmpls: (m.tmpls || []).slice().sort((a, b) => a.ord - b.ord).map(t => ({ name: t.name, q: t.qfmt, a: t.afmt })) };
+      for (const d of Object.values(JSON.parse(dj || "{}"))) decks[d.id] = d.name;
+    }
+    const noteRows = q("SELECT id, guid, mid, mod, tags, flds FROM notes");
+    if (!f21b && !f21 && noteRows.length === 1 && /Please update to the latest Anki version/.test(noteRows[0][5])) throw new Error("このファイルは新しい形式ですが、中身を読み取れませんでした。");
+    if (f21b && noteRows.length === 0 && f2) { /* 空のデッキ */ }
+    const isIO = m => m && m.tmpls.some(t => /image-occlusion/.test(t?.q || ""));
+    // notes
+    const guidMap = new Map(); for (const n of Object.values(S.notes)) if (n.guid) guidMap.set(n.guid, n);
+    const nidMap = new Map(), skipNid = new Set(), imported = [], updatedIds = new Set();
+    let updated = 0, ioCount = 0, k = 0;
+    const usedModels = new Set();
+    for (const [id, guid, mid, mod, tags, flds] of noteRows){
+      if (++k % 500 === 0) await prog(`ノートを読み込み中… ${k} / ${noteRows.length}`);
+      const m = models[mid]; if (!m) continue;
+      const f = String(flds).split("\x1f");
+      const tg = String(tags || "").trim().split(/\s+/).filter(Boolean);
+      let note;
+      if (isIO(m)){
+        const byName = n => { const i = m.fields.findIndex(x => x && x.toLowerCase() === n); return i >= 0 ? f[i] : ""; };
+        const occl = f.find(x => /image-occlusion:/.test(x)) || "";
+        const imgF = byName("image") || f.find(x => /<img/i.test(x)) || "";
+        const io = parseIOShapes(occl);
+        note = { type: "io", f: [imgF, byName("header"), byName("back extra") || byName("comments")], io, tags: tg };
+        ioCount++;
+      } else {
+        note = { type: "anki", mid: String(mid), f, tags: tg }; usedModels.add(mid);
+      }
+      const ex = guidMap.get(guid);
+      if (ex){
+        if ((ex.mod || 0) < mod * 1000 || ex.type === note.type){ ex.f = note.f; ex.tags = note.tags; if (note.io) ex.io = note.io; ex.mod = Date.now(); }
+        updated++; skipNid.add(id); nidMap.set(id, ex.id); imported.push(ex); updatedIds.add(ex.id); continue;
+      }
+      const nn = { id: rid(), ...note, guid, created: Date.now(), mod: mod * 1000 };
+      S.notes[nn.id] = nn; nidMap.set(id, nn.id); imported.push(nn);
+    }
+    for (const mid of usedModels){ S.models[String(mid)] = { ...models[mid], fields: models[mid].fields.map(x => x || ""), tmpls: models[mid].tmpls.filter(Boolean).length ? models[mid].tmpls.map(t => t || { name: "", q: "", a: "" }) : [{ name: "Card 1", q: "{{" + (models[mid].fields[0] || "") + "}}", a: "{{FrontSide}}" }] }; }
+    // decks
+    const deckIdMap = new Map(), deckNames = new Set();
+    const deckFor = adid => {
+      if (deckIdMap.has(adid)) return deckIdMap.get(adid);
+      let name = decks[adid] || "Default";
+      if (name === "Default") name = S.decks.default ? S.decks.default.name : "デフォルト";
+      if (prefix) name = prefix + "::" + name;
+      const id = ensureDeck(name); deckIdMap.set(adid, id); deckNames.add(S.decks[id].name); return id;
+    };
+    // cards
+    await prog("カードを読み込み中…");
+    const cardRows = q("SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses, odid, odue, flags, data FROM cards ORDER BY type, due, ord");
+    const cidMap = new Map(); const crtDay = dayOf(crt * 1000);
+    let cardsAdded = 0; const hasCard = new Set();
+    for (const [id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses, odid, odue, flags, data] of cardRows){
+      if (!nidMap.has(nid) || skipNid.has(nid)) continue;
+      const c = newCard(nidMap.get(nid), ord, deckFor(odid || did));
+      c.flag = (flags || 0) & 7;
+      if (withSched && type > 0){
+        const realDue = odid ? odue : due;
+        c.ivl = Math.max(0, ivl); c.factor = factor || 2500; c.reps = reps; c.lapses = lapses;
+        if (type === 2){ c.type = 2; c.queue = 2; c.due = crtDay + realDue; }
+        else { c.type = type === 3 ? 3 : 1; c.queue = 1; c.step = 0; c.due = realDue > 1e9 ? realDue * 1000 : dayStartTs(crtDay + realDue); if (c.type === 3 && !c.ivl) c.ivl = 1; }
+        if (queue === -1) c.queue = -1;
+        try { const dj = data ? JSON.parse(data) : null; if (dj && dj.s && dj.d && c.type === 2) c.fsrs = { s: dj.s, d: clamp(dj.d, 1, 10), last: dayStartTs(c.due - Math.max(1, c.ivl)) + HOUR }; } catch(e){}
+      }
+      S.cards[c.id] = c; cidMap.set(id, c.id); cardsAdded++; hasCard.add(c.nid);
+    }
+    // notes without any card row (e.g. filtered out) → generate
+    for (const n of imported) if (!hasCard.has(n.id) && !updatedIds.has(n.id)) { syncCards(n, deckFor(1)); cardsAdded += cardsOfNote(n.id).length; }
+    // revlog
+    if (withSched && tables.has("revlog")){
+      for (const [id, cid, ease, ivl, lastIvl, factor, time, type] of q("SELECT id, cid, ease, ivl, lastIvl, factor, time, type FROM revlog")){
+        const c2 = cidMap.get(cid); if (!c2 || type > 2 || ease < 1) continue;
+        S.revlog.push({ id, cid: c2, ease, ivl, lastIvl, factor, time: Math.min(60000, time), type });
+      }
+      S.revlog.sort((a, b) => a.id - b.id);
+    }
+    // media
+    const refs = new Set();
+    for (const n of imported) for (const fv of n.f) for (const mm of String(fv).matchAll(/<img[^>]*?\ssrc\s*=\s*["']?([^"'>]+)/gi)) refs.add(decodeEnt(mm[1]));
+    let entries = [];
+    const mf = zip.file("media");
+    if (mf){
+      const raw = await mf.async("uint8array");
+      let parsed = null;
+      if (!isZstd(raw)){ try { parsed = JSON.parse(TD.decode(raw)); } catch(e){} }
+      if (parsed) entries = Object.entries(parsed).map(([file, name]) => ({ file, name }));
+      else { const dec = isZstd(raw) ? fzstd.decompress(raw) : raw; entries = (pbRead(dec)[1] || []).map((e, i) => ({ file: String(i), name: pbStr(pbRead(e), 1) })); }
+    }
+    let mediaAdded = 0, skippedMedia = 0; const renamed = new Map();
+    for (let i = 0; i < entries.length; i++){
+      const { file: zf, name } = entries[i];
+      if (!refs.has(name)){ if (!guessType(name)) skippedMedia++; continue; }
+      if (!guessType(name)){ skippedMedia++; continue; }
+      if (i % 20 === 0) await prog(`画像を取り込み中… ${i + 1} / ${entries.length}`);
+      const z = zip.file(zf); if (!z) continue;
+      let bytes = await z.async("uint8array"); if (isZstd(bytes)) bytes = fzstd.decompress(bytes);
+      let blob = new Blob([bytes], { type: guessType(name) });
+      if (blob.size > 1.5e6) blob = await shrinkBlob(blob, 2000);
+      const final = await addMedia(blob, name); mediaAdded++;
+      if (final !== name) renamed.set(name, final);
+    }
+    if (renamed.size) for (const n of imported) n.f = n.f.map(fv => { let x = String(fv); for (const [a, b] of renamed) x = x.split(`src="${a}"`).join(`src="${b}"`).split(`src='${a}'`).join(`src='${b}'`); return x; });
+    // image-occlusion: convert pixel coordinates to fractions
+    for (const n of imported) if (n.type === "io" && n.io.masks.some(m => m.x > 1.5 || m.w > 1.5)){
+      const ref = firstImgRef(n.f[0]); const b = ref ? await getMediaBlob(ref) : null; const sz = b ? await imageSize(b) : null;
+      if (sz) n.io.masks = n.io.masks.map(m => ({ ...m, x: m.x / sz[0], y: m.y / sz[1], w: m.w / sz[0], h: m.h / sz[1] }));
+    }
+    return { notes: imported.length - updated, updated, cards: cardsAdded, media: mediaAdded, skippedMedia, io: ioCount, decks: [...deckNames] };
+  } finally { try { db.close(); } catch(e){} }
+}
+function exportCSV(did){
+  const sub = subtreeIds(did); const nids = new Set(Object.values(S.cards).filter(c => sub.has(c.did)).map(c => c.nid));
+  const q = s => /[\t"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  const lines = ["#separator:tab", "#html:true", "#tags column:3"];
+  for (const nid of nids){ const n = S.notes[nid]; if (n) lines.push([n.f[0], n.f[1], n.tags.join(" ")].map(q).join("\t")); }
+  offerFile(`${S.decks[did].name.replace(/::/g, "_")}.txt`, lines.join("\n"), "text/plain");
+}
+async function resetAll(){
+  if (!await confirmDlg("すべてのデッキ・カード・学習履歴を削除します。元に戻せません。先にバックアップを書き出すことをおすすめします。", "すべて削除", true)) return;
+  const conf = S.conf; S = defaultState(); S.conf.theme = conf.theme; rollover(); markDirty(); go("decks"); toast("削除しました");
+}
+function addSamples(){
+  const did = ensureDeck("サンプル");
+  const samples = [
+    ["basic", ["日本の首都は？", "東京"], ["サンプル"]],
+    ["reverse", ["apple", "りんご"], ["サンプル", "英単語"]],
+    ["cloze", ["光合成は {{c1::葉緑体}} で行われ、{{c2::二酸化炭素::気体}} と水から糖をつくる。", "植物の細胞小器官"], ["サンプル"]],
+    ["type", ["水の化学式を入力", "H2O"], ["サンプル"]],
+    ["basic", ["<b>間隔反復</b>とは？", "覚えたことを忘れかける頃に復習し、復習の間隔を少しずつ延ばしていく学習法"], ["サンプル"]]
+  ];
+  for (const [t, f, tg] of samples) addNote(t, f, tg, did);
+  markDirty(); toast("サンプルデッキを追加しました"); route(true);
+}
+
+/* ============================================================
+   起動
+   ============================================================ */
+S = migrate(loadLocal() || defaultState());
+rollover(); applyTheme();
+if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", applyTheme);
+route(true);
+initCloud();
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("service-worker.js").catch(() => {});
+</script>
+<script src="qbank.js"></script>
+</body>
+</html>
