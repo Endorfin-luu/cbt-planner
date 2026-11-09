@@ -1,8 +1,7 @@
 /* ============================================================
    問題演習（QB分野別・QB回数別）
    - 1問ずつ FSRS（忘却曲線）で「次に解き直す日」を決める
-   - 解いた数・誤答数は 国試 Planner（../kokushi/）に自動で入る
-     （Firestore の progress/kokushi_kioku_user1 に書き出し、国試 Planner が読み込む）
+   - 解いた数・誤答数は「今日」「計画」タブ（planner.js）がそのまま集計する
    index.html の後に読み込む。S・h・today() などは index.html のものを使う。
    ============================================================ */
 "use strict";
@@ -42,8 +41,6 @@ function qx(){
   return x;
 }
 const qxChs = b => QX_BANKS[b].ch;
-// 以前のモントレの記録は使わない（国試 Planner も v3 で外した）
-const qxOutOk = l => l && QX_BANKS[l.b];
 const qxCh = (b, id) => QX_BANKS[b].ch.find(c => c[0] === id);
 const qxQs = (b, c) => (qx().b[b][c] ||= {});
 function qxYmd(day){ const d = new Date(dayStartTs(day)); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
@@ -90,24 +87,8 @@ function qxUndo(items){
     const hd = X.hist?.[u.day]; if (hd){ hd[0] = Math.max(0, hd[0] - 1); if (u.wrong) hd[1] = Math.max(0, hd[1] - 1); }
   }
 }
-function qxChanged(){ markDirty(); qxScheduleExport(); }
+function qxChanged(){ markDirty(); }
 
-/* ---------- 国試 Planner への書き出し ---------- */
-let qxExportTimer = null;
-function qxExportDoc(){
-  const db = typeof firestore === "function" ? firestore() : null; if (!db) return null;
-  return db.collection("progress").doc(IS_PROD ? "kokushi_kioku_user1" : "kokushi_kioku_localtest");
-}
-function qxScheduleExport(){ clearTimeout(qxExportTimer); qxExportTimer = setTimeout(qxExport, 1500); }
-async function qxExport(){
-  clearTimeout(qxExportTimer); qxExportTimer = null;
-  const doc = qxExportDoc(); if (!doc) return;
-  const logs = Object.values(qx().out).filter(l => l.n > 0 && qxOutOk(l));
-  try { await doc.set({ v: 1, logs, updatedAt: new Date().toISOString() }); }
-  catch(e){ console.warn("kokushi export failed", e); }
-}
-window.addEventListener("pagehide", () => { if (qxExportTimer) qxExport(); });
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && qxExportTimer) qxExport(); });
 
 /* ---------- 集計 ---------- */
 function qxDue(b, day = today()){
@@ -190,8 +171,8 @@ function viewDrill(main){
   const dueList = Object.keys(dueByCh).length ? h("div", { class: "small", style: "margin-top:10px;color:var(--ink2)" },
     ...Object.entries(dueByCh).map(([c, nums]) => h("div", {}, h("b", {}, qxCh(b, c)?.[1] || c), "：", nums.slice(0, 30).map(n => "#" + n).join(" ") + (nums.length > 30 ? ` ほか${nums.length - 30}問` : "")))) : null;
   main.append(h("div", { class: "panel" }, tiles, startBtn, dueList,
-    h("p", { class: "muted small", style: "margin:10px 0 0" }, `記録した数は国試 Planner に自動で入ります（${QX_BANKS[b].name}・科目・何回目かごと）。`,
-      h("a", { href: "../kokushi/" }, "国試 Planner を開く"))));
+    h("p", { class: "muted small", style: "margin:10px 0 0" }, "記録した数は「今日」と「計画」に自動で入ります（何回目に解いたかが周回になります）。",
+      h("a", { href: "#plan" }, "計画を見る"))));
 
   main.append(qxRecordPanel(b));
   main.append(qxChapterPanel(b, day));
@@ -281,7 +262,7 @@ function qxSettingsPanel(){
     h("div", { class: "row", style: "margin-top:10px" }, h("label", {}, "目標の正答率"), ret, h("span", { class: "muted small" }, "この確率まで下がる日に解き直しを入れます。上げると解き直しが増えます")),
     h("div", { class: "row", style: "margin-top:8px" }, h("label", {}, "最大の間隔（日）"), mx, h("span", { class: "muted small" }, "どんなに簡単な問題でもこの日数以内にもう一度出します")),
     h("p", { class: "small", style: "margin-bottom:0" }, "1問ずつ忘却曲線（FSRS）で「いつ忘れそうか」を推定します。✗ は翌日、△ は短め、○ は数日後、◎ は2週間ほど後に最初の解き直しが来て、正解を重ねるほど間隔が延びます。",
-      "国試 Planner には「何回目に解いたか」を周回として記録します（1回目＝1周目、解き直し1回目＝2周目…。計画の周回数を超える分は最後の周回に数えます）。"));
+      "「計画」には「何回目に解いたか」を周回として記録します（1回目＝1周目、解き直し1回目＝2周目…。計画の周回数を超える分は最後の周回に数えます）。"));
 }
 
 /* ---------- 解き直し（1問ずつ） ---------- */
@@ -339,5 +320,4 @@ VIEWS.drill = viewDrill;
 // 別の画面へ移ったら解き直しモードを抜ける
 window.addEventListener("hashchange", () => { if (location.hash.slice(1) !== "drill") QXU.mode = "home"; });
 if (location.hash.slice(1) === "drill") route(true);
-// 起動時に一度、国試 Planner へ書き出す（クラウドの読み込みを待ってから）
-setTimeout(() => { if (Object.keys(qx().out).length) qxExport(); }, 6000);
+

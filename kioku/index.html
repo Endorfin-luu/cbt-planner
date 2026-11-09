@@ -189,10 +189,12 @@ pre.preview{background:var(--surface2);border:1px solid var(--line);border-radiu
 </head>
 <body>
 <header class="topbar">
-  <div class="brand" data-go="decks"><span class="logo">記</span>Kioku</div>
+  <div class="brand" data-go="today"><span class="logo">記</span>Kioku</div>
   <nav class="nav" id="nav">
+    <button data-go="today">今日</button>
     <button data-go="decks">デッキ</button>
     <button data-go="drill">問題演習</button>
+    <button data-go="plan">計画</button>
     <button data-go="add">追加</button>
     <button data-go="browse">閲覧</button>
     <button data-go="stats">統計</button>
@@ -1040,8 +1042,9 @@ function go(view, params){ if (params) Object.assign(routeParams, params); if (l
 const routeParams = {};
 function route(force){
   rollover();
-  let v = location.hash.slice(1) || "decks";
-  if (!VIEWS[v]) v = "decks";
+  const home = VIEWS.today ? "today" : "decks";
+  let v = location.hash.slice(1) || home;
+  if (!VIEWS[v]) v = home;
   if ((v === "study" || v === "overview") && !(routeParams.did && S.decks[routeParams.did])) v = "decks";
   if (v !== currentView || force){
     if (currentView === "study" && v !== "study") stopStudy();
@@ -2290,5 +2293,6 @@ initCloud();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("service-worker.js").catch(() => {});
 </script>
 <script src="qbank.js"></script>
+<script src="planner.js"></script>
 </body>
 </html>
