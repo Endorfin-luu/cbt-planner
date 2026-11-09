@@ -146,7 +146,7 @@ input,select{font-family:inherit;}
 .entry .x{border:none;background:var(--s3);color:var(--dim);width:24px;height:24px;border-radius:7px;font-size:12px;}
 .bk{font-size:9px;font-weight:800;padding:2px 6px;border-radius:5px;}
 .bk.qb{background:rgba(91,143,255,.16);color:var(--blue);}
-.bk.monte{background:rgba(52,232,160,.16);color:var(--green-ink);}
+.bk.kai{background:rgba(52,232,160,.16);color:var(--green-ink);}
 
 /* stats */
 .sg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
@@ -278,8 +278,8 @@ input,select{font-family:inherit;}
     <div class="card" id="recordCard">
       <div class="ct">記録する <span class="r dim" id="recDateLabel"></span></div>
       <div class="seg" id="bankSeg">
-        <button data-b="qb" class="on">QB</button>
-        <button data-b="monte">モントレ</button>
+        <button data-b="qb" class="on">QB分野別</button>
+        <button data-b="kai">QB回数別</button>
       </div>
       <div class="fl"><span>科目</span><span id="chRemain"></span></div>
       <select class="sel" id="chSel"></select>
@@ -339,8 +339,8 @@ input,select{font-family:inherit;}
   <section class="panel" id="p-subj">
     <div class="card">
       <div class="seg" id="subjSeg">
-        <button data-b="qb" class="on">QB</button>
-        <button data-b="monte">モントレ</button>
+        <button data-b="qb" class="on">QB分野別</button>
+        <button data-b="kai">QB回数別</button>
       </div>
       <div class="note" style="margin-top:8px">各科目の周回ごとの進み具合です。タップするとその科目をホームの記録欄にセットします。<span style="color:var(--teal)">実習中</span>の科は設定で選べます。</div>
     </div>
@@ -363,14 +363,15 @@ input,select{font-family:inherit;}
     </div>
 
     <div class="card">
-      <div class="ct">QB の周回計画 <span class="r" id="paceQb"></span></div>
+      <div class="ct">QB分野別 の周回計画 <span class="r" id="paceQb"></span></div>
       <div id="planQb"></div>
       <button class="btn ghost sm" onclick="addRound('qb')">＋ 周回を追加</button>
     </div>
     <div class="card">
-      <div class="ct">モントレ の周回計画 <span class="r" id="paceMonte"></span></div>
-      <div id="planMonte"></div>
-      <button class="btn ghost sm" onclick="addRound('monte')">＋ 周回を追加</button>
+      <div class="ct">QB回数別（過去問ぜんぶ）の周回計画 <span class="r" id="paceKai"></span></div>
+      <div class="note" style="margin-bottom:6px">第80〜120回の全問題。分野別の問題もこの中に入っているので、分野別を終えてからの通し演習向けです。</div>
+      <div id="planKai"></div>
+      <button class="btn ghost sm" onclick="addRound('kai')">＋ 周回を追加</button>
     </div>
     <div class="card">
       <div class="note">・「期限」はその周回を終わらせたい日です。毎日の目安は、残りの問題を期限までの日数（週の休みを除く）で割って出しています。<br>
@@ -409,13 +410,13 @@ input,select{font-family:inherit;}
 
     <div class="card">
       <div class="ct">実習中の科（ポリクリ連動）</div>
-      <div class="set-row"><div class="lab">いま回っている科<small>選ぶと、その科のQB・モントレを「今日なにやる？」で優先して出します</small></div><select id="setRot"></select></div>
+      <div class="set-row"><div class="lab">いま回っている科<small>選ぶと、その科のQB分野別の章を「今日なにやる？」で優先して出します</small></div><select id="setRot"></select></div>
       <div class="set-row"><div class="lab">いつまで<small>この日を過ぎたら自動で解除します（空欄ならずっと）</small></div><input type="date" id="setRotUntil"></div>
     </div>
 
     <div class="card">
-      <div class="ct">科目と問題数 <span class="r"><span class="seg" id="cedSeg" style="display:inline-flex;width:140px"><button data-b="qb" class="on">QB</button><button data-b="monte">モントレ</button></span></span></div>
-      <div class="note" style="margin-bottom:10px">最初は目安の数が入っています。手元のQB・モントレの各科目の問題数に直してください（合計：<b id="cedTotal" class="mono">—</b>問）。</div>
+      <div class="ct">科目と問題数 <span class="r"><span class="seg" id="cedSeg" style="display:inline-flex;width:140px"><button data-b="qb" class="on">分野別</button><button data-b="kai">回数別</button></span></span></div>
+      <div class="note" style="margin-bottom:10px">QB（2027年版）の問題数が入っています。版が変わったら、各章・各回の問題数をここで直してください（合計：<b id="cedTotal" class="mono">—</b>問）。</div>
       <div id="cedList"></div>
       <button class="btn ghost sm" onclick="addChapter()">＋ 科目を追加</button>
     </div>
@@ -426,7 +427,7 @@ input,select{font-family:inherit;}
       <div class="set-row"><div class="lab">バックアップを保存<small>記録をファイル（JSON）に書き出します</small></div><button class="btn ghost sm" style="width:auto;margin:0;padding:7px 12px" onclick="exportData()">書き出す</button></div>
       <div class="set-row"><div class="lab">バックアップから戻す<small>書き出したファイルを読み込みます（今の記録と合わせます）</small></div><label class="btn ghost sm" style="width:auto;margin:0;padding:7px 12px;display:inline-block">読み込む<input type="file" accept="application/json,.json" id="importFile" style="display:none"></label></div>
     </div>
-    <div class="note" style="text-align:center;margin:8px 0 6px">QB・モントレを1問ずつ忘却曲線で回すなら <a href="../kioku/#drill" style="color:var(--blue)">Kioku の問題演習</a>（解いた数はここに自動で入ります）</div>
+    <div class="note" style="text-align:center;margin:8px 0 6px">QBを1問ずつ忘却曲線で回すなら <a href="../kioku/#drill" style="color:var(--blue)">Kioku の問題演習</a>（解いた数はここに自動で入ります）</div>
     <div class="note" style="text-align:center;margin:0 0 20px">CBT の記録は <a href="../" style="color:var(--blue)">CBT Planner</a> にそのまま残っています。</div>
   </section>
 </main>
@@ -461,11 +462,12 @@ const $ = id => document.getElementById(id);
 // ══════════════════════════════════════════════════════════════
 // 初期データ
 //   問題数は目安。設定タブで手元の版の数に直せる。
-//   科目IDはQBとモントレで共通にして「実習中の科」と結びつける。
+//   QB「分野別」の科目IDを「実習中の科」と結びつける。
 // ══════════════════════════════════════════════════════════════
-const GROUPS = { major: 'メジャー（内科・外科）', pedob: '小児・産婦', minor: 'マイナー・救急', public: '公衆衛生', hisshu: '必修・総論', other: 'その他' };
-// QB（2027年版 vol.1〜7）とモントレの実際の章立て・問題数。
-// 科目IDは2つで共通（同じ科目なら同じID）にして「実習中の科」と Kioku の記録を結びつける。
+const GROUPS = { major: 'メジャー（内科・外科）', pedob: '小児・産婦', minor: 'マイナー・救急', public: '公衆衛生', hisshu: '必修・総論', other: 'その他',
+  k_new: '直近5回（116〜120回）', k_mid: '111〜115回', k_101: '101〜110回', k_old: '100回以前' };
+// QB「分野別」（2027年版 vol.1〜7）の章立て・問題数。
+// 科目IDは「実習中の科」と Kioku の記録で共通。
 // [id, 名前, グループ, 問題数]
 const QB_CH = [
   ['GI', 'A 消化管', 'major', 291], ['LV', 'B 肝・胆・膵', 'major', 195], ['CV', 'C 循環器', 'major', 378],
@@ -478,22 +480,19 @@ const QB_CH = [
   ['DE', 'V 皮膚科', 'minor', 150], ['UR', 'W 泌尿器科', 'minor', 150], ['RA', 'X 放射線科', 'minor', 53],
   ['PH', 'Y 公衆衛生', 'public', 605], ['HS', 'Z 必修問題', 'hisshu', 1418],
 ];
-const MONTE_CH = [
-  ['CV', '循環器', 'major', 1041], ['RS', '呼吸器', 'major', 898], ['GI', '消化器', 'major', 1151],
-  ['KD', '腎臓', 'major', 408], ['EN', '内分泌代謝', 'major', 761], ['NR', '神経', 'major', 924],
-  ['HE', '血液', 'major', 556], ['IM', '免疫', 'major', 388], ['IF', '感染症', 'major', 430],
-  ['TX', '中毒・環境異常症', 'minor', 151], ['ER', '救急', 'minor', 164], ['PE', '小児', 'pedob', 738],
-  ['OB', '産科', 'pedob', 609], ['GY', '婦人科', 'pedob', 416], ['UR', '泌尿器', 'minor', 367],
-  ['OP', '眼科', 'minor', 325], ['EA', '耳鼻咽喉科', 'minor', 437], ['DE', '皮膚', 'minor', 352],
-  ['PS', '精神', 'minor', 490], ['OR', '整形', 'minor', 343], ['AN', '麻酔', 'minor', 57],
-  ['RA', '放射線', 'minor', 73], ['PH', '公衆衛生', 'public', 898], ['GN', '臨床医学総論', 'hisshu', 827],
-];
-const BANK_CH = { qb: QB_CH, monte: MONTE_CH };
-const CH_VER = 2; // 章立てを実際の QB・モントレに合わせた版
+// QB「回数別」＝国試の過去問ぜんぶ（第80〜120回）。[id, 名前, グループ, 問題数]
+const KAI_N = { 120: 400, 119: 400, 118: 400, 117: 400, 116: 400, 115: 400, 114: 400, 113: 400, 112: 400,
+  111: 500, 110: 500, 109: 500, 108: 500, 107: 500, 106: 500, 105: 500, 104: 500, 103: 500, 102: 500, 101: 500,
+  100: 530, 99: 530, 98: 530, 97: 550, 96: 550, 95: 550 };
+const KAI_CH = [];
+for (let k = 120; k >= 80; k--) KAI_CH.push(['K' + k, `第${k}回`, k >= 116 ? 'k_new' : k >= 111 ? 'k_mid' : k >= 101 ? 'k_101' : 'k_old', KAI_N[k] || 320]);
+const BANKS = ['qb', 'kai'];
+const BANK_CH = { qb: QB_CH, kai: KAI_CH };
+const CH_VER = 3; // v3: モントレをやめて QB「分野別」＋QB「回数別」の2つにした版
 // 旧版（目安の章立て）の科目IDを新しい章立てに読み替える
-const OLD_CH_MAP = { qb: { GE: 'GN' }, monte: { LV: 'GI', HS: 'GN', GE: 'GN' } };
-const BANK_NAME = { qb: 'QB', monte: 'モントレ' };
-const BANK_COLOR = { qb: 'var(--blue)', monte: 'var(--green)' };
+const OLD_CH_MAP = { qb: { GE: 'GN' } };
+const BANK_NAME = { qb: 'QB分野別', kai: 'QB回数別' };
+const BANK_COLOR = { qb: 'var(--blue)', kai: 'var(--green)' };
 
 function defaultState() {
   return {
@@ -508,11 +507,10 @@ function defaultState() {
           { due: '2028-12-31', wrongOnly: true },
         ],
       },
-      monte: {
-        chapters: MONTE_CH.map(s => ({ id: s[0], name: s[1], group: s[2], n: s[3] })),
+      kai: {
+        chapters: KAI_CH.map(s => ({ id: s[0], name: s[1], group: s[2], n: s[3] })),
         plan: [
-          { due: '2028-10-31', wrongOnly: false },
-          { due: '2029-01-15', wrongOnly: true },
+          { due: '2029-01-15', wrongOnly: false },
         ],
       },
     },
@@ -542,16 +540,17 @@ function normalize(s) {
   s = s || {};
   s.settings = Object.assign({}, d.settings, s.settings || {});
   s.banks = s.banks || {};
-  for (const b of ['qb', 'monte']) {
+  delete s.banks.monte; // v3 でモントレをやめた
+  for (const b of BANKS) {
     s.banks[b] = s.banks[b] || d.banks[b];
     if (!Array.isArray(s.banks[b].chapters) || !s.banks[b].chapters.length) s.banks[b].chapters = d.banks[b].chapters;
     if (!Array.isArray(s.banks[b].plan) || !s.banks[b].plan.length) s.banks[b].plan = d.banks[b].plan;
   }
-  s.logs = Array.isArray(s.logs) ? s.logs : [];
+  s.logs = (Array.isArray(s.logs) ? s.logs : []).filter(l => l && BANK_CH[l.b]); // モントレの記録などは外す
   s.tomb = Array.isArray(s.tomb) ? s.tomb : [];
   if ((s.chv || 0) < CH_VER) {
-    // 章立てを実際の QB・モントレに置き換え、古い記録の科目IDを読み替える
-    for (const b of ['qb', 'monte']) s.banks[b].chapters = d.banks[b].chapters;
+    // 章立てを最新の版に置き換え、古い記録の科目IDを読み替える
+    for (const b of BANKS) s.banks[b].chapters = d.banks[b].chapters;
     for (const l of s.logs) { const m = OLD_CH_MAP[l.b]; if (m && m[l.c]) l.c = m[l.c]; }
     if (s.settings.rot === 'GE') s.settings.rot = '';
     s.chv = CH_VER;
@@ -694,7 +693,7 @@ const plan = b => S.banks[b].plan;
 
 // idx[b][r][c] = { n, w, wn(誤答を入れた記録の問題数), last }
 function buildIndex(excludeDate) {
-  const idx = { qb: {}, monte: {} };
+  const idx = { qb: {}, kai: {} };
   for (const l of S.logs) {
     if (excludeDate && l.d >= excludeDate) continue;
     const B = idx[l.b]; if (!B) continue;
@@ -778,9 +777,9 @@ function streakInfo(totals) {
 // ══════════════════════════════════════════════════════════════
 // 描画
 // ══════════════════════════════════════════════════════════════
-let recBank = localStorage.getItem('kokushi_rec_bank') || 'qb';
+let recBank = BANK_CH[localStorage.getItem('kokushi_rec_bank')] ? localStorage.getItem('kokushi_rec_bank') : 'qb';
 let subjBank = 'qb', cedBank = 'qb';
-let recChapter = { qb: localStorage.getItem('kokushi_rec_ch_qb') || '', monte: localStorage.getItem('kokushi_rec_ch_monte') || '' };
+let recChapter = { qb: localStorage.getItem('kokushi_rec_ch_qb') || '', kai: localStorage.getItem('kokushi_rec_ch_kai') || '' };
 
 function rotActive() {
   const s = S.settings;
@@ -815,7 +814,7 @@ function phaseInfo() {
   const phases = [
     { k: 'base', name: '🌱 土台づくり期', from: 99, to: 15, desc: '実習で回っている科をQBで少しずつ。大事なのは量より「毎日ゼロにしない」こと。最低ラインだけの日があってOK。' },
     { k: 'r1', name: '🚶 1周目完走期', from: 15, to: 9, desc: 'QB 1周目を全科目そろえる時期。苦手科目は後回しにせず、週に1回は触れておく。' },
-    { k: 'r2', name: '🏃 2周目・模試期', from: 9, to: 4, desc: '2周目とモントレで定着。模試の結果で弱い科目を計画に戻す。' },
+    { k: 'r2', name: '🏃 2周目・模試期', from: 9, to: 4, desc: '分野別の2周目と回数別の通し演習で定着。模試の結果で弱い科目を計画に戻す。' },
     { k: 'fin', name: '🎯 仕上げ期', from: 4, to: 1, desc: '誤答の解き直し・必修・公衆衛生を厚めに。新しい問題集には手を広げない。' },
     { k: 'last', name: '🔥 直前期', from: 1, to: -99, desc: '必修と誤答の最終確認。生活リズムを本番に合わせる。' },
   ];
@@ -832,7 +831,7 @@ function renderHeader() {
 
 function totalPace(idx) {
   let s = 0; const per = {};
-  for (const b of ['qb', 'monte']) { per[b] = bankPace(idx, b); s += per[b].need; }
+  for (const b of BANKS) { per[b] = bankPace(idx, b); s += per[b].need; }
   return { sum: s, per };
 }
 
@@ -873,14 +872,14 @@ function renderSuggestions(idx) {
   const rot = rotActive();
   // 1. 実習中の科
   if (rot) {
-    for (const b of ['qb', 'monte']) {
+    for (const b of BANKS) {
       const ch = chapterById(b, rot); if (!ch) continue;
       const r = curRoundOf(idx, b, ch); const t = target(idx, b, r, ch); const d = doneOf(idx, b, r, ch.id);
       if (d < t) add(b + ch.id, sugItem('実習中', 'teal', b, ch, r, `残り ${t - d}問 · 実習と同じ科を解くと記憶に残りやすい`));
     }
   }
   // 2. 続きから（途中の科目のうち最近さわったもの）
-  for (const b of ['qb', 'monte']) {
+  for (const b of BANKS) {
     let best = null;
     for (const ch of chapters(b)) {
       const r = curRoundOf(idx, b, ch); const C = (idx[b][r] || {})[ch.id]; const t = target(idx, b, r, ch);
@@ -890,7 +889,7 @@ function renderSuggestions(idx) {
   }
   // 3. 復習どき（正答率が低く、しばらく空いた科目）
   const rev = [];
-  for (const b of ['qb', 'monte']) for (const ch of chapters(b)) {
+  for (const b of BANKS) for (const ch of chapters(b)) {
     let last = '', w = 0, wn = 0, rounds = 0;
     for (const r in idx[b]) { const C = idx[b][r][ch.id]; if (!C) continue; rounds++; if (C.last > last) last = C.last; w += C.w; wn += C.wn; }
     if (!last || wn < 10) continue;
@@ -904,7 +903,7 @@ function renderSuggestions(idx) {
     add(v.b + v.ch.id, sugItem('復習どき', 'orange', v.b, v.ch, r, `正答率 ${Math.round(v.acc * 100)}% · ${v.gap}日あいています`));
   }
   // 4. まだ手をつけていない／遅れているグループから
-  for (const b of ['qb', 'monte']) {
+  for (const b of BANKS) {
     const r = curRoundBank(idx, b);
     if (roundStats(idx, b, r).rem === 0) continue;
     const g = {};
@@ -1054,7 +1053,7 @@ function renderWeekGoal(totals) {
 
 function renderOverall(idx, totals) {
   let html = '';
-  for (const b of ['qb', 'monte']) {
+  for (const b of BANKS) {
     const P = plan(b);
     const cr = curRoundBank(idx, b);
     html += `<div style="margin-bottom:10px"><div class="row small" style="font-weight:800;margin-bottom:5px"><span class="bk ${b}">${BANK_NAME[b]}</span><span class="sp"></span></div>`;
@@ -1130,7 +1129,7 @@ function renderPlan(idx, idxMorning) {
 
   // 早く始めるほど…：すべての周回を最終期限までに終える場合の1日あたり
   let rem = 0, lastDue = TODAY;
-  for (const b of ['qb', 'monte']) { for (let r = 1; r <= plan(b).length; r++) rem += roundStats(idxMorning, b, r).rem; const d = plan(b)[plan(b).length - 1].due; if (d > lastDue) lastDue = d; }
+  for (const b of BANKS) { for (let r = 1; r <= plan(b).length; r++) rem += roundStats(idxMorning, b, r).rem; const d = plan(b)[plan(b).length - 1].due; if (d > lastDue) lastDue = d; }
   const days = diffDays(TODAY, lastDue) + 1;
   const cases = [[0, '今日から'], [30, '1か月後から'], [90, '3か月後から'], [180, '半年後から']];
   $('earlyCmp').innerHTML = cases.map(([k, l], i) => {
@@ -1141,13 +1140,13 @@ function renderPlan(idx, idxMorning) {
   $('earlyNote').innerHTML = `残りの全周回（${rem.toLocaleString()}問）を最後の期限（${fmtYM(lastDue)}${parseD(lastDue).getDate()}日）までに終える場合の、1日あたりの問題数です。前回のように直前に詰め込まなくていいように、今のうちに少しずつ。`;
 
   // 周回ごと
-  let s14 = { qb: 0, monte: 0 };
+  let s14 = { qb: 0, kai: 0 };
   const from14 = addDays(TODAY, -13);
   for (const l of S.logs) if (l.d >= from14 && s14[l.b] != null) s14[l.b] += l.n;
-  for (const b of ['qb', 'monte']) {
+  for (const b of BANKS) {
     const pc = bankPace(idxMorning, b);
     const avg = s14[b] / 14;
-    const el = $(b === 'qb' ? 'planQb' : 'planMonte');
+    const el = $(b === 'qb' ? 'planQb' : 'planKai');
     const now = bankPace(idx, b);
     let html = '';
     now.rows.forEach((row, i) => {
@@ -1171,7 +1170,7 @@ function renderPlan(idx, idxMorning) {
         ${i > 0 ? `<div class="opt"><label><input type="checkbox" ${p.wrongOnly ? 'checked' : ''} onchange="setWrongOnly('${b}',${i},this.checked)"> 前の周回の誤答だけ</label>${i === plan(b).length - 1 ? `<button onclick="removeRound('${b}',${i})">この周回を削除</button>` : ''}</div>` : ''}</div>`;
     });
     el.innerHTML = html;
-    $(b === 'qb' ? 'paceQb' : 'paceMonte').innerHTML = pc.need > 0 ? `<span class="mono" style="color:${BANK_COLOR[b]}">${Math.ceil(pc.need)}問/日</span>` : '';
+    $(b === 'qb' ? 'paceQb' : 'paceKai').innerHTML = pc.need > 0 ? `<span class="mono" style="color:${BANK_COLOR[b]}">${Math.ceil(pc.need)}問/日</span>` : '';
   }
 }
 function setDue(b, i, v) {

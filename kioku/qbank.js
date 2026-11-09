@@ -1,5 +1,5 @@
 /* ============================================================
-   問題演習（QB・モントレ）
+   問題演習（QB分野別・QB回数別）
    - 1問ずつ FSRS（忘却曲線）で「次に解き直す日」を決める
    - 解いた数・誤答数は 国試 Planner（../kokushi/）に自動で入る
      （Firestore の progress/kokushi_kioku_user1 に書き出し、国試 Planner が読み込む）
@@ -9,7 +9,7 @@
 
 // 科目IDは国試 Planner と共通。[id, 名前, 問題数]
 const QX_BANKS = {
-  qb: { name: "QB", ch: [
+  qb: { name: "QB分野別", ch: [
     ["GI", "A 消化管", 291], ["LV", "B 肝・胆・膵", 195], ["CV", "C 循環器", 378], ["EN", "D 代謝・内分泌", 298],
     ["KD", "E 腎・泌尿器", 186], ["IM", "F 免疫・膠原病", 157], ["HE", "G 血液", 202], ["IF", "H 感染症", 239],
     ["RS", "I 呼吸器", 295], ["NR", "J 神経", 361], ["TX", "K 中毒", 63], ["ER", "L 救急", 136],
@@ -18,14 +18,13 @@ const QX_BANKS = {
     ["PS", "U 精神科", 205], ["DE", "V 皮膚科", 150], ["UR", "W 泌尿器科", 150], ["RA", "X 放射線科", 53],
     ["PH", "Y 公衆衛生", 605], ["HS", "Z 必修問題", 1418]
   ] },
-  monte: { name: "モントレ", ch: [
-    ["CV", "循環器", 1041], ["RS", "呼吸器", 898], ["GI", "消化器", 1151], ["KD", "腎臓", 408],
-    ["EN", "内分泌代謝", 761], ["NR", "神経", 924], ["HE", "血液", 556], ["IM", "免疫", 388],
-    ["IF", "感染症", 430], ["TX", "中毒・環境異常症", 151], ["ER", "救急", 164], ["PE", "小児", 738],
-    ["OB", "産科", 609], ["GY", "婦人科", 416], ["UR", "泌尿器", 367], ["OP", "眼科", 325],
-    ["EA", "耳鼻咽喉科", 437], ["DE", "皮膚", 352], ["PS", "精神", 490], ["OR", "整形", 343],
-    ["AN", "麻酔", 57], ["RA", "放射線", 73], ["PH", "公衆衛生", 898], ["GN", "臨床医学総論", 827]
-  ] }
+  // QB「回数別」＝国試の過去問ぜんぶ（第80〜120回）。番号はその回の何問目か
+  kai: { name: "QB回数別", ch: (() => {
+    const N = { 120: 400, 119: 400, 118: 400, 117: 400, 116: 400, 115: 400, 114: 400, 113: 400, 112: 400,
+      111: 500, 110: 500, 109: 500, 108: 500, 107: 500, 106: 500, 105: 500, 104: 500, 103: 500, 102: 500, 101: 500,
+      100: 530, 99: 530, 98: 530, 97: 550, 96: 550, 95: 550 };
+    const out = []; for (let k = 120; k >= 80; k--) out.push(["K" + k, `第${k}回`, N[k] || 320]); return out;
+  })() }
 };
 const QX_GRADE = { 1: "✗", 2: "△", 3: "○", 4: "◎" };
 const QX_GRADE_LABEL = { 1: "まちがえた", 2: "迷った", 3: "正解", 4: "余裕" };
@@ -43,6 +42,8 @@ function qx(){
   return x;
 }
 const qxChs = b => QX_BANKS[b].ch;
+// 以前のモントレの記録は使わない（国試 Planner も v3 で外した）
+const qxOutOk = l => l && QX_BANKS[l.b];
 const qxCh = (b, id) => QX_BANKS[b].ch.find(c => c[0] === id);
 const qxQs = (b, c) => (qx().b[b][c] ||= {});
 function qxYmd(day){ const d = new Date(dayStartTs(day)); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
@@ -101,7 +102,7 @@ function qxScheduleExport(){ clearTimeout(qxExportTimer); qxExportTimer = setTim
 async function qxExport(){
   clearTimeout(qxExportTimer); qxExportTimer = null;
   const doc = qxExportDoc(); if (!doc) return;
-  const logs = Object.values(qx().out).filter(l => l.n > 0);
+  const logs = Object.values(qx().out).filter(l => l.n > 0 && qxOutOk(l));
   try { await doc.set({ v: 1, logs, updatedAt: new Date().toISOString() }); }
   catch(e){ console.warn("kokushi export failed", e); }
 }
