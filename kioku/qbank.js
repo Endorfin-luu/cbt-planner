@@ -38,7 +38,50 @@ function qx(){
   x.b ||= {}; for (const b in QX_BANKS) x.b[b] ||= {};
   x.out ||= {};
   x.rec ||= {};
+  x.mt ||= {}; // "bank/chapter/number" -> last time this question was changed (used to merge two devices)
   return x;
+}
+const qxKey = (b, c, num) => `${b}/${c}/${num}`;
+const QX_MT_KEEP_MS = 60 * 86400000; // older change times are not needed for merging
+function qxTouch(b, c, num){ qx().mt[qxKey(b, c, num)] = Date.now(); }
+
+/**
+ * Merge the 問題演習 data of two devices (called from mergeKioku in index.html).
+ * - each question: the side that changed it last (mt); without mt, the one solved more times / more recently
+ * - day records (out, used by 今日・計画): union; ids contain the device id, so each record has one writer
+ * @param {object|undefined} newer qx of the copy saved last
+ * @param {object|undefined} older qx of the other copy
+ * @returns {object|undefined} merged qx
+ */
+function qxMerge(newer, older){
+  if (!newer && !older) return undefined;
+  if (!newer || !older) return JSON.parse(JSON.stringify(newer || older));
+  const out = JSON.parse(JSON.stringify(newer));
+  out.b ||= {}; out.out ||= {}; out.mt ||= {};
+  const mtA = newer.mt || {}, mtB = older.mt || {};
+  const banks = new Set([...Object.keys(newer.b || {}), ...Object.keys(older.b || {})]);
+  for (const b of banks){
+    const A = newer.b?.[b] || {}, B = older.b?.[b] || {}, O = out.b[b] ||= {};
+    for (const c of new Set([...Object.keys(A), ...Object.keys(B)])){
+      const qa = A[c] || {}, qb = B[c] || {}, qo = O[c] ||= {};
+      for (const num of new Set([...Object.keys(qa), ...Object.keys(qb)])){
+        const k = qxKey(b, c, num), ta = mtA[k] || 0, tb = mtB[k] || 0;
+        let useB;
+        if (ta || tb) useB = tb > ta;
+        else { const ea = qa[num], eb = qb[num]; useB = !ea || (eb && (eb[4] > ea[4] || (eb[4] === ea[4] && eb[2] > ea[2]))); }
+        if (useB){ if (qb[num]) qo[num] = JSON.parse(JSON.stringify(qb[num])); else delete qo[num]; }
+      }
+    }
+  }
+  // change times: keep the later one, forget old ones
+  const cutoff = Date.now() - QX_MT_KEEP_MS;
+  for (const [k, t] of Object.entries(mtB)) if (t > (out.mt[k] || 0)) out.mt[k] = t;
+  for (const [k, t] of Object.entries(out.mt)) if (t < cutoff) delete out.mt[k];
+  // day records: the version changed last
+  for (const [id, l] of Object.entries(older.out || {})) if (!out.out[id] || (l.t || 0) > (out.out[id].t || 0)) out.out[id] = { ...l };
+  // daily counters: larger count per day
+  if (older.hist){ out.hist ||= {}; for (const [d, v] of Object.entries(older.hist)){ const o = out.hist[d] ||= [0, 0]; o[0] = Math.max(o[0], v[0]); o[1] = Math.max(o[1], v[1]); } }
+  return out;
 }
 const qxChs = b => QX_BANKS[b].ch;
 const qxCh = (b, id) => QX_BANKS[b].ch.find(c => c[0] === id);
@@ -72,7 +115,9 @@ function qxGrade(b, c, num, g){
   const prev = qs[num] ? qs[num].slice() : null;
   const e = qxNext(prev, g, day);
   qs[num] = e;
-  const id = `kx-${qxYmd(day)}-${b}-${c}-${Math.min(e[4], 9)}`;
+  qxTouch(b, c, num);
+  // The device id is part of the record id, so two devices never write the same record (needed for merging)
+  const id = `kx-${qxYmd(day)}-${b}-${c}-${Math.min(e[4], 9)}-${Store.deviceId}`;
   const log = X.out[id] ||= { id, d: qxYmd(day), b, c, r: Math.min(e[4], 9), n: 0, w: 0, t: Date.now() };
   log.n++; if (g === 1) log.w++; log.t = Date.now();
   X.hist ||= {}; const hd = X.hist[day] ||= [0, 0]; hd[0]++; if (g === 1) hd[1]++;
@@ -83,11 +128,14 @@ function qxUndo(items){
   for (const u of items.slice().reverse()){
     const qs = qxQs(u.b, u.c);
     if (u.prev) qs[u.num] = u.prev; else delete qs[u.num];
+    qxTouch(u.b, u.c, u.num); // so a merge with an older copy keeps the undo
     const log = X.out[u.id]; if (log){ log.n = Math.max(0, log.n - 1); if (u.wrong) log.w = Math.max(0, log.w - 1); log.t = Date.now(); }
     const hd = X.hist?.[u.day]; if (hd){ hd[0] = Math.max(0, hd[0] - 1); if (u.wrong) hd[1] = Math.max(0, hd[1] - 1); }
   }
 }
 function qxChanged(){ markDirty(); }
+/** Re-render the 問題演習 screen without jumping to the top of the page. */
+function qxRerender(){ const y = window.scrollY; route(true); window.scrollTo(0, y); }
 
 
 /* ---------- 集計 ---------- */
@@ -186,11 +234,11 @@ function qxRecordPanel(b){
   const chSel = h("select", { style: "flex:1;min-width:0" }, ...qxChs(b).map(([id, name, n]) => {
     const st = qxChStats(b, id); return h("option", { value: id, selected: id === r.c }, `${name}（${st.solved}/${n}）`);
   }));
-  chSel.addEventListener("change", () => { r.c = chSel.value; r.from = qxNextNew(b, r.c); QXU.marks = {}; markDirty(); route(true); });
+  chSel.addEventListener("change", () => { r.c = chSel.value; r.from = qxNextNew(b, r.c); QXU.marks = {}; markDirty(); qxRerender(); });
   const fromIn = h("input", { type: "number", min: "1", inputmode: "numeric", value: String(r.from) });
-  fromIn.addEventListener("change", () => { r.from = Math.max(1, parseInt(fromIn.value) || 1); QXU.marks = {}; markDirty(); route(true); });
+  fromIn.addEventListener("change", () => { r.from = Math.max(1, parseInt(fromIn.value) || 1); QXU.marks = {}; markDirty(); qxRerender(); });
   const cntIn = h("input", { type: "number", min: "1", max: "100", inputmode: "numeric", value: String(r.count) });
-  const setCount = v => { r.count = clamp(v, 1, 100); QXU.marks = {}; markDirty(); route(true); };
+  const setCount = v => { r.count = clamp(v, 1, 100); QXU.marks = {}; markDirty(); qxRerender(); };
   cntIn.addEventListener("change", () => setCount(parseInt(cntIn.value) || 10));
   const last = Math.min(ch[2], r.from + r.count - 1);
   const grid = h("div", { class: "qx-grid" });
@@ -213,10 +261,10 @@ function qxRecordPanel(b){
     const wrong = items.filter(i => i.wrong).length;
     QXU.undo = { items, label: `${ch[1]} #${r.from}〜#${last}` };
     QXU.marks = {}; r.from = qxNextNew(b, r.c);
-    qxChanged(); route(true); toast(`${items.length}問を記録しました（誤答 ${wrong}）`);
+    qxChanged(); qxRerender(); toast(`${items.length}問を記録しました（誤答 ${wrong}）`);
   });
   updBtn();
-  const undoBtn = QXU.undo ? h("button", { class: "btn sm", onclick: () => { qxUndo(QXU.undo.items); toast(`取り消しました：${QXU.undo.label}`); QXU.undo = null; qxChanged(); route(true); } }, `直前の記録を取り消す（${QXU.undo.label}）`) : null;
+  const undoBtn = QXU.undo ? h("button", { class: "btn sm", onclick: () => { qxUndo(QXU.undo.items); toast(`取り消しました：${QXU.undo.label}`); QXU.undo = null; qxChanged(); qxRerender(); } }, `直前の記録を取り消す（${QXU.undo.label}）`) : null;
   panel.append(
     h("h2", {}, "解いた問題を記録"),
     h("p", { class: "muted small", style: "margin-top:-4px" }, `${QX_BANKS[b].name}で解いた範囲を選び、まちがえた問題だけタップ。タップするたびに `,
@@ -229,7 +277,7 @@ function qxRecordPanel(b){
       h("label", { class: "small" }, "問題数"),
       h("span", { class: "qx-stepper" }, h("button", { class: "btn sm", onclick: () => setCount(r.count - 5) }, "−5"), cntIn, h("button", { class: "btn sm", onclick: () => setCount(r.count + 5) }, "+5"))),
     h("div", { class: "muted small", style: "margin-top:6px" }, nums.length ? `#${r.from} 〜 #${last}（全${ch[2]}問）` : `全${ch[2]}問`),
-    grid, recBtn, undoBtn ? h("div", { style: "margin-top:8px;text-align:center" }, undoBtn) : null);
+    grid, recBtn, undoBtn ? h("div", { style: "margin-top:8px;text-align:center" }, undoBtn) : "");
   return panel;
 }
 
@@ -275,16 +323,19 @@ function viewDrillReview(main){
   // 途中で別の端末の変更が入っても、もう期日でない問題は飛ばす
   while (QXU.qi < QXU.queue.length){ const q = QXU.queue[QXU.qi]; const e = qx().b[b][q.c]?.[q.num]; if (e && e[3] <= day) break; QXU.qi++; }
   const back = () => { QXU.mode = "home"; route(true); };
+  const undoLastAnswer = () => { const u = QXU.reviewUndo.pop(); qxUndo([u.item]); QXU.qi = u.qi; QXU.done = u.done; qxChanged(); route(true); };
   if (QXU.qi >= QXU.queue.length){
+    // "元に戻す" is also offered here, otherwise the last answer of the session could not be undone
     main.append(h("div", { class: "panel empty" }, h("h2", {}, "今日の解き直しはおわりです"),
       h("p", { class: "muted" }, `${QXU.done}問を解き直しました。`),
-      h("button", { class: "btn primary", onclick: back }, "問題演習にもどる")));
+      h("button", { class: "btn primary", onclick: back }, "問題演習にもどる"),
+      QXU.reviewUndo?.length ? h("div", { style: "margin-top:10px" }, h("button", { class: "btn sm", onclick: undoLastAnswer }, "最後の1問を元に戻す")) : null));
     return;
   }
   const q = QXU.queue[QXU.qi], qs = qxQs(b, q.c), e = qs[q.num], ch = qxCh(b, q.c);
   const pv = qxPreview(e, day), rec = qxRecall(e, day);
   const memo = h("input", { type: "text", value: e?.[7] || "", placeholder: "問題IDメモ（例：117A12）", style: "width:min(100%,260px);text-align:center;margin-top:10px" });
-  memo.addEventListener("change", () => { const cur = qs[q.num]; if (!cur) return; const v = memo.value.trim().slice(0, 40); if (v) cur[7] = v; else cur.length = 7; markDirty(); });
+  memo.addEventListener("change", () => { const cur = qs[q.num]; if (!cur) return; const v = memo.value.trim().slice(0, 40); if (v) cur[7] = v; else cur.length = 7; qxTouch(b, q.c, q.num); markDirty(); });
   const answer = g => {
     if (memo.value.trim() !== (e?.[7] || "")) { const v = memo.value.trim().slice(0, 40); if (v) qs[q.num][7] = v; }
     QXU.reviewUndo.push({ item: qxGrade(b, q.c, q.num, g), qi: QXU.qi, done: QXU.done });
@@ -306,7 +357,7 @@ function viewDrillReview(main){
       ...[1, 2, 3, 4].map(g => h("button", { class: "ease e" + g, onclick: () => answer(g) }, `${QX_GRADE[g]} ${QX_GRADE_LABEL[g]}`, h("small", {}, fmtDays(pv[g]) + "後")))),
     h("div", { class: "studytools" },
       h("button", { class: "btn sm", onclick: () => { QXU.queue.push(QXU.queue.splice(QXU.qi, 1)[0]); route(true); } }, "あとで"),
-      QXU.reviewUndo.length ? h("button", { class: "btn sm", onclick: () => { const u = QXU.reviewUndo.pop(); qxUndo([u.item]); QXU.qi = u.qi; QXU.done = u.done; qxChanged(); route(true); } }, "元に戻す") : null,
+      QXU.reviewUndo.length ? h("button", { class: "btn sm", onclick: undoLastAnswer }, "元に戻す") : null,
       h("button", { class: "btn sm", onclick: back }, "終了"))));
 }
 document.addEventListener("keydown", e => {
