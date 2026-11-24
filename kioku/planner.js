@@ -470,6 +470,11 @@ function plSuggest(idx, T){
   }
   rev.sort((a, z) => z.score - a.score);
   for (const v of rev.slice(0, 1)) add(v.b + v.ch.id, item("復習どき", "#c47a12", v.b, v.ch, plCurRoundCh(idx, v.b, v.ch), `正答率 ${Math.round(v.acc * 100)}% · ${v.gap}日あいています`));
+  // 実力タブ（ability.js）の「いま効く章」1位。まだ解いていない問題がある章だけ
+  if (typeof abStats === "function"){
+    const top = abStats().chs.filter(c => c.id !== "HS" && c.solved < c.total).sort((a, z) => z.lost - a.lost)[0], ch = top && plCh("qb", top.id);
+    if (ch){ const r = plCurRoundCh(idx, "qb", ch); add("qb" + ch.id, item("いま効く", "#d64545", "qb", ch, r, `本番で約${top.lost.toFixed(1)}点ぶん取りこぼしそう（推定）· 実力タブ`)); }
+  }
   for (const b of PL_BANKS()){
     const r = plCurRound(idx, b); if (plRound(idx, b, r).rem === 0) continue;
     const g = {};

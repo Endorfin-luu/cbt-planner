@@ -195,6 +195,7 @@ pre.preview{background:var(--surface2);border:1px solid var(--line);border-radiu
     <button data-go="decks">デッキ</button>
     <button data-go="drill">問題演習</button>
     <button data-go="plan">計画</button>
+    <button data-go="power">実力</button>
     <button data-go="add">追加</button>
     <button data-go="browse">閲覧</button>
     <button data-go="stats">統計</button>
@@ -863,6 +864,10 @@ function mergeKioku(local, remote){
     plOut.logs = [...logs.values()].sort((x, y) => (x.t || 0) - (y.t || 0) || String(x.id).localeCompare(String(y.id)));
     plOut.tomb = [...tomb].sort();
     plOut.weekGoals = Object.assign({}, clone(pb.weekGoals || {}), clone(pa.weekGoals || {}));
+    // 模試の記録（ability.js）：id ごとに合わせ、どちらかで消したものは戻さない
+    const mocks = new Map();
+    for (const m of [...(pa.mocks || []), ...(pb.mocks || [])]) if (m && !tomb.has(m.id) && !mocks.has(m.id)) mocks.set(m.id, clone(m));
+    plOut.mocks = [...mocks.values()].sort((x, y) => String(x.date).localeCompare(String(y.date)) || String(x.id).localeCompare(String(y.id)));
     if (pa.importedOld || pb.importedOld) plOut.importedOld = Math.max(pa.importedOld || 0, pb.importedOld || 0);
   }
   out.savedAt = Math.max(newer.savedAt || 0, older.savedAt || 0);
@@ -2479,5 +2484,6 @@ if ("serviceWorker" in navigator && location.protocol === "https:") navigator.se
 </script>
 <script src="qbank.js"></script>
 <script src="planner.js"></script>
+<script src="ability.js"></script>
 </body>
 </html>

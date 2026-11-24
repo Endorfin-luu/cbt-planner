@@ -15,6 +15,9 @@ claude.ai のアーティファクトとして作ったものを GitHub Pages �
 - `planner.js` … 今日・計画（旧 国試 Planner）。QB の解いた数は `S.qx.out` をそのまま集計し、計画・設定・週の目標は `S.pl` に入れる。
   毎日のノルマは「QB（最低ライン）」と「カードの新規（`cardNewDaily` 枚、対象は `cardDeck` のデッキ）」の2本柱で、
   両方そろった日だけ連続記録がつながる。カードの新規・復習の数は復習ログ（`S.revlog`）から日ごとに数える。
+- `ability.js` … 実力タブ。QB分野別を初めて解いたときの正答率（`S.qx.out` の r=1）から、必修・一般臨床の予想得点を
+  合格ラインと並べて出す（問題が少ない科は全体の正答率に寄せる）。模試の記録（`S.pl.mocks`）と偏差値の推移、
+  26科の苦手マップ、取りこぼし点（推定）順の「いま効く章」。
   旧 国試 Planner の記録（localStorage `kokushi_state` と Firestore `progress/kokushi_user1`）は初回に一度だけ取り込む
 
 モントレは中身が QB と同じ国試の過去問なので使っていない。
