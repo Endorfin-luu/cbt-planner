@@ -32,7 +32,8 @@ const plToday = () => qxYmd(today());
 function pl(){
   if (!S.pl || typeof S.pl !== "object") S.pl = {};
   const p = S.pl;
-  p.settings = Object.assign({ examDate: "2029-02-03", minDaily: 5, restPerWeek: 1, rot: "", rotUntil: "" }, p.settings || {});
+  // cardNewDaily: カードの新規ノルマ（枚/日、0 ならカードは連続記録に入れない）／cardDeck: その対象デッキ名（"" ならすべて）
+  p.settings = Object.assign({ examDate: "2029-02-03", minDaily: 5, restPerWeek: 1, rot: "", rotUntil: "", cardNewDaily: 20, cardDeck: "" }, p.settings || {});
   p.plan ||= {};
   p.plan.qb ||= [{ due: "2028-03-31", wrongOnly: false }, { due: "2028-09-30", wrongOnly: false }, { due: "2028-12-31", wrongOnly: true }];
   p.plan.kai ||= [{ due: "2029-01-15", wrongOnly: false }];
@@ -93,22 +94,74 @@ function plPace(idx, b, T){
   return { need, rows };
 }
 const plTotals = logs => { const m = {}; for (const l of logs) m[l.d] = (m[l.d] || 0) + l.n; return m; };
-function plStreak(totals, T){
-  const { minDaily: min, restPerWeek: rest } = pl().settings;
-  const dates = Object.keys(totals).filter(d => totals[d] > 0).sort();
+
+/* ---------- カード（フラッシュカード）の記録 ---------- */
+// 対象デッキ（とそのサブデッキ）の id。対象が「すべて」または見つからなければ null
+function plCardDeck(){ const n = pl().settings.cardDeck; return n ? deckByName(n) || null : null; }
+function plCardIds(){ const d = plCardDeck(); return d ? subtreeIds(d.id) : null; }
+// 日付 → { n: その日に初めて学習したカード数, r: 答えた回数, ms: かかった時間 }。復習ログ（S.revlog）から数える
+function plCardDays(){
+  const ids = plCardIds(), seen = new Set(), out = {};
+  for (const r of S.revlog){
+    const first = !seen.has(r.cid); seen.add(r.cid);
+    const c = S.cards[r.cid]; if (!c || (ids && !ids.has(c.did))) continue;
+    const o = out[qxYmd(dayOf(r.id))] ||= { n: 0, r: 0, ms: 0 };
+    if (first && r.type === 0) o.n++;
+    o.r++; o.ms += r.time || 0;
+  }
+  return out;
+}
+// 対象デッキのカードの在庫：tot 全部／seen 学習したことがある／mature 定着（間隔21日以上）／left まだ新規
+function plCardStock(){
+  const ids = plCardIds(); let tot = 0, seen = 0, mature = 0, left = 0;
+  for (const c of Object.values(S.cards)){
+    if (ids && !ids.has(c.did)) continue;
+    tot++;
+    if (c.type === 0) left++; else { seen++; if (c.type === 2 && c.ivl >= 21) mature++; }
+  }
+  return { tot, seen, mature, left };
+}
+// 1日の達成判定。QB は最低ライン、カードは新規ノルマ（新規が残っていなければ「その日に復習した」でよい）
+function plDay(X, d){
+  const s = pl().settings, q = X.totals[d] || 0, c = X.cards[d] || { n: 0, r: 0, ms: 0 };
+  const qOK = q >= s.minDaily, cardOn = s.cardNewDaily > 0;
+  const cOK = !cardOn || c.n >= s.cardNewDaily || (X.stock.left === 0 && c.r > 0);
+  return { q, c, qOK, cOK, cardOn, ok: qOK && cOK, any: q > 0 || c.r > 0 };
+}
+function plStreak(X){
+  const { T, totals, cards } = X, { restPerWeek: rest } = pl().settings;
+  const dates = [...new Set([...Object.keys(totals).filter(d => totals[d] > 0), ...Object.keys(cards).filter(d => cards[d].r > 0)])].filter(d => d <= T).sort();
   const status = {};
   if (!dates.length) return { cur: 0, best: 0, status, studyDays: 0, restLeft: rest };
   let cur = 0, best = 0, wk = "", used = 0;
   for (let d = dates[0]; d <= T; d = plAdd(d, 1)){
     const ws = plWeek(d); if (ws !== wk){ wk = ws; used = 0; }
-    const t = totals[d] || 0;
-    if (t >= min){ cur++; status[d] = "done"; }
-    else if (d === T) status[d] = t > 0 ? "part" : "";
-    else if (used < rest && cur > 0){ used++; status[d] = t > 0 ? "part" : "rest"; }
-    else { cur = 0; status[d] = t > 0 ? "part" : "miss"; }
+    const D = plDay(X, d);
+    if (D.ok){ cur++; status[d] = "done"; }
+    else if (d === T) status[d] = D.any ? "part" : "";
+    else if (used < rest && cur > 0){ used++; status[d] = D.any ? "part" : "rest"; }
+    else { cur = 0; status[d] = D.any ? "part" : "miss"; }
     best = Math.max(best, cur);
   }
   return { cur, best, status, studyDays: dates.length, first: dates[0], restLeft: Math.max(0, rest - used) };
+}
+// ヒートマップ。濃さ＝QBとカードのノルマをどれだけこなしたか（両方達成で濃い緑、QBも2倍以上でいちばん濃い）
+function plHeatmap(X, weeks){
+  const { T } = X, s = pl().settings, st = plStreak(X), start = plAdd(plWeek(T), -(weeks - 1) * 7);
+  const hm = h("div", { class: "pl-hm" }); let days = 0, qsum = 0, csum = 0;
+  for (let i = 0, d = start; i < weeks * 7; i++, d = plAdd(d, 1)){
+    const D = plDay(X, d);
+    if (d <= T){ if (D.ok) days++; qsum += D.q; csum += D.c.n; }
+    let cls;
+    if (d > T) cls = "fut";
+    else if (!D.any) cls = st.status[d] === "rest" ? "rest" : "";
+    else if (!D.qOK && !D.cOK) cls = "l1";
+    else if (!D.ok) cls = "l2";
+    else cls = D.q >= s.minDaily * 2 ? "l4" : "l3";
+    if (d === T) cls += " td";
+    hm.append(h("i", { class: cls, title: `${plMDW(d)}  QB ${D.q}問・新規カード ${D.c.n}枚・復習 ${D.c.r}回` }));
+  }
+  return { el: hm, days, qsum, csum };
 }
 function plPhase(T){
   const m = plDiff(T, pl().settings.examDate) / 30.44;
@@ -194,6 +247,16 @@ const PL_CSS = `
 .pl-entry{display:flex;align-items:center;gap:6px;font-size:.85rem;padding:4px 0;border-bottom:1px dashed var(--line)}
 .pl-entry .x{margin-left:auto;border:0;background:none;color:var(--muted);cursor:pointer}
 .pl-lday{display:flex;justify-content:space-between;font-weight:700;margin-top:10px;font-size:.9rem}
+.pl-qs{display:grid;gap:10px;margin-top:12px}
+.pl-q{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface)}
+.pl-q.ok{border-color:color-mix(in srgb,var(--good) 55%,var(--line));background:color-mix(in srgb,var(--good) 7%,var(--surface))}
+.pl-q-ic{font-size:1.6rem;width:36px;text-align:center}
+.pl-q-v{font-size:2rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.pl-q-v small{font-size:.95rem;font-weight:400;color:var(--ink2)}
+.panel.pl-done{border-color:color-mix(in srgb,var(--good) 60%,var(--line))}
+.pl-stk{display:flex;height:12px;border-radius:6px;background:var(--surface2);border:1px solid var(--line);overflow:hidden;margin:8px 0 6px}
+.pl-stk i{display:block;height:100%}
+.pl-stk i.m{background:var(--rev)} .pl-stk i.y{background:color-mix(in srgb,var(--rev) 40%,var(--surface))}
 .pl-set{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
 .pl-set:last-child{border-bottom:0}
 .pl-set .lab{flex:1} .pl-set .lab small{display:block;color:var(--muted);font-size:.78rem}
@@ -203,7 +266,7 @@ const PL_CSS = `
 const plBk = b => h("span", { class: "pl-bk " + b }, QX_BANKS[b].name);
 function plCtx(){
   const T = plToday(), logs = plLogs();
-  return { T, logs, totals: plTotals(logs), idx: plIndex(logs), idxM: plIndex(logs, T) };
+  return { T, logs, totals: plTotals(logs), idx: plIndex(logs), idxM: plIndex(logs, T), cards: plCardDays(), stock: plCardStock() };
 }
 const plPaceSum = (idx, T) => PL_BANKS().reduce((a, b) => a + plPace(idx, b, T).need, 0);
 
@@ -218,27 +281,50 @@ function viewToday(main){
   const wrap = h("div", { class: "pl-stack" }); main.append(wrap);
 
   // バナー
-  const st = plStreak(totals, T), y = plAdd(T, -1), yt = totals[y] || 0, tt = totals[T] || 0;
+  const st = plStreak(X), y = plAdd(T, -1), DT = plDay(X, T), DY = plDay(X, y), tt = DT.q;
+  const quota = DT.cardOn ? `QB ${s.minDaily}問＋カード新規 ${s.cardNewDaily}枚` : `QB ${s.minDaily}問`;
   let banner = null;
-  if (!logs.length) banner = h("div", { class: "pl-banner" }, `👋 国試まで約${Math.round(ph.months)}か月。まずは毎日 ${s.minDaily}問だけ。下の「今日なにやる？」から科目を選ぶと、問題演習の記録欄が開きます。`);
-  else if (yt < s.minDaily && tt < s.minDaily && st.status[y] === "rest") banner = h("div", { class: "pl-banner y" }, `🛌 昨日は休み券を使いました。休みは2日続けないのが続けるコツ。今日は ${s.minDaily}問だけでもやっておこう。`);
-  else if (st.cur === 0 && st.best > 0 && tt < s.minDaily) banner = h("div", { class: "pl-banner r" }, `連続記録が切れてしまいました。気にしなくて大丈夫、今日 ${s.minDaily}問で新しくスタートできます（これまでの最長 ${st.best}日）。`);
+  if (!st.studyDays) banner = h("div", { class: "pl-banner" }, `👋 国試まで約${Math.round(ph.months)}か月。毎日のノルマは ${quota}。下の「今日のノルマ」から始めよう。`);
+  else if (!DY.ok && !DT.ok && st.status[y] === "rest") banner = h("div", { class: "pl-banner y" }, `🛌 昨日は休み券を使いました。休みは2日続けないのが続けるコツ。今日は ${quota} をやっておこう。`);
+  else if (st.cur === 0 && st.best > 0 && !DT.ok) banner = h("div", { class: "pl-banner r" }, `連続記録が切れてしまいました。気にしなくて大丈夫、今日 ${quota} で新しくスタートできます（これまでの最長 ${st.best}日）。`);
   if (banner) wrap.append(banner);
 
-  // 今日の問題数
+  // 今日のノルマ（QB と カードの2本柱）
   const done = tt, min = s.minDaily, pace = Math.ceil(plPaceSum(idxM, T)), goal = Math.max(min, pace);
-  const scale = Math.max(goal, done, 1), mp = Math.min(100, min / scale * 100);
+  const cdk = plCardDeck(), cRoot = cdk ? cdk.id : null;
+  const ci0 = buildIndex(); let cLeftRev = 0;
+  for (const d of cRoot ? [cdk] : rootDecks()){ const c = deckCounts(d.id, ci0); cLeftRev += c.r + c.l; }
+  const quotaRow = (icon, label, val, unit, need, sub, btn, onclick, color) => {
+    const okk = val >= need, scale = Math.max(need, val, 1);
+    return h("div", { class: "pl-q" + (okk ? " ok" : "") },
+      h("div", { class: "row", style: "gap:10px;align-items:center" },
+        h("div", { class: "pl-q-ic" }, okk ? "✅" : icon),
+        h("div", { style: "flex:1;min-width:0" }, h("div", { class: "muted small" }, label),
+          h("div", { class: "pl-q-v" }, String(val), h("small", {}, ` / ${need}${unit}`))),
+        h("button", { class: "btn sm" + (okk ? "" : " primary"), onclick }, btn)),
+      h("div", { class: "pl-pb", style: "margin-top:8px" }, h("i", { style: `width:${Math.min(100, val / scale * 100)}%;background:${color}` })),
+      h("div", { class: "muted small", style: "margin-top:6px" }, sub));
+  };
+  const qSub = done >= goal ? `計画ペース ${pace}問もクリア。ここから先は明日の貯金。` : done >= min ? `ノルマ達成！余裕があれば計画ペース（${pace}問）まであと ${goal - done}問。` : `あと ${min - done}問 · 計画ペースは ${pace}問/日`;
+  const qRow = quotaRow("📝", "QB国試", done, "問", min, qSub, done >= min ? "もっと解く" : "解く →", () => { const sg = plSuggest(idx, T)[0]; if (sg) sg.click(); else go("drill"); }, "var(--accent)");
+  let cRow = null;
+  if (DT.cardOn){
+    const cn = DT.c.n, cNeed = X.stock.left === 0 ? 0 : s.cardNewDaily;
+    const cSub = X.stock.left === 0 ? `新規カードはすべて学習済み。復習 ${DT.c.r}回 · 残り ${cLeftRev}枚` : cn >= cNeed ? `ノルマ達成！今日は ${DT.c.r}回答えました · 復習の残り ${cLeftRev}枚` : `あと ${cNeed - cn}枚 · 復習の残り ${cLeftRev}枚（復習も今日中に0にするのがおすすめ）`;
+    cRow = quotaRow("📇", `カード新規（${cdk ? cdk.name : "すべてのデッキ"}）`, cn, "枚", cNeed || s.cardNewDaily, cSub, cn >= cNeed && !cLeftRev ? "見る" : "学習 →",
+      () => { if (cRoot){ routeParams.did = cRoot; go("study"); } else go("decks"); }, "var(--rev)");
+    if (X.stock.left === 0 && DT.c.r > 0) cRow.classList.add("ok");
+  }
+  const allOK = DT.ok, hr = new Date().getHours();
   let msg;
-  if (done === 0){ const hr = new Date().getHours(); msg = hr < 12 ? `まずは最低ラインの ${min}問だけ。始めてしまえば続きも解けます。` : hr < 20 ? `まだ0問。${min}問だけ解けば今日も連続記録がつながります。` : `今日はあと少し。${min}問だけ解いて連続記録をつなげよう。`; }
-  else if (done < min) msg = `あと ${min - done}問で今日の最低ラインです。`;
-  else if (done < goal) msg = `✅ 最低ラインクリア！連続記録はつながりました。余裕があれば計画ペースまであと ${goal - done}問。`;
-  else msg = "🎉 今日の目安クリア！ここで終わっても十分、続けるなら明日の貯金に。";
-  wrap.append(h("div", { class: "panel" },
-    h("div", { class: "row" }, h("div", {}, h("div", { class: "muted small" }, "今日解いたQB"), h("div", { class: "pl-big" }, String(done), h("small", {}, "問"))),
-      h("div", { class: "spacer" }), h("div", { style: "text-align:right" }, h("div", { class: "muted small" }, "今日の目安"), h("div", { style: "font-size:1.5rem;font-weight:700" }, goal + "問"),
-        h("div", { class: "muted small" }, `最低ライン ${min}問 · 計画ペース ${pace}問`))),
-    h("div", { class: "pl-bar" }, h("i", { style: `width:${Math.min(100, done / scale * 100)}%` }), h("span", { class: "mk", style: `left:calc(${mp}% - 1px)` }), h("span", { class: "ml", style: `left:${mp}%` }, "最低")),
-    h("div", { class: "small" }, msg)));
+  if (allOK) msg = "🎉 今日のノルマ達成！連続記録はつながりました。";
+  else if (!DT.any) msg = hr < 12 ? "まずは片方だけでも始めよう。始めてしまえば続きもできます。" : hr < 20 ? "まだ手つかず。QBとカード、やりやすい方から。" : "今日はあと少し。ノルマだけ終わらせて連続記録をつなげよう。";
+  else msg = !DT.qOK && !DT.cOK ? "いい調子。両方そろえば今日も達成です。" : !DT.qOK ? `カードは達成！あとはQBを ${min - done}問。` : `QBは達成！あとはカードを ${s.cardNewDaily - DT.c.n}枚。`;
+  wrap.append(h("div", { class: "panel" + (allOK ? " pl-done" : "") },
+    h("div", { class: "row" }, h("h2", { style: "margin:0" }, "今日のノルマ"), h("div", { class: "spacer" }),
+      h("span", { class: "small", style: "font-weight:700" + (allOK ? ";color:var(--good)" : "") }, allOK ? "達成 ✓" : `${(DT.qOK ? 1 : 0) + (DT.cOK ? 1 : 0)} / ${DT.cardOn ? 2 : 1}`)),
+    h("div", { class: "pl-qs" }, qRow, cRow),
+    h("div", { class: "small", style: "margin-top:10px" }, msg)));
 
   // 今日の復習（カード＋QB解き直し）
   const ci = buildIndex(); let cn = 0, cr = 0;
@@ -259,12 +345,12 @@ function viewToday(main){
   // 連続記録
   const ws = plWeek(T);
   const dots = [...Array(7)].map((_, i) => {
-    const d = plAdd(ws, i), t = totals[d] || 0;
-    const cls = d > T || !st.first || d < st.first ? (t ? "part" : "") : (st.status[d] || (t ? "part" : (d < T ? "miss" : "")));
-    const icon = cls === "done" ? "✓" : cls === "rest" ? "🛌" : cls === "miss" ? "·" : t ? String(t) : "";
-    return h("div", {}, h("div", { class: "dot " + cls + (d === T ? " today" : "") }, icon), h("div", { class: "dl" }, PL_DOW[plParse(d).getDay()]));
+    const d = plAdd(ws, i), D = plDay(X, d);
+    const cls = d > T || !st.first || d < st.first ? (D.any ? "part" : "") : (st.status[d] || (D.any ? "part" : (d < T ? "miss" : "")));
+    const icon = cls === "done" ? "✓" : cls === "rest" ? "🛌" : cls === "miss" ? "·" : D.any ? (D.qOK || D.cOK ? "½" : "△") : "";
+    return h("div", { title: `QB ${D.q}問・新規カード ${D.c.n}枚・復習 ${D.c.r}回` }, h("div", { class: "dot " + cls + (d === T ? " today" : "") }, icon), h("div", { class: "dl" }, PL_DOW[plParse(d).getDay()]));
   });
-  const doneDays = [...Array(7)].map((_, i) => plAdd(ws, i)).filter(d => d <= T && (totals[d] || 0) >= min).length;
+  const doneDays = [...Array(7)].map((_, i) => plAdd(ws, i)).filter(d => d <= T && plDay(X, d).ok).length;
   wrap.append(h("div", { class: "panel" },
     h("div", { class: "row" }, h("h2", { style: "margin:0" }, "連続記録"), h("div", { class: "spacer" }), s.restPerWeek ? h("span", { class: "muted small" }, `今週の休み券 残り${st.restLeft ?? s.restPerWeek}枚`) : null),
     h("div", { class: "tiles", style: "margin-top:10px" },
@@ -272,18 +358,48 @@ function viewToday(main){
       h("div", { class: "tile" }, h("div", { class: "v" }, String(st.best)), h("div", { class: "k" }, "最長")),
       h("div", { class: "tile" }, h("div", { class: "v" }, String(st.studyDays)), h("div", { class: "k" }, "勉強した日"))),
     h("div", { class: "pl-week" }, ...dots),
-    h("div", { class: "muted small", style: "margin-top:6px" }, `今週は ${doneDays}日 最低ラインを達成。✓＝達成 🛌＝休み券 数字＝最低ライン未満`)));
+    h("div", { class: "muted small", style: "margin-top:6px" }, `今週は ${doneDays}日 ノルマを達成。✓＝達成 ½＝片方だけ △＝途中 🛌＝休み券`)));
 
   // 今週のひとこと目標
   const ta = h("textarea", { rows: "2", style: "width:100%", placeholder: "例：小児科を毎日10問" }); ta.value = P.weekGoals[ws] || "";
   ta.addEventListener("change", () => { P.weekGoals[ws] = ta.value.trim(); markDirty(); toast("今週の目標を保存しました"); });
-  const lw = plAdd(ws, -7); let ltot = 0, ldays = 0, lprev = 0;
-  for (let i = 0; i < 7; i++){ const t = totals[plAdd(lw, i)] || 0; ltot += t; if (t >= min) ldays++; lprev += totals[plAdd(lw, i - 7)] || 0; }
+  const lw = plAdd(ws, -7); let ltot = 0, ldays = 0, lprev = 0, lcard = 0;
+  for (let i = 0; i < 7; i++){ const D = plDay(X, plAdd(lw, i)); ltot += D.q; lcard += D.c.n; if (D.ok) ldays++; lprev += totals[plAdd(lw, i - 7)] || 0; }
   const lg = P.weekGoals[lw];
-  const review = ltot || lg ? h("div", { class: "small", style: "margin-top:8px;color:var(--ink2)" },
-    `先週のふりかえり：${ltot}問・達成 ${ldays}/7日` + (lprev ? `（先々週より ${ltot >= lprev ? "+" : ""}${ltot - lprev}問）` : "") + (lg ? ` ／ 先週の目標「${lg}」` : "")) : null;
+  const review = ltot || lcard || lg ? h("div", { class: "small", style: "margin-top:8px;color:var(--ink2)" },
+    `先週のふりかえり：QB ${ltot}問・新規カード ${lcard}枚・達成 ${ldays}/7日` + (lprev ? `（QBは先々週より ${ltot >= lprev ? "+" : ""}${ltot - lprev}問）` : "") + (lg ? ` ／ 先週の目標「${lg}」` : "")) : null;
   wrap.append(h("div", { class: "panel" }, h("div", { class: "row" }, h("h2", { style: "margin:0" }, "今週のひとこと目標"), h("div", { class: "spacer" }), h("span", { class: "muted small" }, `${plMD(ws)}〜${plMD(plAdd(ws, 6))}`)),
     h("div", { style: "margin-top:8px" }, ta), review));
+
+  // がんばりの記録（累計・カードの進み具合・12週のヒートマップ）
+  const SK = X.stock;
+  let cRevAll = 0, cMsAll = 0, cNew14 = 0;
+  for (const [d, c] of Object.entries(X.cards)){ cRevAll += c.r; cMsAll += c.ms; if (d >= plAdd(T, -13) && d <= T) cNew14 += c.n; }
+  const qTotal = logs.reduce((a, l) => a + l.n, 0);
+  const effort = h("div", { class: "panel" }, h("h2", {}, "がんばりの記録"),
+    h("div", { class: "tiles" },
+      h("div", { class: "tile" }, h("div", { class: "v" }, String(st.studyDays)), h("div", { class: "k" }, "勉強した日")),
+      h("div", { class: "tile" }, h("div", { class: "v" }, qTotal.toLocaleString()), h("div", { class: "k" }, "解いたQB（累計）")),
+      h("div", { class: "tile" }, h("div", { class: "v" }, SK.seen.toLocaleString()), h("div", { class: "k" }, "覚え始めたカード")),
+      h("div", { class: "tile" }, h("div", { class: "v" }, cRevAll.toLocaleString()), h("div", { class: "k" }, `カードに答えた回数 · ${fmtDur(cMsAll)}`))));
+  if (DT.cardOn && SK.tot){
+    const pS = SK.mature / SK.tot * 100, pL = (SK.seen - SK.mature) / SK.tot * 100;
+    const per = s.cardNewDaily, finGoal = SK.left ? plAdd(T, Math.ceil(SK.left / per) - (DT.c.n >= per ? 0 : 1)) : null; // 今日のノルマが済んでいれば明日から数える
+    const avg = cNew14 / 14, finNow = SK.left && avg > 0 ? plAdd(T, Math.ceil(SK.left / avg)) : null;
+    const fmtFin = d => `${plYM(d)}${plParse(d).getDate()}日`;
+    effort.append(h("div", { style: "margin-top:14px" },
+      h("div", { class: "row small" }, h("b", {}, `📇 ${cdk ? cdk.name : "すべてのデッキ"}`), h("div", { class: "spacer" }),
+        h("span", { style: "font-variant-numeric:tabular-nums" }, `${SK.seen.toLocaleString()} / ${SK.tot.toLocaleString()}枚（${Math.floor(SK.seen / SK.tot * 100)}%）`)),
+      h("div", { class: "pl-stk" }, h("i", { class: "m", style: `width:${pS}%` }), h("i", { class: "y", style: `width:${pL}%` })),
+      h("div", { class: "muted small" }, `■ 定着（間隔3週以上）${SK.mature.toLocaleString()}枚　■ 学習中 ${(SK.seen - SK.mature).toLocaleString()}枚　□ 未学習 ${SK.left.toLocaleString()}枚`),
+      h("div", { class: "small", style: "margin-top:6px" }, !SK.left ? "🎉 すべてのカードを一巡しました！" :
+        [`1日${per}枚なら ${fmtFin(finGoal)}ごろに一巡`, finNow ? ` · いまのペース（${avg.toFixed(1)}枚/日）だと ${fmtFin(finNow)}ごろ` : ""].join(""))));
+  }
+  const hm12 = plHeatmap(X, 12);
+  effort.append(h("div", { class: "row small", style: "margin-top:14px" }, h("b", {}, "最近12週"), h("div", { class: "spacer" }),
+    h("span", { class: "muted" }, `達成 ${hm12.days}日 · QB ${hm12.qsum.toLocaleString()}問 · 新規カード ${hm12.csum.toLocaleString()}枚`)), hm12.el,
+    h("div", { class: "muted small", style: "margin-top:6px" }, "濃いほどがんばった日（薄＝途中・中＝片方達成・濃＝両方達成・いちばん濃い＝QBも2倍）"));
+  wrap.append(effort);
 
   // 全体の進み具合
   const ov = h("div", { class: "panel" }, h("h2", {}, "全体の進み具合"));
@@ -306,14 +422,20 @@ function viewToday(main){
 
   // 次の目標
   const MS_T = [50, 100, 300, 500, 1000, 2000, 3000, 5000, 7500, 10000, 15000, 20000, 30000], MS_S = [3, 7, 14, 30, 50, 100, 150, 200, 300, 365, 500, 730];
-  const nt = MS_T.find(x => x > total), ns = MS_S.find(x => x > st.cur);
+  // カードの節目。最後の節目は「デッキを一巡」（＝対象デッキの枚数）
+  const MS_C = SK.tot ? [...[100, 300, 500, 1000, 1500, 2000, 3000, 4000, 5000, 7500, 10000].filter(x => x < SK.tot), SK.tot] : [];
+  const nt = MS_T.find(x => x > total), ns = MS_S.find(x => x > st.cur), nc = DT.cardOn ? MS_C.find(x => x > SK.seen) : null;
+  const k = x => x >= 1000 ? x / 1000 + "k" : x;
   wrap.append(h("div", { class: "panel" }, h("h2", {}, "次の目標"),
     nt ? h("div", { class: "small", style: "font-weight:700" }, `📘 累計 ${nt.toLocaleString()}問 まで あと ${(nt - total).toLocaleString()}問`) : null,
     nt ? h("div", { class: "pl-pb", style: "margin:6px 0 10px" }, h("i", { style: `width:${total / nt * 100}%;background:var(--accent)` })) : null,
+    nc ? h("div", { class: "small", style: "font-weight:700" }, `📇 カード ${nc.toLocaleString()}枚 まで あと ${(nc - SK.seen).toLocaleString()}枚`) : null,
+    nc ? h("div", { class: "pl-pb", style: "margin:6px 0 10px" }, h("i", { style: `width:${SK.seen / nc * 100}%;background:var(--rev)` })) : null,
     ns ? h("div", { class: "small", style: "font-weight:700" }, `🔥 ${ns}日連続 まで あと ${ns - st.cur}日`) : null,
     ns ? h("div", { class: "pl-pb", style: "margin-top:6px" }, h("i", { style: `width:${st.cur / ns * 100}%;background:var(--good)` })) : null,
     h("div", { class: "pl-badges" }, ...MS_S.slice(0, 10).map(x => h("span", { class: st.best >= x ? "on" : "" }, `🔥${x}日`)),
-      ...MS_T.slice(1, 11).map(x => h("span", { class: total >= x ? "on" : "" }, `📘${x >= 1000 ? x / 1000 + "k" : x}`)))));
+      ...MS_T.slice(1, 11).map(x => h("span", { class: total >= x ? "on" : "" }, `📘${k(x)}`)),
+      ...(DT.cardOn ? MS_C.map(x => h("span", { class: SK.seen >= x ? "on" : "" }, `📇${k(x)}`)) : []))));
 }
 
 function plSuggest(idx, T){
@@ -363,7 +485,7 @@ function plSuggest(idx, T){
    計画
    ============================================================ */
 function viewPlan(main){
-  qx(); const P = pl(), s = P.settings, { T, logs, totals, idx, idxM } = plCtx();
+  qx(); const P = pl(), s = P.settings, X = plCtx(), { T, logs, totals, idx, idxM } = X;
   main.append(h("div", { class: "pl-hero" }, h("h1", {}, "計画")));
   const wrap = h("div", { class: "pl-stack" }); main.append(wrap);
 
@@ -431,18 +553,12 @@ function viewPlan(main){
     h("br"), "・「誤答だけ」の周回は、前の周回でまちがえた数が対象です。"));
 
   // 記録
-  const st = plStreak(totals, T), min = s.minDaily, start = plAdd(plWeek(T), -25 * 7);
-  const hm = h("div", { class: "pl-hm" }); let hsum = 0, hdays = 0;
-  for (let col = 0, d = start; col < 26 * 7; col++, d = plAdd(d, 1)){
-    const t = totals[d] || 0; if (d <= T){ hsum += t; if (t >= min) hdays++; }
-    let cls = d > T ? "fut" : t === 0 ? (st.status[d] === "rest" ? "rest" : "") : t < min ? "l1" : t < min * 3 ? "l2" : t < min * 6 ? "l3" : "l4";
-    if (d === T) cls += " td";
-    hm.append(h("i", { class: cls, title: `${d} ${t}問` }));
-  }
-  const mt = {}; for (const l of logs){ const k = l.d.slice(0, 7); mt[k] = (mt[k] || 0) + l.n; }
+  const HM = plHeatmap(X, 26), hm = HM.el;
+  const mt = {}, mc = {}; for (const l of logs){ const k = l.d.slice(0, 7); mt[k] = (mt[k] || 0) + l.n; }
+  for (const [d, c] of Object.entries(X.cards)){ const k = d.slice(0, 7); mc[k] = (mc[k] || 0) + c.n; }
   const nowD = plParse(T), cols = [];
-  for (let i = 11; i >= 0; i--){ const d = new Date(nowD.getFullYear(), nowD.getMonth() - i, 1); const k = `${d.getFullYear()}-${plPad(d.getMonth() + 1)}`; cols.push([mt[k] || 0, d.getMonth() + 1]); }
-  const mx = Math.max(1, ...cols.map(c => c[0]));
+  for (let i = 11; i >= 0; i--){ const d = new Date(nowD.getFullYear(), nowD.getMonth() - i, 1); const k = `${d.getFullYear()}-${plPad(d.getMonth() + 1)}`; cols.push([mt[k] || 0, d.getMonth() + 1, mc[k] || 0]); }
+  const mx = Math.max(1, ...cols.map(c => c[0])), mxc = Math.max(1, ...cols.map(c => c[2]));
   const byDay = {}; for (const l of logs) if (l.d >= plAdd(T, -29)) (byDay[l.d] ||= []).push(l);
   const list = h("div", {});
   const ds = Object.keys(byDay).sort().reverse();
@@ -456,10 +572,12 @@ function viewPlan(main){
     }
   }
   wrap.append(h("div", { class: "panel" },
-    h("div", { class: "row" }, h("h2", { style: "margin:0" }, "記録"), h("div", { class: "spacer" }), h("span", { class: "muted small" }, `26週で ${hdays}日達成 · ${hsum.toLocaleString()}問`)),
+    h("div", { class: "row" }, h("h2", { style: "margin:0" }, "記録"), h("div", { class: "spacer" }), h("span", { class: "muted small" }, `26週で ${HM.days}日達成 · QB ${HM.qsum.toLocaleString()}問 · 新規カード ${HM.csum.toLocaleString()}枚`)),
     hm,
-    h("h3", { style: "margin-top:16px" }, "月ごと"),
+    h("h3", { style: "margin-top:16px" }, "月ごとのQB（問）"),
     h("div", { class: "pl-mb" }, ...cols.map(([v, m]) => h("div", { class: "c" }, h("span", {}, v ? String(v) : ""), h("i", { style: `height:${v / mx * 75}%` }), h("span", {}, m + "月")))),
+    h("h3", { style: "margin-top:16px" }, "月ごとの新規カード（枚）"),
+    h("div", { class: "pl-mb" }, ...cols.map(([, m, v]) => h("div", { class: "c" }, h("span", {}, v ? String(v) : ""), h("i", { style: `height:${v / mxc * 75}%;background:var(--rev)` }), h("span", {}, m + "月")))),
     h("h3", { style: "margin-top:16px" }, "最近30日"),
     h("p", { class: "muted small", style: "margin:-6px 0 0" }, "問題演習の記録の取り消しは、問題演習の「直前の記録を取り消す」から。"),
     list));
@@ -472,10 +590,16 @@ function viewPlan(main){
   const rot = h("select", {}, h("option", { value: "" }, "なし"), ...Object.entries(groups).map(([g, list]) => h("optgroup", { label: PL_GROUPS[g] || g }, ...list.map(c => h("option", { value: c.id, selected: s.rot === c.id }, c.name)))));
   rot.addEventListener("change", () => { s.rot = rot.value; markDirty(); toast(rot.value ? "実習中の科を優先して提案します" : "実習中の科を解除しました"); });
   const ru = h("input", { type: "date", value: s.rotUntil || "" }); ru.addEventListener("change", () => { s.rotUntil = ru.value; markDirty(); });
+  const cq = h("input", { type: "number", min: "0", value: String(s.cardNewDaily), style: "width:80px" });
+  cq.addEventListener("change", () => { s.cardNewDaily = Math.max(0, parseInt(cq.value) || 0); markDirty(); route(true); });
+  const cdSel = h("select", {}, h("option", { value: "" }, "すべてのデッキ"), ...rootDecks().map(d => h("option", { value: d.name, selected: s.cardDeck === d.name }, d.name)));
+  cdSel.addEventListener("change", () => { s.cardDeck = cdSel.value; markDirty(); route(true); });
   const row = (lab, sub, el) => h("div", { class: "pl-set" }, h("div", { class: "lab" }, lab, h("small", {}, sub)), el);
   wrap.append(h("div", { class: "panel" }, h("h2", {}, "計画の設定"),
     row("国試の日", "カウントダウンと時期の区切りに使います", ex),
-    row("最低ライン（問/日）", "これだけ解けば連続記録がつながる数", mn),
+    row("QBの最低ライン（問/日）", "QBをこれだけ解けば、QBのノルマ達成", mn),
+    row("カードの新規ノルマ（枚/日）", "新しく覚え始めるカードの枚数。QBとカードの両方を達成すると連続記録がつながります（0でカードはノルマから外す）", cq),
+    row("カードの対象デッキ", "新規ノルマと進み具合を数えるデッキ（サブデッキも含む）", cdSel),
     row("週の休み券", "この日数までは休んでも連続記録が切れません", rs),
     row("いま回っている科（実習）", "選ぶと、その科のQB分野別の章を「今日なにやる？」で優先して出します", rot),
     row("いつまで", "この日を過ぎたら自動で解除（空欄ならずっと）", ru)));
