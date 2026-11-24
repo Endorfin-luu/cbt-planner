@@ -194,10 +194,11 @@ const hpDP = n => Math.floor(n).toLocaleString();
 /* ============================================================
    病院
    ============================================================ */
-function viewHospital(main){
+// embedded: ゲーム画面の下にたたんで出すとき（見出しを出さない）
+function viewHospital(main, embedded){
   qx(); const C = hpCtx(), { H, depts, led, balance, rank, A } = C;
   const R = HP_RANKS[rank], N = HP_RANKS[rank + 1];
-  main.append(h("div", { class: "pl-hero" }, h("h1", {}, "病院"),
+  if (!embedded) main.append(h("div", { class: "pl-hero" }, h("h1", {}, "病院"),
     h("span", { class: "cd" }, "勉強で稼いだDPで病院を大きくする。部門のレベルは本物の実力が条件。")));
   const wrap = h("div", { class: "pl-stack" }); main.append(wrap);
 
@@ -271,21 +272,4 @@ function viewHospital(main){
       h("span", { class: "muted" }, "DPは勉強の記録から毎回計算し直すので、記録を取り消すとDPも減ります。"))));
 }
 
-/* ---------- 今日画面への導線 ---------- */
-function hpStrip(){
-  const C = hpCtx(), R = HP_RANKS[C.rank], td = C.led.today;
-  return h("button", { class: "hp-strip", onclick: () => go("hospital") },
-    h("span", { class: "big" }, R.icon),
-    h("div", { style: "flex:1;min-width:0" }, h("div", { style: "font-weight:700" }, `${C.H.name}（${R.name}）`),
-      h("div", { class: "muted small" }, `今日 +${hpDP(td.dp)}DP · 残高 ${hpDP(C.balance)}DP` + (C.ready ? ` · ⬆ アップグレードできる部門 ${C.ready}` : "") + (C.closed.length ? ` · 🚨 休診 ${C.closed.length}` : ""))),
-    h("span", { class: "muted" }, "→"));
-}
-{
-  const orig = VIEWS.today;
-  VIEWS.today = main => {
-    orig(main);
-    try { const stack = main.querySelector(".pl-stack"); const first = stack && [...stack.children].find(e => e.querySelector?.(".pl-qs")); if (first) first.after(hpStrip()); } catch(e){ console.warn(e); }
-  };
-}
-VIEWS.hospital = viewHospital;
-{ const v = location.hash.slice(1); if (v === "hospital" || v === "today" || !v) route(true); }
+/* 今日画面への導線とタブの登録は arcade.js（ゲーム）が行う。病院はゲーム画面の下にたたんで出す */
