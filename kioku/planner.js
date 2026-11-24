@@ -292,8 +292,8 @@ function viewToday(main){
   // 今日のノルマ（QB と カードの2本柱）
   const done = tt, min = s.minDaily, pace = Math.ceil(plPaceSum(idxM, T)), goal = Math.max(min, pace);
   const cdk = plCardDeck(), cRoot = cdk ? cdk.id : null;
-  const ci0 = buildIndex(); let cLeftRev = 0;
-  for (const d of cRoot ? [cdk] : rootDecks()){ const c = deckCounts(d.id, ci0); cLeftRev += c.r + c.l; }
+  const ci0 = buildIndex(); let cLeftRev = 0, cNewAllowed = 0;
+  for (const d of cRoot ? [cdk] : rootDecks()){ const c = deckCounts(d.id, ci0); cLeftRev += c.r + c.l; cNewAllowed += c.n; }
   const quotaRow = (icon, label, val, unit, need, sub, btn, onclick, color) => {
     const okk = val >= need, scale = Math.max(need, val, 1);
     return h("div", { class: "pl-q" + (okk ? " ok" : "") },
@@ -310,7 +310,7 @@ function viewToday(main){
   let cRow = null;
   if (DT.cardOn){
     const cn = DT.c.n, cNeed = X.stock.left === 0 ? 0 : s.cardNewDaily;
-    const cSub = X.stock.left === 0 ? `新規カードはすべて学習済み。復習 ${DT.c.r}回 · 残り ${cLeftRev}枚` : cn >= cNeed ? `ノルマ達成！今日は ${DT.c.r}回答えました · 復習の残り ${cLeftRev}枚` : `あと ${cNeed - cn}枚 · 復習の残り ${cLeftRev}枚（復習も今日中に0にするのがおすすめ）`;
+    const cSub = X.stock.left === 0 ? `新規カードはすべて学習済み。復習 ${DT.c.r}回 · 残り ${cLeftRev}枚` : cn >= cNeed ? `ノルマ達成！今日は ${DT.c.r}回答えました · 復習の残り ${cLeftRev}枚` : cNewAllowed === 0 ? `あと ${cNeed - cn}枚ですが、デッキの「新規カード/日」の上限に届いていて今日はもう新規が出ません。デッキの⚙ → オプションで上限をノルマ（${cNeed}枚）以上にしてください。` : `あと ${cNeed - cn}枚 · 復習の残り ${cLeftRev}枚（復習も今日中に0にするのがおすすめ）`;
     cRow = quotaRow("📇", `カード新規（${cdk ? cdk.name : "すべてのデッキ"}）`, cn, "枚", cNeed || s.cardNewDaily, cSub, cn >= cNeed && !cLeftRev ? "見る" : "学習 →",
       () => { if (cRoot){ routeParams.did = cRoot; go("study"); } else go("decks"); }, "var(--rev)");
     if (X.stock.left === 0 && DT.c.r > 0) cRow.classList.add("ok");
@@ -319,10 +319,11 @@ function viewToday(main){
   let msg;
   if (allOK) msg = "🎉 今日のノルマ達成！連続記録はつながりました。";
   else if (!DT.any) msg = hr < 12 ? "まずは片方だけでも始めよう。始めてしまえば続きもできます。" : hr < 20 ? "まだ手つかず。QBとカード、やりやすい方から。" : "今日はあと少し。ノルマだけ終わらせて連続記録をつなげよう。";
-  else msg = !DT.qOK && !DT.cOK ? "いい調子。両方そろえば今日も達成です。" : !DT.qOK ? `カードは達成！あとはQBを ${min - done}問。` : `QBは達成！あとはカードを ${s.cardNewDaily - DT.c.n}枚。`;
+  else if (!DT.cardOn) msg = `あと ${min - done}問で今日のノルマです。`;
+  else msg = !DT.qOK && !DT.cOK ? "いい調子。両方そろえば今日も達成です。" : !DT.qOK ? `カードは達成！あとはQBを ${min - done}問。` : `QBは達成！あとはカードを ${Math.max(0, s.cardNewDaily - DT.c.n)}枚。`;
   wrap.append(h("div", { class: "panel" + (allOK ? " pl-done" : "") },
     h("div", { class: "row" }, h("h2", { style: "margin:0" }, "今日のノルマ"), h("div", { class: "spacer" }),
-      h("span", { class: "small", style: "font-weight:700" + (allOK ? ";color:var(--good)" : "") }, allOK ? "達成 ✓" : `${(DT.qOK ? 1 : 0) + (DT.cOK ? 1 : 0)} / ${DT.cardOn ? 2 : 1}`)),
+      h("span", { class: "small", style: "font-weight:700" + (allOK ? ";color:var(--good)" : "") }, allOK ? "達成 ✓" : `${(DT.qOK ? 1 : 0) + (DT.cardOn && DT.cOK ? 1 : 0)} / ${DT.cardOn ? 2 : 1}`)),
     h("div", { class: "pl-qs" }, qRow, cRow),
     h("div", { class: "small", style: "margin-top:10px" }, msg)));
 
@@ -347,7 +348,7 @@ function viewToday(main){
   const dots = [...Array(7)].map((_, i) => {
     const d = plAdd(ws, i), D = plDay(X, d);
     const cls = d > T || !st.first || d < st.first ? (D.any ? "part" : "") : (st.status[d] || (D.any ? "part" : (d < T ? "miss" : "")));
-    const icon = cls === "done" ? "✓" : cls === "rest" ? "🛌" : cls === "miss" ? "·" : D.any ? (D.qOK || D.cOK ? "½" : "△") : "";
+    const icon = cls === "done" ? "✓" : cls === "rest" ? "🛌" : cls === "miss" ? "·" : D.any ? (D.cardOn && (D.qOK || D.cOK) ? "½" : "△") : "";
     return h("div", { title: `QB ${D.q}問・新規カード ${D.c.n}枚・復習 ${D.c.r}回` }, h("div", { class: "dot " + cls + (d === T ? " today" : "") }, icon), h("div", { class: "dl" }, PL_DOW[plParse(d).getDay()]));
   });
   const doneDays = [...Array(7)].map((_, i) => plAdd(ws, i)).filter(d => d <= T && plDay(X, d).ok).length;
@@ -469,6 +470,11 @@ function plSuggest(idx, T){
   }
   rev.sort((a, z) => z.score - a.score);
   for (const v of rev.slice(0, 1)) add(v.b + v.ch.id, item("復習どき", "#c47a12", v.b, v.ch, plCurRoundCh(idx, v.b, v.ch), `正答率 ${Math.round(v.acc * 100)}% · ${v.gap}日あいています`));
+  // 実力タブ（ability.js）の「いま効く章」1位。まだ解いていない問題がある章だけ
+  if (typeof abStats === "function"){
+    const top = abStats().chs.filter(c => c.id !== "HS" && c.solved < c.total).sort((a, z) => z.lost - a.lost)[0], ch = top && plCh("qb", top.id);
+    if (ch){ const r = plCurRoundCh(idx, "qb", ch); add("qb" + ch.id, item("いま効く", "#d64545", "qb", ch, r, `本番で約${top.lost.toFixed(1)}点ぶん取りこぼしそう（推定）· 実力タブ`)); }
+  }
   for (const b of PL_BANKS()){
     const r = plCurRound(idx, b); if (plRound(idx, b, r).rem === 0) continue;
     const g = {};
@@ -591,9 +597,17 @@ function viewPlan(main){
   rot.addEventListener("change", () => { s.rot = rot.value; markDirty(); toast(rot.value ? "実習中の科を優先して提案します" : "実習中の科を解除しました"); });
   const ru = h("input", { type: "date", value: s.rotUntil || "" }); ru.addEventListener("change", () => { s.rotUntil = ru.value; markDirty(); });
   const cq = h("input", { type: "number", min: "0", value: String(s.cardNewDaily), style: "width:80px" });
-  cq.addEventListener("change", () => { s.cardNewDaily = Math.max(0, parseInt(cq.value) || 0); markDirty(); route(true); });
+  const syncDeckLimit = () => {
+    // 学習は親デッキから子デッキへ上限を順にたどるので、途中のデッキの上限が小さくても届かない。
+    // 0 にしてあるデッキ（あえて後回しにしている）は触らない
+    const d = plCardDeck(); if (!d || !s.cardNewDaily) return;
+    let n = 0;
+    for (const id of subtreeIds(d.id)){ const x = S.decks[id], lim = opts(id).newPerDay; if (lim > 0 && lim < s.cardNewDaily){ x.opts = Object.assign({}, x.opts, { newPerDay: s.cardNewDaily }); n++; } }
+    if (n) toast(`「${d.name}」とサブデッキ ${n}個の新規カード/日を ${s.cardNewDaily}枚 に上げました`);
+  };
+  cq.addEventListener("change", () => { s.cardNewDaily = Math.max(0, parseInt(cq.value) || 0); syncDeckLimit(); markDirty(); route(true); });
   const cdSel = h("select", {}, h("option", { value: "" }, "すべてのデッキ"), ...rootDecks().map(d => h("option", { value: d.name, selected: s.cardDeck === d.name }, d.name)));
-  cdSel.addEventListener("change", () => { s.cardDeck = cdSel.value; markDirty(); route(true); });
+  cdSel.addEventListener("change", () => { s.cardDeck = cdSel.value; syncDeckLimit(); markDirty(); route(true); });
   const row = (lab, sub, el) => h("div", { class: "pl-set" }, h("div", { class: "lab" }, lab, h("small", {}, sub)), el);
   wrap.append(h("div", { class: "panel" }, h("h2", {}, "計画の設定"),
     row("国試の日", "カウントダウンと時期の区切りに使います", ex),

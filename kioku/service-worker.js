@@ -1,10 +1,12 @@
 // Kioku 用。スコープは /cbt-planner/kioku/。ネットワーク優先（オフライン時はキャッシュ）。
-const CACHE = 'kioku-v3';
+const CACHE = 'kioku-v5';
 const PRECACHE = [
   '/cbt-planner/kioku/',
   '/cbt-planner/kioku/index.html',
   '/cbt-planner/kioku/qbank.js',
   '/cbt-planner/kioku/planner.js',
+  '/cbt-planner/kioku/ability.js',
+  '/cbt-planner/kioku/hospital.js',
   '/cbt-planner/kioku/game.js',
   '/cbt-planner/kioku/pixel.js',
   '/cbt-planner/kioku/manifest.json',
