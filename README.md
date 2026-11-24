@@ -13,6 +13,8 @@ claude.ai のアーティファクトとして作ったものを GitHub Pages �
 - `qbank.js` … 問題演習。QB「分野別」（2027年版 vol.1〜7・6,979問）と QB「回数別」（第80〜120回の過去問ぜんぶ・17,140問）を
   1問ずつ FSRS で回す。記録は `S.qx`
 - `planner.js` … 今日・計画（旧 国試 Planner）。QB の解いた数は `S.qx.out` をそのまま集計し、計画・設定・週の目標は `S.pl` に入れる。
+  毎日のノルマは「QB（最低ライン）」と「カードの新規（`cardNewDaily` 枚、対象は `cardDeck` のデッキ）」の2本柱で、
+  両方そろった日だけ連続記録がつながる。カードの新規・復習の数は復習ログ（`S.revlog`）から日ごとに数える。
   旧 国試 Planner の記録（localStorage `kokushi_state` と Firestore `progress/kokushi_user1`）は初回に一度だけ取り込む
 
 モントレは中身が QB と同じ国試の過去問なので使っていない。

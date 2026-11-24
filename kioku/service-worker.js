@@ -1,5 +1,5 @@
 // Kioku 用。スコープは /cbt-planner/kioku/。ネットワーク優先（オフライン時はキャッシュ）。
-const CACHE = 'kioku-v2';
+const CACHE = 'kioku-v3';
 const PRECACHE = [
   '/cbt-planner/kioku/',
   '/cbt-planner/kioku/index.html',
