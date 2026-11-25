@@ -28,7 +28,7 @@ const SY = {
   bee:     { e: "🐝", n: "ハチ",       r: "C", v: 1, d: "隣の花・果物を ×2" },
   cat:     { e: "🐱", n: "ネコ",       r: "C", v: 1, d: "隣のミルクを飲みほして +9" },
   milk:    { e: "🥛", n: "ミルク",     r: "C", v: 1, d: "" },
-  seed:    { e: "🌱", n: "タネ",       r: "C", v: 1, tag: "plant", d: "4回出ると🌳木になる" },
+  seed:    { e: "🌱", n: "タネ",       r: "C", v: 1, tag: "plant", d: "4回出ると木になる" },
   dice:    { e: "🎲", n: "サイコロ",   r: "C", v: 0, d: "1〜6" },
   rock:    { e: "🪨", n: "石",         r: "C", v: 1, d: "" },
   egg:     { e: "🥚", n: "タマゴ",     r: "C", v: 1, d: "出るたび 1/6 でニワトリになる" },
@@ -80,7 +80,7 @@ function slotSpin(run){
   for (const c of cell) if (c && c.id === "dice") c.base = 1 + ri(o, 6);
   for (const c of cell) if (c && c.id === "vault"){ const B = bag[c.bi]; B.n = (B.n || 0) + 2; c.base = B.n; }
   // 2) 食べる・割る
-  const eat = (p, who, map) => { for (const t of adj(p, t => t.id in map)){ t.dead = true; who.add += map[t.id]; who.fx.push(SY[t.id].e); } };
+  const eat = (p, who, map) => { for (const t of adj(p, t => t.id in map)){ t.dead = true; who.add += map[t.id]; who.fx.push(t.id); } };
   cell.forEach((c, p) => { if (!c || c.dead) return;
     if (c.id === "cat") eat(p, c, { milk: 9 });
     if (c.id === "bear") eat(p, c, { fish: 8, honey: 30 });
@@ -89,7 +89,7 @@ function slotSpin(run){
   });
   cell.forEach((c, p) => { if (!c || c.dead || c.id !== "dragon") return;
     const prey = adj(p, t => t.id !== "dragon"); if (!prey.length){ c.base = 0; return; }
-    for (const t of prey){ t.dead = true; c.fx.push(SY[t.id].e); } c.add += 4 * prey.length; });
+    for (const t of prey){ t.dead = true; c.fx.push(t.id); } c.add += 4 * prey.length; });
   // 3) 足し算
   const live = cell.filter(c => c && !c.dead), empty = cell.filter(c => !c).length;
   const cnt = id => live.filter(c => c.id === id).length;
