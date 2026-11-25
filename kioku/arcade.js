@@ -41,7 +41,8 @@ const fmtN = n => Math.round(n).toLocaleString();
 const NOTCH = "clip-path:polygon(4px 0,calc(100% - 4px) 0,calc(100% - 4px) 2px,calc(100% - 2px) 2px,calc(100% - 2px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 2px) calc(100% - 4px),calc(100% - 2px) calc(100% - 2px),calc(100% - 4px) calc(100% - 2px),calc(100% - 4px) 100%,4px 100%,4px calc(100% - 2px),2px calc(100% - 2px),2px calc(100% - 4px),0 calc(100% - 4px),0 4px,2px 4px,2px 2px,4px 2px)";
 const ARC_CSS = `
 /* ---- ゲームモード（ページ全体） ---- */
-body.arcade{background:#120c20;background-image:radial-gradient(#ffffff12 1px,transparent 1px),radial-gradient(#ffffff0a 1px,transparent 1px);background-size:24px 24px,14px 14px;background-position:0 0,7px 9px;background-attachment:fixed}
+html:has(body.arcade){background:#120c20}
+body.arcade{min-height:100vh;background:#120c20;background-image:radial-gradient(#ffffff12 1px,transparent 1px),radial-gradient(#ffffff0a 1px,transparent 1px);background-size:24px 24px,14px 14px;background-position:0 0,7px 9px;background-attachment:fixed}
 body.arcade .topbar{background:#1a1230;border-bottom:2px solid #2c2148;position:static}
 body.arcade .brand{color:#f3eefe}
 body.arcade .nav button{color:#a99dcc}
@@ -356,16 +357,17 @@ window.addEventListener("hashchange", () => { if (location.hash.slice(1) !== "ho
 function viewArcade(main){
   qx(); const A = arc(), tk = arcTickets();
   arcMode(true);
-  if (!ARCU.tab) ARCU.tab = A.clear.slot >= 1 && A.poker && !A.slot ? "poker" : "slot";
+  if (!ARCU.tab) ARCU.tab = "yomi";
   const wrap = h("div", { class: "arx" });
   const q = h("button", { class: "ax-q" + (ARCU.help ? " on" : ""), title: "券のしくみ", onclick: () => { ARCU.help = !ARCU.help; arcRender(); } }, "?");
   wrap.append(h("div", { class: "ax-head" }, h("h1", { class: "ax-logo" }, "ゲーム"),
     h("div", { class: "ax-tk", title: "プレイ券" }, spr("ticket", 26), h("span", { class: "num", id: "ar-tk" }, String(tk.left)), h("span", { class: "xs" }, `今日+${tk.today}`)), q));
   if (ARCU.help) wrap.append(h("div", { class: "ax-howto" },
     "勉強はいつも通り記録するだけ。", h("b", {}, "QB 1問＝券1枚"), "、", h("b", {}, `カード${ARC_CARD}回＝券1枚`), "。",
-    h("br"), `スロット1回＝券${ARC_COST.spin}枚、ポーカー1戦＝券${ARC_COST.round}枚。はじめに${ARC_BONUS}枚。`));
+    h("br"), `ヨミの塔は野良戦3枚・強敵5枚・層の主7枚。スロット1回＝券${ARC_COST.spin}枚、ポーカー1戦＝券${ARC_COST.round}枚。はじめに${ARC_BONUS}枚。`));
   const lockedP = A.clear.slot < 1;
-  wrap.append(h("div", { class: "ax-seg" },
+  wrap.append(h("div", { class: "ax-seg", style: "grid-template-columns:1.3fr 1fr 1fr" },
+    h("button", { class: ARCU.tab === "yomi" ? "on" : "", onclick: () => { ARCU.tab = "yomi"; arcRender(); } }, window.YART ? YART.img("tower", 20) : "", "ヨミの塔"),
     h("button", { class: ARCU.tab === "slot" ? "on" : "", onclick: () => { ARCU.tab = "slot"; arcRender(); } }, spr("cherry", 22), "スロット", A.clear.slot ? h("span", { class: "st" }, "★" + A.clear.slot) : null),
     h("button", { class: ARCU.tab === "poker" ? "on" : "", onclick: () => { ARCU.tab = "poker"; arcRender(); } }, spr(lockedP ? "lock" : "j_suitS", 20), "ポーカー", A.clear.poker ? h("span", { class: "st" }, "★" + A.clear.poker) : null)));
   const body = h("div", { id: "ar-body" });
@@ -376,14 +378,15 @@ function viewArcade(main){
   const old = h("details", { class: "panel ax-old" }, h("summary", { style: "cursor:pointer;font-weight:700" }, "🏥 前の病院（部門・施設・当直）"));
   let done = false;
   old.addEventListener("toggle", () => { if (old.open && !done){ done = true; const d = h("div", { class: "pl-stack", style: "margin-top:10px" }); old.append(d); try { viewHospital(d, true); } catch(e){ console.warn(e); d.append(h("p", { class: "muted" }, "読み込めませんでした")); } } });
-  main.append(old);
+  if (ARCU.tab !== "yomi") main.append(old);
 }
 function arcRender(){ const y = window.scrollY; route(true); window.scrollTo(0, y); }
 function arcRenderBody(body){
   body = body || $("#ar-body"); if (!body) return;
   body.innerHTML = ""; closeSheet();
   const tk = $("#ar-tk"); if (tk) tk.textContent = String(arcTickets().left);
-  if (ARCU.tab === "poker") pokerView(body); else slotView(body);
+  if (ARCU.tab === "yomi" && window.yomiView) window.yomiView(body);
+  else if (ARCU.tab === "poker") pokerView(body); else slotView(body);
 }
 function arcLevelPicker(g){
   const A = arc(), max = A.clear[g] + 1;
@@ -828,7 +831,9 @@ function pkRules(){
 function arcStrip(){
   const A = arc(), t = arcTickets();
   let st = "";
-  if (A.poker && !A.poker.over) st = `ポーカー ステージ${A.poker.ante + 1}`;
+  const ys = window.yomiStrip ? window.yomiStrip() : "";
+  if (ys) st = ys;
+  else if (A.poker && !A.poker.over) st = `ポーカー ステージ${A.poker.ante + 1}`;
   else if (A.slot && !A.slot.over) st = `スロット 家賃${A.slot.rent}/12`;
   return h("button", { class: "hp-strip", onclick: () => go("hospital") },
     spr(A.clear.slot ? "j_suitS" : "cherry", 32),
