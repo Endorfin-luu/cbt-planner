@@ -178,5 +178,56 @@ ART.pattern = function(key, a, b, n = 4){
   for (let j = 0; j < n * 4; j++) for (let i = 0; i < n * 4; i++) if ((i * 7 + j * 13) % 11 === 0 || ((i + j) % (n * 2) === 0 && i % 2 === 0)) x.fillRect(i, j, 1, 1);
   const u = c.toDataURL(); urlCache.set(k, u); return u;
 };
+// キャラクター（大家さん・ディーラー、24x24、表情3種）と紙吹雪
+Object.assign(SPR, {
+  ll_normal: { p: {"o": "#2a1a10", "s": "#f2c8a0", "S": "#d49a74", "h": "#dcdce6", "H": "#9a9aaa", "g": "#2b2b33", "l": "#cfeaff", "m": "#f4f4f8", "c": "#8a5a2b", "C": "#6a4220", "w": "#ffffff", "k": "#2b1606", "r": "#b5524a", "b": "#f0a090"}, m: ["........................", "..........oooo..........", "........oossssoo........", ".......oswwssssso.......", ".....oosswsssssssoo.....", "....ohhsssssssssshho....", "...ohhhsssssssssshhho...", "...ohhhsHHHsssHHHhhHo...", "...ohhHggggssgggghhHo...", "...osHHgllggggllghHso...", "..ossssgkkgssgkkgSSsSo..", "...osssggggsSggggSSSo...", "...osssbssssSSSSSbSSo...", "....oosssmmmmmmmSSoo....", "......osmmmkkkmmmo......", ".......ossSSSSSSo.......", "........ooSSSSSo........", "......ooowSSSSSooo......", ".....occccwwCwcccco.....", "....occccccwCcccccco....", "...occcccccwCccccccco...", "...occcccccCCCcccccco...", "...oCCCcccccCcccccCCCo..", "..ocCCCcccccCcccccCCCo.."] },
+  ll_happy: { p: {"o": "#2a1a10", "s": "#f2c8a0", "S": "#d49a74", "h": "#dcdce6", "H": "#9a9aaa", "g": "#2b2b33", "l": "#cfeaff", "m": "#f4f4f8", "c": "#8a5a2b", "C": "#6a4220", "w": "#ffffff", "k": "#2b1606", "r": "#b5524a", "b": "#f0a090"}, m: ["........................", "..........oooo..........", "........oossssoo........", ".......oswwssssso.......", ".....oosswsssssssoo.....", "....ohhsssssssssshho....", "...ohhhsssssssssshhho...", "...ohhhsHHHsssHHHhhHo...", "...ohhHggggssgggghhHo...", "...osHHglkgggglkghHso...", "..ossssgklgssgklgSSsSo..", "...osssggggsSggggSSSo...", "...osssbssssSSSSSbSSo...", "....oosssmmmmmmmSSoo....", "......osmmmrrrmmmo......", ".......ossSrrrSSo.......", "........ooSSSSSo........", "......ooowSSSSSooo......", ".....occccwwCwcccco.....", "....occccccwCcccccco....", "...occcccccwCccccccco...", "...occcccccCCCcccccco...", "...oCCCcccccCcccccCCCo..", "..ocCCCcccccCcccccCCCo.."] },
+  ll_angry: { p: {"o": "#2a1a10", "s": "#f2c8a0", "S": "#d49a74", "h": "#dcdce6", "H": "#9a9aaa", "g": "#2b2b33", "l": "#cfeaff", "m": "#f4f4f8", "c": "#8a5a2b", "C": "#6a4220", "w": "#ffffff", "k": "#2b1606", "r": "#b5524a", "b": "#f0a090"}, m: ["........................", "..........oooo..........", "........oossssoo........", ".......oswwssssso.......", ".....oosswsssssssoo.....", "....ohhsssssssssshho....", "...ohhhsssssssssshhho...", "...ohhhsHsssssssHhhHo...", "...ohhHggggssgggghhHo...", "...osHHgllggggllghHso...", "..ossssgkkgssgkkgSSsSo..", "...osssggggsSggggSSSo...", "...osssbssssSSSSSbSSo...", "....oosssmmmmmmmSSoo....", "......osmmmSSSmmmo......", ".......ossSkkkSSo.......", "........ooSSSSSo........", "......ooowSSSSSooo......", ".....occccwwCwcccco.....", "....occccccwCcccccco....", "...occcccccwCccccccco...", "...occcccccCCCcccccco...", "...oCCCcccccCcccccCCCo..", "..ocCCCcccccCcccccCCCo.."] },
+  dl_normal: { p: {"o": "#1a1410", "s": "#f6d0aa", "S": "#d9a57c", "n": "#4a2e1a", "N": "#2e1b0e", "g": "#5fd06a", "G": "#2fa35a", "D": "#1d6b38", "w": "#ffffff", "v": "#2b2b40", "V": "#1b1b2a", "r": "#d63a2f", "R": "#8e2219", "k": "#1a0e05", "b": "#f2a08a"}, m: ["........................", "........oooooooo........", "......oonnnnnnnnoo......", ".....onnnnnnnnnnnno.....", "....onnnnnnnnnnnnnno....", "....onnnnnnnnnnnnNNo....", "...oggggggggggggggggo...", "..oGGGGGGGGGGGGGGGGGGo..", ".oGGGGGGGGGGGGGGGGGGGGo.", "..oDDDDDDDDDDDDDDDDDDDo.", "...osnnsssssssNNNNnnoo..", "...osssskwssssskwssSo...", "...osssskkssssskksSSo...", "....oosbssssSksssboo....", "......ossskkkssSSo......", ".......ossssssSSo.......", "........osssSSSo........", "........ooSSSSSo........", ".....ooovwrrorrvooo.....", "....ovvvvwrrRrrvvvvo....", "....ovvvvwrrorrvvvvo....", "...ovvvvvvwwvwvvvvvvo...", "...oVVVvvvwwwwvvvvVVVo..", "..ovVVVvvvwwvwvvvvVVVo.."] },
+  dl_happy: { p: {"o": "#1a1410", "s": "#f6d0aa", "S": "#d9a57c", "n": "#4a2e1a", "N": "#2e1b0e", "g": "#5fd06a", "G": "#2fa35a", "D": "#1d6b38", "w": "#ffffff", "v": "#2b2b40", "V": "#1b1b2a", "r": "#d63a2f", "R": "#8e2219", "k": "#1a0e05", "b": "#f2a08a"}, m: ["........................", "........oooooooo........", "......oonnnnnnnnoo......", ".....onnnnnnnnnnnno.....", "....onnnnnnnnnnnnnno....", "....onnnnnnnnnnnnNNo....", "...oggggggggggggggggo...", "..oGGGGGGGGGGGGGGGGGGo..", ".oGGGGGGGGGGGGGGGGGGGGo.", "..oDDDDDDDDDDDDDDDDDDDo.", "...osnnsssssssssssnnoo..", "...osssssksssssksssSo...", "...ossssksksssksksSSo...", "....oosbssssSssssboo....", "......ossskkkkkSSo......", ".......osssrrrSSo.......", "........osssSSSo........", "........ooSSSSSo........", ".....ooovwrrorrvooo.....", "....ovvvvwrrRrrvvvvo....", "....ovvvvwrrorrvvvvo....", "...ovvvvvvwwvwvvvvvvo...", "...oVVVvvvwwwwvvvvVVVo..", "..ovVVVvvvwwvwvvvvVVVo.."] },
+  dl_wow: { p: {"o": "#1a1410", "s": "#f6d0aa", "S": "#d9a57c", "n": "#4a2e1a", "N": "#2e1b0e", "g": "#5fd06a", "G": "#2fa35a", "D": "#1d6b38", "w": "#ffffff", "v": "#2b2b40", "V": "#1b1b2a", "r": "#d63a2f", "R": "#8e2219", "k": "#1a0e05", "b": "#f2a08a"}, m: ["........................", "........oooooooo........", "......oonnnnnnnnoo......", ".....onnnnnnnnnnnno.....", "....onnnnnnnnnnnnnno....", "....onnnnnnnnnnnnNNo....", "...oggggggggggggggggo...", "..oGGGGGGGGGGGGGGGGGGo..", ".oGGGGGGGGGGGGGGGGGGGGo.", "..oDDDDDDDDDDDDDDDDDDDo.", "...osnnsssssssssssnnoo..", "...osssswkssssswkssSo...", "...osssskkssssskksSSo...", "....oosbssssSssssboo....", "......ossssrrrsSSo......", ".......osssrkrSSo.......", "........osssSSSo........", "........ooSSSSSo........", ".....ooovwrrorrvooo.....", "....ovvvvwrrRrrvvvvo....", "....ovvvvwrrorrvvvvo....", "...ovvvvvvwwvwvvvvvvo...", "...oVVVvvvwwwwvvvvVVVo..", "..ovVVVvvvwwvwvvvvVVVo.."] },
+  cf0: { p: {"x": "#ffd447"}, m: [".x.", "xxx", ".x."] },
+  cf1: { p: {"x": "#e8574a"}, m: [".x.", "xxx", ".x."] },
+  cf2: { p: {"x": "#4fa3e8"}, m: [".x.", "xxx", ".x."] },
+  cf3: { p: {"x": "#5fd06a"}, m: [".x.", "xxx", ".x."] },
+  cf4: { p: {"x": "#a46ff0"}, m: [".x.", "xxx", ".x."] }
+});
+
+/** 夜の街（背景）。w x h の小さな絵を作って data URL を返す。seed で同じ街になる */
+ART.skyline = function(w = 200, h = 56, seed = 7){
+  const k = `sky:${w}:${h}:${seed}`; if (urlCache.has(k)) return urlCache.get(k);
+  let s = seed >>> 0; const R = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const c = cv(w, h), x = c.getContext("2d");
+  const bands = ["#120c20", "#1a1230", "#241640", "#33194e", "#4a1f5e", "#6a2a66"];
+  const bh = h / bands.length;
+  bands.forEach((col, i) => { x.fillStyle = col; x.fillRect(0, Math.floor(i * bh), w, Math.ceil(bh) + 1); });
+  // 帯の境目をディザで混ぜる
+  for (let i = 1; i < bands.length; i++){ const y0 = Math.floor(i * bh); x.fillStyle = bands[i]; for (let xx = 0; xx < w; xx += 2) x.fillRect(xx + (i % 2), y0 - 1, 1, 1); }
+  // 星
+  for (let i = 0; i < w * h / 60; i++){ const sx = Math.floor(R() * w), sy = Math.floor(R() * h * .55); x.fillStyle = R() < .2 ? "#ffd447" : "#ffffff"; x.globalAlpha = .4 + R() * .6; x.fillRect(sx, sy, 1, 1); }
+  x.globalAlpha = 1;
+  // 月
+  const mx = w - 26, my = 12;
+  for (let yy = -6; yy <= 6; yy++) for (let xx = -6; xx <= 6; xx++){ const d = xx * xx + yy * yy; if (d <= 36){ x.fillStyle = d > 26 ? "#e8d9a8" : "#fff4cc"; x.fillRect(mx + xx, my + yy, 1, 1); } }
+  x.fillStyle = "#e0cf98"; x.fillRect(mx - 2, my - 1, 2, 2); x.fillRect(mx + 2, my + 2, 1, 1);
+  // 遠くのビル
+  let px = 0;
+  while (px < w){ const bw = 6 + Math.floor(R() * 10), bh2 = 14 + Math.floor(R() * 16); x.fillStyle = "#2a1a44"; x.fillRect(px, h - bh2, bw, bh2);
+    for (let yy = h - bh2 + 3; yy < h - 2; yy += 3) for (let xx = px + 1; xx < px + bw - 1; xx += 2) if (R() < .18){ x.fillStyle = "#6a5a9a"; x.fillRect(xx, yy, 1, 1); }
+    px += bw + Math.floor(R() * 2); }
+  // 手前のビル
+  px = -2;
+  while (px < w){ const bw = 9 + Math.floor(R() * 14), bh2 = 18 + Math.floor(R() * 22); const top = h - bh2;
+    x.fillStyle = "#140d26"; x.fillRect(px, top, bw, bh2);
+    x.fillStyle = "#1f1438"; x.fillRect(px, top, 1, bh2);
+    if (R() < .35){ x.fillStyle = "#140d26"; x.fillRect(px + Math.floor(bw / 2), top - 4, 1, 4); x.fillStyle = "#ff4a4a"; x.fillRect(px + Math.floor(bw / 2), top - 5, 1, 1); }
+    for (let yy = top + 3; yy < h - 3; yy += 4) for (let xx = px + 2; xx < px + bw - 2; xx += 3) if (R() < .42){ x.fillStyle = R() < .8 ? "#ffd447" : "#ffb070"; x.fillRect(xx, yy, 2, 2); }
+    if (R() < .3 && bw > 12){ const ny = top + 4 + Math.floor(R() * 6); x.fillStyle = R() < .5 ? "#ff5ab4" : "#4ae0ff"; x.fillRect(px + 2, ny, bw - 4, 2); }
+    px += bw + Math.floor(R() * 3); }
+  // 地面
+  x.fillStyle = "#0b0716"; x.fillRect(0, h - 2, w, 2);
+  const u = c.toDataURL(); urlCache.set(k, u); return u;
+};
+
 window.ART = ART;
 })();
